@@ -11,35 +11,34 @@ const IndicatorGroupPanel = ({
     updateIndicator,
     removeIndicator,
     removeIndicatorGroup,
-    toggleIndicator
+    toggleIndicator,
+    minimizedTop
 }) => {
     const [isMinimized, setIsMinimized] = useState(false);
 
     if (!indicators || indicators.length === 0) return null;
 
     if (isMinimized) {
+        const icon = groupType === 'sma' ? '📈' :
+            groupType === 'rsi' ? '📊' :
+                groupType === 'macd' ? '📊' :
+                    groupType === 'bb' ? '📊' :
+                        groupType === 'stoch' ? '📊' :
+                            groupType === 'supertrend' ? '📊' :
+                                groupType === 'atr' ? '📊' :
+                                    groupType === 'ichimoku' ? '📊' :
+                                        groupType === 'tsi' ? '📊' :
+                                            groupType === 'ad' ? '📊' :
+                                                groupType === 'w52' ? '📈' : '📊';
         return (
-            <div
-                className={`indicator-panel minimized ${['rsi', 'macd', 'volume_profile'].includes(groupType) ? 'has-oscillator' : ''}`}
+            <button
+                className="indicator-panel-minimized-btn"
+                style={{ position: 'absolute', top: minimizedTop || '36px', right: 0 }}
                 onClick={() => setIsMinimized(false)}
                 title={`Expand ${title} settings`}
             >
-                <div className="minimized-header">
-                    <span>
-                        {groupType === 'rsi' ? '📊 RSI' :
-                            groupType === 'macd' ? '📊 MACD' :
-                                groupType === 'bb' ? '📊 BB' :
-                                    groupType === 'stoch' ? '📊 STOCH' :
-                                        groupType === 'supertrend' ? '📊 SUPERTREND' :
-                                            groupType === 'atr' ? '📊 ATR' :
-                                                groupType === 'ichimoku' ? '📊 ICHIMOKU' :
-                                                    groupType === 'tsi' ? '📊 TSI' :
-                                                        groupType === 'ad' ? '📊 ACCUM/DIST' :
-                                                            groupType === 'w52' ? '📈 52W' :
-                                                        groupType === 'volume_profile' ? '📊 VP' : '📈 SMA'}
-                    </span>
-                </div>
-            </div>
+                {icon}
+            </button>
         );
     }
 

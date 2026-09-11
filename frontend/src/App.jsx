@@ -484,6 +484,16 @@ function App() {
     const total = activePaneTypes.length + 3;
     return `calc(${(((3 + idx) * 100) / total).toFixed(3)}% + 6px)`;
   };
+
+  // Minimized settings buttons: pane indicators anchor to the top of their
+  // own pane; overlay indicators stack below the price pane's top area.
+  const OVERLAY_ORDER = ['sma', 'bb', 'supertrend', 'ichimoku', 'volume_profile', 'vp', 'w52'];
+  const activeOverlayTypes = OVERLAY_ORDER.filter(t => indicators.some(i => i.type === t && i.visible));
+  const minimizedTopFor = (type) => {
+    if (activePaneTypes.includes(type)) return paneLegendTop(type);
+    const idx = activeOverlayTypes.indexOf(type);
+    return `calc(36px + ${Math.max(0, idx) * 34}px)`;
+  };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       {showWelcome && (
@@ -801,6 +811,7 @@ function App() {
           <IndicatorPanel
             title="Moving Averages"
             groupType="sma"
+            minimizedTop={minimizedTopFor('sma')}
             indicators={indicators.filter(i => i.type === 'sma')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -811,6 +822,7 @@ function App() {
           <IndicatorPanel
             title="Relative Strength Index"
             groupType="rsi"
+            minimizedTop={minimizedTopFor('rsi')}
             indicators={indicators.filter(i => i.type === 'rsi')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -821,6 +833,7 @@ function App() {
           <IndicatorPanel
             title="Normalized MACD"
             groupType="macd"
+            minimizedTop={minimizedTopFor('macd')}
             indicators={indicators.filter(i => i.type === 'macd')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -831,6 +844,7 @@ function App() {
           <IndicatorPanel
             title="Volume Profile / HD"
             groupType="volume_profile"
+            minimizedTop={minimizedTopFor('volume_profile')}
             indicators={indicators.filter(i => i.type === 'volume_profile')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -841,6 +855,7 @@ function App() {
           <IndicatorPanel
             title="Bollinger Bands"
             groupType="bb"
+            minimizedTop={minimizedTopFor('bb')}
             indicators={indicators.filter(i => i.type === 'bb')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -851,6 +866,7 @@ function App() {
           <IndicatorPanel
             title="Stochastic Oscillator"
             groupType="stoch"
+            minimizedTop={minimizedTopFor('stoch')}
             indicators={indicators.filter(i => i.type === 'stoch')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -861,6 +877,7 @@ function App() {
           <IndicatorPanel
             title="SuperTrend"
             groupType="supertrend"
+            minimizedTop={minimizedTopFor('supertrend')}
             indicators={indicators.filter(i => i.type === 'supertrend')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -871,6 +888,7 @@ function App() {
           <IndicatorPanel
             title="Average True Range"
             groupType="atr"
+            minimizedTop={minimizedTopFor('atr')}
             indicators={indicators.filter(i => i.type === 'atr')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -881,6 +899,7 @@ function App() {
           <IndicatorPanel
             title="Ichimoku Cloud"
             groupType="ichimoku"
+            minimizedTop={minimizedTopFor('ichimoku')}
             indicators={indicators.filter(i => i.type === 'ichimoku')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -891,6 +910,7 @@ function App() {
           <IndicatorPanel
             title="TSI"
             groupType="tsi"
+            minimizedTop={minimizedTopFor('tsi')}
             indicators={indicators.filter(i => i.type === 'tsi')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -901,6 +921,7 @@ function App() {
           <IndicatorPanel
             title="Accumulation/Distribution"
             groupType="ad"
+            minimizedTop={minimizedTopFor('ad')}
             indicators={indicators.filter(i => i.type === 'ad')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
@@ -911,6 +932,7 @@ function App() {
           <IndicatorPanel
             title="52 Week High/Low"
             groupType="w52"
+            minimizedTop={minimizedTopFor('w52')}
             indicators={indicators.filter(i => i.type === 'w52')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
