@@ -171,7 +171,7 @@ body {
 
 .chart-legend-indicators {
   position: absolute;
-  left: 12px;
+  left: 70px;
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -183,22 +183,6 @@ body {
 
 .price-indicators {
   top: 36px;
-}
-
-.rsi-pane-indicators {
-  top: 80%;
-}
-
-.macd-pane-indicators {
-  top: 83%;
-}
-
-.atr-pane-indicators {
-  top: 86%;
-}
-
-.tsi-pane-indicators {
-  top: 89%;
 }
 
 .legend-item {

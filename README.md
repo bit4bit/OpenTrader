@@ -91,6 +91,7 @@ OpenTrader supports the following technical indicators:
 - **Average True Range (ATR)**
 - **Ichimoku Cloud**
 - **True Strength Index (TSI)**
+- **Accumulation/Distribution (A/D)**
 
 ## 🎨 Drawing Tools
 

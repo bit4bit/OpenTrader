@@ -15,6 +15,7 @@ const IndicatorSearch = ({ onAddIndicator, onClose }) => {
         { id: 'atr', name: 'Average True Range' },
         { id: 'ichimoku', name: 'Ichimoku Cloud' },
         { id: 'tsi', name: 'True Strength Index' },
+        { id: 'ad', name: 'Accumulation/Distribution' },
     ];
 
     const filtered = indicators.filter(ind =>

@@ -7,6 +7,8 @@ import IndicatorSearch from './components/IndicatorSearch';
 import SymbolSearch from './components/SymbolSearch';
 import DrawingToolbar from './components/DrawingToolbar';
 import { SMA_COLORS } from './Indicators/sma';
+import { formatADLValue } from './Indicators/adl';
+import { getActivePaneTypes } from './Indicators/panes';
 
 const STORAGE_KEY = 'opentrader_settings';
 const FIRST_VISIT_KEY = 'opentrader_first_visit';
@@ -47,7 +49,42 @@ function App() {
   const [showSymbolSearch, setShowSymbolSearch] = useState(false);
   const [activeTool, setActiveTool] = useState('cursor');
   const [drawings, setDrawings] = useState(savedSettings.drawings || []);
+  const [adFullData, setAdFullData] = useState(null);
+  const adFullKey = useRef('');
   const loadingMoreRef = useRef(false);
+
+  // Fetch full history for the Accumulation/Distribution indicator.
+  // A/D is cumulative, so its absolute values only match TradingView when
+  // accumulated over the entire available history, not just the loaded window.
+  useEffect(() => {
+    const adActive = indicators.some(i => i.type === 'ad' && i.visible);
+    if (!adActive) return;
+    const key = `${symbol}-${interval}`;
+    if (adFullKey.current === key) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await axios.get('/api/history/', {
+          params: { symbol, interval, range: 'max' },
+        });
+        if (cancelled) return;
+        const normalized = (response.data || [])
+          .filter(d => d.time != null)
+          .map(d => {
+            let t = Number(d.time);
+            if (t > 1e11) t = Math.floor(t / 1000);
+            else t = Math.floor(t);
+            return { ...d, time: t };
+          })
+          .sort((a, b) => a.time - b.time);
+        adFullKey.current = key;
+        setAdFullData(normalized);
+      } catch (e) {
+        if (!cancelled) console.warn('A/D full history fetch failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [symbol, interval, indicators]);
 
   // Persistence Hook: Save settings whenever they change
   useEffect(() => {
@@ -218,6 +255,7 @@ function App() {
     if (type === 'atr' && indicators.some(i => i.type === 'atr')) return;
     if (type === 'ichimoku' && indicators.some(i => i.type === 'ichimoku')) return;
     if (type === 'tsi' && indicators.some(i => i.type === 'tsi')) return;
+    if (type === 'ad' && indicators.some(i => i.type === 'ad')) return;
 
     if (type === 'sma') {
       const slots = DEFAULT_SMA_LENGTHS.map((length, i) => ({
@@ -355,6 +393,15 @@ function App() {
       }]);
     }
 
+    if (type === 'ad') {
+      setIndicators(prev => [...prev, {
+        id: 'ad-main',
+        type: 'ad',
+        visible: true,
+        color: '#2962ff',
+      }]);
+    }
+
     if (type === 'tsi') {
       setIndicators(prev => [...prev, {
         id: 'tsi-main',
@@ -416,6 +463,16 @@ function App() {
 
   const activeRsi = indicators.find(i => i.type === 'rsi' && i.visible);
 
+  // Pane indicator legends: position each at the top-left of its own pane.
+  // Price pane has stretch 3, each indicator pane stretch 1, so pane i starts
+  // at (3 + i) / (3 + n) of the chart height. Offset left to clear the toolbar.
+  const activePaneTypes = getActivePaneTypes(indicators);
+  const paneLegendTop = (type) => {
+    const idx = activePaneTypes.indexOf(type);
+    if (idx === -1) return undefined;
+    const total = activePaneTypes.length + 3;
+    return `calc(${(((3 + idx) * 100) / total).toFixed(3)}% + 6px)`;
+  };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       {showWelcome && (
@@ -573,7 +630,7 @@ function App() {
 
         {/* RSI LEGEND (In the RSI pane area) */}
         {activeRsi && (
-          <div className="chart-legend-indicators rsi-pane-indicators">
+          <div className="chart-legend-indicators" style={{ top: paneLegendTop('rsi') }}>
             <div className="legend-item">
               <span className="legend-bullet" style={{ backgroundColor: activeRsi.color }}></span>
               <span className="legend-label">RSI ({activeRsi.length}, {activeRsi.source})</span>
@@ -603,7 +660,7 @@ function App() {
 
         {/* TSI LEGEND */}
         {indicators.find(i => i.type === 'tsi' && i.visible) && (
-          <div className="chart-legend-indicators tsi-pane-indicators">
+          <div className="chart-legend-indicators" style={{ top: paneLegendTop('tsi') }}>
             {indicators.filter(i => i.type === 'tsi' && i.visible).map(ind => (
               <React.Fragment key={ind.id}>
                 <div className="legend-item">
@@ -627,7 +684,7 @@ function App() {
 
         {/* MACD LEGEND */}
         {indicators.find(i => i.type === 'macd' && i.visible) && (
-          <div className="chart-legend-indicators macd-pane-indicators">
+          <div className="chart-legend-indicators" style={{ top: paneLegendTop('macd') }}>
             <div className="legend-item">
               <span className="legend-bullet" style={{ backgroundColor: '#2962ff' }}></span>
               <span className="legend-label">MACD</span>
@@ -653,7 +710,7 @@ function App() {
 
         {/* STOCHASTIC LEGEND */}
         {indicators.find(i => i.type === 'stoch' && i.visible) && (
-          <div className="chart-legend-indicators stoch-pane-indicators">
+          <div className="chart-legend-indicators" style={{ top: paneLegendTop('stoch') }}>
             <div className="legend-item">
               <span className="legend-bullet" style={{ backgroundColor: '#2962ff' }}></span>
               <span className="legend-label">Stoch %K</span>
@@ -672,13 +729,27 @@ function App() {
         )}
         {/* ATR LEGEND */}
         {indicators.find(i => i.type === 'atr' && i.visible) && (
-          <div className="chart-legend-indicators atr-pane-indicators">
+          <div className="chart-legend-indicators" style={{ top: paneLegendTop('atr') }}>
             {indicators.filter(i => i.type === 'atr' && i.visible).map(ind => (
               <div key={ind.id} className="legend-item">
                 <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
                 <span className="legend-label">ATR ({ind.length})</span>
                 <span className="legend-value" style={{ color: ind.color }}>
                   {hoveredData?.atrs?.[ind.id]?.value?.toFixed(2) || ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* ACCUMULATION/DISTRIBUTION LEGEND */}
+        {indicators.find(i => i.type === 'ad' && i.visible) && (
+          <div className="chart-legend-indicators" style={{ top: paneLegendTop('ad') }}>
+            {indicators.filter(i => i.type === 'ad' && i.visible).map(ind => (
+              <div key={ind.id} className="legend-item">
+                <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
+                <span className="legend-label">Accum/Dist</span>
+                <span className="legend-value" style={{ color: ind.color }}>
+                  {hoveredData?.ads?.[ind.id]?.value != null ? formatADLValue(hoveredData.ads[ind.id].value) : ''}
                 </span>
               </div>
             ))}
@@ -800,6 +871,16 @@ function App() {
             removeIndicatorGroup={removeIndicatorGroup}
             toggleIndicator={toggleIndicator}
           />
+          {/* Accumulation/Distribution Panel */}
+          <IndicatorPanel
+            title="Accumulation/Distribution"
+            groupType="ad"
+            indicators={indicators.filter(i => i.type === 'ad')}
+            updateIndicator={updateIndicator}
+            removeIndicator={removeIndicator}
+            removeIndicatorGroup={removeIndicatorGroup}
+            toggleIndicator={toggleIndicator}
+          />
         </div>
 
         {loading && (
@@ -820,6 +901,7 @@ function App() {
         {data.length > 0 && (
           <Chart
             data={data}
+            adFullData={adFullData}
             chartType={chartType}
             symbol={symbol}
             interval={interval}

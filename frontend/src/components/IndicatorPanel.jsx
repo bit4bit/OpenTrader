@@ -34,6 +34,7 @@ const IndicatorGroupPanel = ({
                                             groupType === 'atr' ? '📊 ATR' :
                                                 groupType === 'ichimoku' ? '📊 ICHIMOKU' :
                                                     groupType === 'tsi' ? '📊 TSI' :
+                                                        groupType === 'ad' ? '📊 ACCUM/DIST' :
                                                         groupType === 'volume_profile' ? '📊 VP' : '📈 SMA'}
                     </span>
                 </div>
@@ -81,7 +82,8 @@ const IndicatorGroupPanel = ({
                                                             groupType === 'supertrend' ? `Supertrend (${ind.atrLength}, ${ind.factor})` :
                                                                 groupType === 'atr' ? `ATR (${ind.length})` :
                                                                     groupType === 'ichimoku' ? `Ichimoku Cloud` :
-                                                                        groupType === 'tsi' ? `TSI (${ind.longLength}, ${ind.shortLength}, ${ind.signalLength})` : 'Indicator'}
+                                                                        groupType === 'tsi' ? `TSI (${ind.longLength}, ${ind.shortLength}, ${ind.signalLength})` :
+                                                                            groupType === 'ad' ? 'Accum/Dist' : 'Indicator'}
                                 </label>
                             </div>
                             <div className="indicator-actions">

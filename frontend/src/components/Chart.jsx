@@ -14,6 +14,8 @@ import { computeBollingerBands } from '../Indicators/bollinger';
 import { computeStochastic } from '../Indicators/stoch';
 import { computeSuperTrend } from '../Indicators/supertrend';
 import { computeATR } from '../Indicators/atr';
+import { computeADL, formatADLValue } from '../Indicators/adl';
+import { getActivePaneTypes } from '../Indicators/panes';
 import { computeIchimoku } from '../Indicators/ichimoku';
 import { computeTSI } from '../Indicators/tsi';
 
@@ -48,6 +50,7 @@ class SyncPrimitive {
 
 const Chart = ({
     data,
+    adFullData,
     chartType,
     symbol,
     interval,
@@ -73,6 +76,8 @@ const Chart = ({
     const stochSeriesRef = useRef({});
     const supertrendSeriesRef = useRef({});
     const atrSeriesRef = useRef({});
+    const adSeriesRef = useRef({});
+    const lastPaneKey = useRef('');
     const ichimokuSeriesRef = useRef({});
     const tsiSeriesRef = useRef({});
     const vpRef = useRef(null);
@@ -163,6 +168,7 @@ const Chart = ({
                 stochs: {},
                 supertrend: {},
                 atrs: {},
+                ads: {},
                 ichimoku: {},
                 tsi: {},
             };
@@ -249,6 +255,13 @@ const Chart = ({
                 }
             });
 
+            Object.entries(adSeriesRef.current || {}).forEach(([id, series]) => {
+                const val = param.seriesData.get(series);
+                if (val) {
+                    results.ads[id] = { value: val.value };
+                }
+            });
+
             Object.entries(ichimokuSeriesRef.current).forEach(([id, seriesArr]) => {
                 const [tenkan, kijun, spanA, spanB, chikou] = seriesArr;
                 results.ichimoku[id] = {
@@ -297,6 +310,8 @@ const Chart = ({
             stochSeriesRef.current = {};
             supertrendSeriesRef.current = {};
             atrSeriesRef.current = {};
+            adSeriesRef.current = {};
+            lastPaneKey.current = '';
             ichimokuSeriesRef.current = {};
             tsiSeriesRef.current = {};
         };
@@ -1679,64 +1694,26 @@ const Chart = ({
     useEffect(() => {
         if (!chartRef.current || !data || data.length === 0) return;
 
-        const hasRsi = indicators.some(i => i.type === 'rsi' && i.visible);
-        const hasMacd = indicators.some(i => i.type === 'macd' && i.visible);
-        const hasStoch = indicators.some(i => i.type === 'stoch' && i.visible);
-        const hasAtr = indicators.some(i => i.type === 'atr' && i.visible);
-
-        const activePanes = [];
-        if (hasRsi) activePanes.push('rsi');
-        if (hasStoch) activePanes.push('stoch');
-        if (hasMacd) activePanes.push('macd');
-        if (hasAtr) activePanes.push('atr');
-
-        const oscillatorCount = activePanes.length;
-
-        // Layout margins
-        let priceBottom = 0.08;
-        let volTop = 0.82, volBottom = 0;
-
-        const marginsMap = {
-            rsi: { top: 0.80, bottom: 0.02 },
-            macd: { top: 0.80, bottom: 0.02 },
-            stoch: { top: 0.80, bottom: 0.02 },
-            atr: { top: 0.80, bottom: 0.02 },
-            tsi: { top: 0.80, bottom: 0.02 }
-        };
-
-        if (oscillatorCount === 1) {
-            priceBottom = 0.40;
-            volTop = 0.65; volBottom = 0.25;
-            marginsMap[activePanes[0]] = { top: 0.80, bottom: 0.02 };
-        } else if (oscillatorCount === 2) {
-            priceBottom = 0.55;
-            volTop = 0.48; volBottom = 0.40;
-            marginsMap[activePanes[0]] = { top: 0.62, bottom: 0.20 };
-            marginsMap[activePanes[1]] = { top: 0.82, bottom: 0.02 };
-        } else if (oscillatorCount === 3) {
-            priceBottom = 0.65;
-            volTop = 0.36; volBottom = 0.60;
-            marginsMap[activePanes[0]] = { top: 0.42, bottom: 0.40 };
-            marginsMap[activePanes[1]] = { top: 0.62, bottom: 0.20 };
-            marginsMap[activePanes[2]] = { top: 0.82, bottom: 0.02 };
-        } else if (oscillatorCount === 4) {
-            priceBottom = 0.72;
-            volTop = 0.30; volBottom = 0.65;
-            marginsMap[activePanes[0]] = { top: 0.36, bottom: 0.48 };
-            marginsMap[activePanes[1]] = { top: 0.52, bottom: 0.32 };
-            marginsMap[activePanes[2]] = { top: 0.68, bottom: 0.16 };
-            marginsMap[activePanes[3]] = { top: 0.84, bottom: 0.02 };
-        } else if (oscillatorCount === 5) {
-            priceBottom = 0.78;
-            volTop = 0.25; volBottom = 0.70;
-            marginsMap[activePanes[0]] = { top: 0.35, bottom: 0.52 };
-            marginsMap[activePanes[1]] = { top: 0.48, bottom: 0.39 };
-            marginsMap[activePanes[2]] = { top: 0.61, bottom: 0.26 };
-            marginsMap[activePanes[3]] = { top: 0.74, bottom: 0.13 };
-            marginsMap[activePanes[4]] = { top: 0.87, bottom: 0.01 };
+        // Pane indicators (oscillators) each get their own dedicated pane,
+        // TradingView-style, stacked in canonical order. When the active set
+        // changes, extra panes are rebuilt so ordering stays deterministic.
+        const activePaneTypes = getActivePaneTypes(indicators);
+        const paneKey = activePaneTypes.join(',');
+        if (paneKey !== lastPaneKey.current) {
+            while (chartRef.current.panes().length > 1) {
+                chartRef.current.removePane(chartRef.current.panes().length - 1);
+            }
+            [rsiSeriesRef, macdSeriesRef, stochSeriesRef, atrSeriesRef, tsiSeriesRef, adSeriesRef].forEach(ref => { ref.current = {}; });
+            for (let i = 0; i < activePaneTypes.length; i++) chartRef.current.addPane();
+            lastPaneKey.current = paneKey;
         }
+        // Price pane gets 3x the height of each indicator pane so pane
+        // boundaries are deterministic: share = 100 / (3 + n) percent.
+        chartRef.current.panes()[0].setStretchFactor(3);
+        chartRef.current.panes().slice(1).forEach(p => p.setStretchFactor(1));
+        const paneIndexOf = (type) => activePaneTypes.indexOf(type) + 1;
 
-        chartRef.current.priceScale('right').applyOptions({ scaleMargins: { top: 0.02, bottom: priceBottom } });
+        chartRef.current.priceScale('right').applyOptions({ scaleMargins: { top: 0.02, bottom: 0.12 } });
 
         if (!volumeSeriesRef.current) {
             volumeSeriesRef.current = chartRef.current.addSeries(HistogramSeries, {
@@ -1745,7 +1722,7 @@ const Chart = ({
                 priceScaleId: 'volume',
             });
         }
-        volumeSeriesRef.current.priceScale().applyOptions({ scaleMargins: { top: volTop, bottom: volBottom } });
+        volumeSeriesRef.current.priceScale().applyOptions({ scaleMargins: { top: 0.88, bottom: 0 } });
         volumeSeriesRef.current.setData(data.map(d => ({
             time: d.time,
             value: d.volume || 0,
@@ -1777,7 +1754,7 @@ const Chart = ({
 
         // Indicator Management
         const visibleIds = new Set(indicators.filter(ind => ind.visible).map(ind => ind.id));
-        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, ichimokuSeriesRef, tsiSeriesRef].forEach(ref => {
+        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, ichimokuSeriesRef, tsiSeriesRef].forEach(ref => {
             Object.keys(ref.current).forEach(id => {
                 if (!visibleIds.has(id)) {
                     try {
@@ -1803,18 +1780,18 @@ const Chart = ({
                 let existing = rsiSeriesRef.current[ind.id];
                 const results = computeRSI(data, ind);
                 if (!existing) {
-                    const opts = { priceScaleId: 'rsi', lineWidth: 1.5, crosshairMarkerVisible: false };
+                    const paneIndex = paneIndexOf('rsi');
+                    const opts = { lineWidth: 1.5, crosshairMarkerVisible: false };
                     existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.color }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.smoothColor }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.bbColor, lineStyle: 2 }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.bbColor, lineStyle: 2 }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' })
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.color }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.smoothColor }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.bbColor, lineStyle: 2 }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.bbColor, lineStyle: 2 }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }, paneIndex)
                     ];
                     rsiSeriesRef.current[ind.id] = existing;
                 }
-                chartRef.current.priceScale('rsi').applyOptions({ scaleMargins: marginsMap.rsi });
                 const [m, s, bu, bl, b70, b30] = existing;
                 const times = data.map(d => ({ time: d.time }));
                 b70.setData(times.map(t => ({ ...t, value: 70 }))); b30.setData(times.map(t => ({ ...t, value: 30 })));
@@ -1824,16 +1801,16 @@ const Chart = ({
                 let existing = macdSeriesRef.current[ind.id];
                 const res = computeMACD(data, ind);
                 if (!existing) {
-                    const opts = { priceScaleId: 'macd', lineWidth: 1.5, crosshairMarkerVisible: false };
+                    const paneIndex = paneIndexOf('macd');
+                    const opts = { lineWidth: 1.5, crosshairMarkerVisible: false };
                     existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: '#2962ff' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: '#ff9800' }),
-                        chartRef.current.addSeries(HistogramSeries, { priceScaleId: 'macd' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' })
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: '#2962ff' }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: '#ff9800' }, paneIndex),
+                        chartRef.current.addSeries(HistogramSeries, {}, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }, paneIndex)
                     ];
                     macdSeriesRef.current[ind.id] = existing;
                 }
-                chartRef.current.priceScale('macd').applyOptions({ scaleMargins: marginsMap.macd });
                 const [m, s, h, b0] = existing;
                 const times = data.map(d => ({ time: d.time }));
                 b0.setData(times.map(t => ({ ...t, value: 0 })));
@@ -1872,16 +1849,16 @@ const Chart = ({
                 let existing = stochSeriesRef.current[ind.id];
                 const res = computeStochastic(data, ind);
                 if (!existing) {
-                    const opts = { priceScaleId: 'stoch', lineWidth: 1.5, crosshairMarkerVisible: false };
+                    const paneIndex = paneIndexOf('stoch');
+                    const opts = { lineWidth: 1.5, crosshairMarkerVisible: false };
                     existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.kColor || '#2962ff' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.dColor || '#ff9800' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)', lineStyle: 2 }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)', lineStyle: 2 })
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.kColor || '#2962ff' }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.dColor || '#ff9800' }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)', lineStyle: 2 }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)', lineStyle: 2 }, paneIndex)
                     ];
                     stochSeriesRef.current[ind.id] = existing;
                 }
-                chartRef.current.priceScale('stoch').applyOptions({ scaleMargins: marginsMap.stoch });
                 const [k, d, upper, lower] = existing;
                 const times = data.map(d => ({ time: d.time }));
                 upper.setData(times.map(t => ({ ...t, value: ind.upperLine || 80 })));
@@ -1933,14 +1910,40 @@ const Chart = ({
                 const res = computeATR(data, ind);
                 if (!existing) {
                     existing = chartRef.current.addSeries(LineSeries, {
-                        priceScaleId: 'atr',
                         color: ind.color || '#ff5252',
                         lineWidth: 1.5,
                         crosshairMarkerVisible: false,
-                    });
+                    }, paneIndexOf('atr'));
                     atrSeriesRef.current[ind.id] = existing;
                 }
-                chartRef.current.priceScale('atr').applyOptions({ scaleMargins: marginsMap.atr });
+                existing.applyOptions({ color: ind.color });
+                existing.setData(res);
+            }
+            if (ind.type === 'ad' && ind.visible) {
+                // A/D gets its own dedicated pane (TradingView-style) so it has
+                // its own visible right-side ruler with volume-magnitude values.
+                let existing = adSeriesRef.current[ind.id];
+                // Compute over the full available history (A/D is cumulative),
+                // then slice to the currently loaded window.
+                const srcData = (adFullData && adFullData.length > 0) ? adFullData : data;
+                let res = computeADL(srcData);
+                if (srcData !== data && data.length > 0) {
+                    const firstTime = data[0].time;
+                    res = res.filter(p => p.time >= firstTime);
+                }
+                if (!existing) {
+                    existing = chartRef.current.addSeries(LineSeries, {
+                        color: ind.color || '#2962ff',
+                        lineWidth: 1.5,
+                        crosshairMarkerVisible: false,
+                        priceFormat: {
+                            type: 'custom',
+                            minMove: 1,
+                            formatter: formatADLValue,
+                        },
+                    }, paneIndexOf('ad'));
+                    adSeriesRef.current[ind.id] = existing;
+                }
                 existing.applyOptions({ color: ind.color });
                 existing.setData(res);
             }
@@ -1948,17 +1951,17 @@ const Chart = ({
                 let existing = tsiSeriesRef.current[ind.id];
                 const res = computeTSI(data, ind);
                 if (!existing) {
-                    const opts = { priceScaleId: 'tsi', lineWidth: 1.5, crosshairMarkerVisible: false };
+                    const paneIndex = paneIndexOf('tsi');
+                    const opts = { lineWidth: 1.5, crosshairMarkerVisible: false };
                     existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.color || '#2962ff' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.signalColor || '#ff9800', lineWidth: 1.2 }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.05)', lineStyle: 2 }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.05)', lineStyle: 2 })
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.color || '#2962ff' }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.signalColor || '#ff9800', lineWidth: 1.2 }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.05)', lineStyle: 2 }, paneIndex),
+                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.05)', lineStyle: 2 }, paneIndex)
                     ];
                     tsiSeriesRef.current[ind.id] = existing;
                 }
-                chartRef.current.priceScale('tsi').applyOptions({ scaleMargins: marginsMap.tsi });
                 const [tsi, sig, b0, b25, bN25] = existing;
                 const times = data.map(d => ({ time: d.time }));
                 b0.setData(times.map(t => ({ ...t, value: 0 })));
@@ -1998,7 +2001,7 @@ const Chart = ({
             if (lr) timeScale.setVisibleLogicalRange({ from: lr.from, to: lr.to + 20 });
             isFirstLoad.current = false;
         }
-    }, [data, chartType, indicators, symbol, interval]);
+    }, [data, adFullData, chartType, indicators, symbol, interval]);
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }} className={activeTool !== 'cursor' ? 'drawing-active' : ''}>

@@ -45,9 +45,9 @@ class TickerHistory(APIView):
                 # Convert unix timestamps to datetime
                 start_dt = datetime.fromtimestamp(int(start))
                 end_dt = datetime.fromtimestamp(int(end))
-                df = ticker.history(start=start_dt, end=end_dt, interval=interval)
+                df = ticker.history(start=start_dt, end=end_dt, interval=interval, auto_adjust=False)
             else:
-                df = ticker.history(period=period, interval=interval)
+                df = ticker.history(period=period, interval=interval, auto_adjust=False)
             
             if df.empty:
                 return Response({'error': 'No data found'}, status=status.HTTP_404_NOT_FOUND)
