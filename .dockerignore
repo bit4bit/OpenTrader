@@ -1,0 +1,7 @@
+frontend
+venv
+Screenshots
+.git
+db.sqlite3
+__pycache__
+*.pyc
