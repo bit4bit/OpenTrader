@@ -15,6 +15,7 @@ import { computeStochastic } from '../Indicators/stoch';
 import { computeSuperTrend } from '../Indicators/supertrend';
 import { computeATR } from '../Indicators/atr';
 import { computeADL, formatADLValue } from '../Indicators/adl';
+import { computeW52 } from '../Indicators/w52';
 import { getActivePaneTypes } from '../Indicators/panes';
 import { computeIchimoku } from '../Indicators/ichimoku';
 import { computeTSI } from '../Indicators/tsi';
@@ -77,6 +78,7 @@ const Chart = ({
     const supertrendSeriesRef = useRef({});
     const atrSeriesRef = useRef({});
     const adSeriesRef = useRef({});
+    const w52SeriesRef = useRef({});
     const lastPaneKey = useRef('');
     const ichimokuSeriesRef = useRef({});
     const tsiSeriesRef = useRef({});
@@ -169,6 +171,7 @@ const Chart = ({
                 supertrend: {},
                 atrs: {},
                 ads: {},
+                w52s: {},
                 ichimoku: {},
                 tsi: {},
             };
@@ -262,6 +265,18 @@ const Chart = ({
                 }
             });
 
+            Object.entries(w52SeriesRef.current || {}).forEach(([id, seriesArr]) => {
+                const [hi, lo] = seriesArr;
+                const hiVal = param.seriesData.get(hi);
+                const loVal = param.seriesData.get(lo);
+                if (hiVal || loVal) {
+                    results.w52s[id] = {
+                        high: hiVal?.value ?? null,
+                        low: loVal?.value ?? null,
+                    };
+                }
+            });
+
             Object.entries(ichimokuSeriesRef.current).forEach(([id, seriesArr]) => {
                 const [tenkan, kijun, spanA, spanB, chikou] = seriesArr;
                 results.ichimoku[id] = {
@@ -311,6 +326,7 @@ const Chart = ({
             supertrendSeriesRef.current = {};
             atrSeriesRef.current = {};
             adSeriesRef.current = {};
+            w52SeriesRef.current = {};
             lastPaneKey.current = '';
             ichimokuSeriesRef.current = {};
             tsiSeriesRef.current = {};
@@ -1754,7 +1770,7 @@ const Chart = ({
 
         // Indicator Management
         const visibleIds = new Set(indicators.filter(ind => ind.visible).map(ind => ind.id));
-        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, ichimokuSeriesRef, tsiSeriesRef].forEach(ref => {
+        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, w52SeriesRef, ichimokuSeriesRef, tsiSeriesRef].forEach(ref => {
             Object.keys(ref.current).forEach(id => {
                 if (!visibleIds.has(id)) {
                     try {
@@ -1946,6 +1962,28 @@ const Chart = ({
                 }
                 existing.applyOptions({ color: ind.color });
                 existing.setData(res);
+            }
+            if (ind.type === 'w52' && ind.visible) {
+                // Overlay on the price pane (Pine overlay=true), orange lines
+                let existing = w52SeriesRef.current[ind.id];
+                const res = computeW52(data, ind);
+                if (!existing) {
+                    const opts = {
+                        color: ind.color || '#ff9800',
+                        lineWidth: 1.5,
+                        crosshairMarkerVisible: false,
+                    };
+                    existing = [
+                        chartRef.current.addSeries(LineSeries, { ...opts, title: '52 Week High' }),
+                        chartRef.current.addSeries(LineSeries, { ...opts, title: '52 Week Low' }),
+                    ];
+                    w52SeriesRef.current[ind.id] = existing;
+                }
+                const [hi, lo] = existing;
+                hi.applyOptions({ color: ind.color });
+                lo.applyOptions({ color: ind.color });
+                hi.setData(res.high);
+                lo.setData(res.low);
             }
             if (ind.type === 'tsi' && ind.visible) {
                 let existing = tsiSeriesRef.current[ind.id];

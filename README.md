@@ -92,6 +92,7 @@ OpenTrader supports the following technical indicators:
 - **Ichimoku Cloud**
 - **True Strength Index (TSI)**
 - **Accumulation/Distribution (A/D)**
+- **52 Week High/Low**
 
 ## 🎨 Drawing Tools
 

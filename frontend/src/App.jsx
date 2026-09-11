@@ -256,6 +256,7 @@ function App() {
     if (type === 'ichimoku' && indicators.some(i => i.type === 'ichimoku')) return;
     if (type === 'tsi' && indicators.some(i => i.type === 'tsi')) return;
     if (type === 'ad' && indicators.some(i => i.type === 'ad')) return;
+    if (type === 'w52' && indicators.some(i => i.type === 'w52')) return;
 
     if (type === 'sma') {
       const slots = DEFAULT_SMA_LENGTHS.map((length, i) => ({
@@ -399,6 +400,16 @@ function App() {
         type: 'ad',
         visible: true,
         color: '#2962ff',
+      }]);
+    }
+
+    if (type === 'w52') {
+      setIndicators(prev => [...prev, {
+        id: 'w52-main',
+        type: 'w52',
+        basis: 'highlow',
+        visible: true,
+        color: '#ff9800',
       }]);
     }
 
@@ -573,6 +584,21 @@ function App() {
               </div>
             );
           })}
+        </div>
+
+        {/* 52 WEEK HIGH/LOW LEGEND */}
+        <div className="chart-legend-indicators price-indicators">
+          {indicators.filter(i => i.type === 'w52' && i.visible).map(ind => (
+            <div key={ind.id} className="legend-item">
+              <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
+              <span className="legend-label">52W{ind.basis === 'close' ? ' (Close)' : ''}</span>
+              <span className="legend-value" style={{ color: ind.color }}>
+                {hoveredData?.w52s?.[ind.id]?.high?.toFixed(2) || ''}
+                <span style={{ margin: '0 4px', opacity: 0.5 }}>/</span>
+                {hoveredData?.w52s?.[ind.id]?.low?.toFixed(2) || ''}
+              </span>
+            </div>
+          ))}
         </div>
 
         {/* SUPERTREND LEGEND */}
@@ -876,6 +902,16 @@ function App() {
             title="Accumulation/Distribution"
             groupType="ad"
             indicators={indicators.filter(i => i.type === 'ad')}
+            updateIndicator={updateIndicator}
+            removeIndicator={removeIndicator}
+            removeIndicatorGroup={removeIndicatorGroup}
+            toggleIndicator={toggleIndicator}
+          />
+          {/* 52 Week High/Low Panel */}
+          <IndicatorPanel
+            title="52 Week High/Low"
+            groupType="w52"
+            indicators={indicators.filter(i => i.type === 'w52')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
             removeIndicatorGroup={removeIndicatorGroup}

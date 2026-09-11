@@ -35,6 +35,7 @@ const IndicatorGroupPanel = ({
                                                 groupType === 'ichimoku' ? '📊 ICHIMOKU' :
                                                     groupType === 'tsi' ? '📊 TSI' :
                                                         groupType === 'ad' ? '📊 ACCUM/DIST' :
+                                                            groupType === 'w52' ? '📈 52W' :
                                                         groupType === 'volume_profile' ? '📊 VP' : '📈 SMA'}
                     </span>
                 </div>
@@ -83,7 +84,8 @@ const IndicatorGroupPanel = ({
                                                                 groupType === 'atr' ? `ATR (${ind.length})` :
                                                                     groupType === 'ichimoku' ? `Ichimoku Cloud` :
                                                                         groupType === 'tsi' ? `TSI (${ind.longLength}, ${ind.shortLength}, ${ind.signalLength})` :
-                                                                            groupType === 'ad' ? 'Accum/Dist' : 'Indicator'}
+                                                                            groupType === 'ad' ? 'Accum/Dist' :
+                                                                                groupType === 'w52' ? `52W High/Low (${ind.basis === 'close' ? 'Close' : 'Highs/Lows'})` : 'Indicator'}
                                 </label>
                             </div>
                             <div className="indicator-actions">
@@ -352,6 +354,21 @@ const IndicatorGroupPanel = ({
                                         type="number" min="1" max="500" value={ind.length}
                                         onChange={(e) => updateIndicator(ind.id, { length: Math.max(1, parseInt(e.target.value) || 1) })}
                                     />
+                                </div>
+                            </div>
+                        )}
+                        {/* 52 Week High/Low Settings */}
+                        {groupType === 'w52' && (
+                            <div className="indicator-settings rsi-grid">
+                                <div className="setting-item" style={{ flex: 1 }}>
+                                    <label>Base values on</label>
+                                    <select
+                                        value={ind.basis || 'highlow'}
+                                        onChange={(e) => updateIndicator(ind.id, { basis: e.target.value })}
+                                    >
+                                        <option value="highlow">Highs/Lows</option>
+                                        <option value="close">Close</option>
+                                    </select>
                                 </div>
                             </div>
                         )}

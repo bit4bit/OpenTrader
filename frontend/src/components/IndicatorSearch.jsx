@@ -16,6 +16,7 @@ const IndicatorSearch = ({ onAddIndicator, onClose }) => {
         { id: 'ichimoku', name: 'Ichimoku Cloud' },
         { id: 'tsi', name: 'True Strength Index' },
         { id: 'ad', name: 'Accumulation/Distribution' },
+        { id: 'w52', name: '52 Week High/Low' },
     ];
 
     const filtered = indicators.filter(ind =>
