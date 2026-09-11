@@ -79,6 +79,7 @@ const Chart = ({
     const atrSeriesRef = useRef({});
     const adSeriesRef = useRef({});
     const w52SeriesRef = useRef({});
+    const volSmaSeriesRef = useRef({});
     const lastPaneKey = useRef('');
     const ichimokuSeriesRef = useRef({});
     const tsiSeriesRef = useRef({});
@@ -172,6 +173,7 @@ const Chart = ({
                 atrs: {},
                 ads: {},
                 w52s: {},
+                volSmas: {},
                 ichimoku: {},
                 tsi: {},
             };
@@ -277,6 +279,13 @@ const Chart = ({
                 }
             });
 
+            Object.entries(volSmaSeriesRef.current || {}).forEach(([id, series]) => {
+                const val = param.seriesData.get(series);
+                if (val) {
+                    results.volSmas[id] = { value: val.value };
+                }
+            });
+
             Object.entries(ichimokuSeriesRef.current).forEach(([id, seriesArr]) => {
                 const [tenkan, kijun, spanA, spanB, chikou] = seriesArr;
                 results.ichimoku[id] = {
@@ -327,6 +336,7 @@ const Chart = ({
             atrSeriesRef.current = {};
             adSeriesRef.current = {};
             w52SeriesRef.current = {};
+            volSmaSeriesRef.current = {};
             lastPaneKey.current = '';
             ichimokuSeriesRef.current = {};
             tsiSeriesRef.current = {};
@@ -1770,7 +1780,7 @@ const Chart = ({
 
         // Indicator Management
         const visibleIds = new Set(indicators.filter(ind => ind.visible).map(ind => ind.id));
-        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, w52SeriesRef, ichimokuSeriesRef, tsiSeriesRef].forEach(ref => {
+        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, w52SeriesRef, volSmaSeriesRef, ichimokuSeriesRef, tsiSeriesRef].forEach(ref => {
             Object.keys(ref.current).forEach(id => {
                 if (!visibleIds.has(id)) {
                     try {
@@ -1984,6 +1994,23 @@ const Chart = ({
                 lo.applyOptions({ color: ind.color });
                 hi.setData(res.high);
                 lo.setData(res.low);
+            }
+            if (ind.type === 'vol_sma' && ind.visible) {
+                // SMA line over the volume histogram (same 'volume' scale)
+                let existing = volSmaSeriesRef.current[ind.id];
+                const res = computeSMA(data, ind.length, 'volume');
+                if (!existing) {
+                    existing = chartRef.current.addSeries(LineSeries, {
+                        priceScaleId: 'volume',
+                        color: ind.color || '#ff9800',
+                        lineWidth: 1.5,
+                        crosshairMarkerVisible: false,
+                        lastValueVisible: false,
+                    });
+                    volSmaSeriesRef.current[ind.id] = existing;
+                }
+                existing.applyOptions({ color: ind.color });
+                existing.setData(res);
             }
             if (ind.type === 'tsi' && ind.visible) {
                 let existing = tsiSeriesRef.current[ind.id];

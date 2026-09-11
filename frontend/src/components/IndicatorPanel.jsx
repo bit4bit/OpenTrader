@@ -29,7 +29,8 @@ const IndicatorGroupPanel = ({
                                     groupType === 'ichimoku' ? '📊' :
                                         groupType === 'tsi' ? '📊' :
                                             groupType === 'ad' ? '📊' :
-                                                groupType === 'w52' ? '📈' : '📊';
+                                                groupType === 'w52' ? '📈' :
+                                                    groupType === 'vol_sma' ? '📊' : '📊';
         return (
             <button
                 className="indicator-panel-minimized-btn"
@@ -84,7 +85,8 @@ const IndicatorGroupPanel = ({
                                                                     groupType === 'ichimoku' ? `Ichimoku Cloud` :
                                                                         groupType === 'tsi' ? `TSI (${ind.longLength}, ${ind.shortLength}, ${ind.signalLength})` :
                                                                             groupType === 'ad' ? 'Accum/Dist' :
-                                                                                groupType === 'w52' ? `52W High/Low (${ind.basis === 'close' ? 'Close' : 'Highs/Lows'})` : 'Indicator'}
+                                                                                groupType === 'w52' ? `52W High/Low (${ind.basis === 'close' ? 'Close' : 'Highs/Lows'})` :
+                                                                                    groupType === 'vol_sma' ? `Vol SMA (${ind.length})` : 'Indicator'}
                                 </label>
                             </div>
                             <div className="indicator-actions">
@@ -368,6 +370,18 @@ const IndicatorGroupPanel = ({
                                         <option value="highlow">Highs/Lows</option>
                                         <option value="close">Close</option>
                                     </select>
+                                </div>
+                            </div>
+                        )}
+                        {/* Volume SMA Settings */}
+                        {groupType === 'vol_sma' && (
+                            <div className="indicator-settings rsi-grid">
+                                <div className="setting-item">
+                                    <label>Length</label>
+                                    <input
+                                        type="number" min="1" max="500" value={ind.length}
+                                        onChange={(e) => updateIndicator(ind.id, { length: Math.max(1, parseInt(e.target.value) || 1) })}
+                                    />
                                 </div>
                             </div>
                         )}

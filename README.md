@@ -93,6 +93,7 @@ OpenTrader supports the following technical indicators:
 - **True Strength Index (TSI)**
 - **Accumulation/Distribution (A/D)**
 - **52 Week High/Low**
+- **Volume SMA**
 
 ## 🎨 Drawing Tools
 

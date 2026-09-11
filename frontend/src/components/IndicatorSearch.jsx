@@ -17,6 +17,7 @@ const IndicatorSearch = ({ onAddIndicator, onClose }) => {
         { id: 'tsi', name: 'True Strength Index' },
         { id: 'ad', name: 'Accumulation/Distribution' },
         { id: 'w52', name: '52 Week High/Low' },
+        { id: 'vol_sma', name: 'Volume SMA' },
     ];
 
     const filtered = indicators.filter(ind =>

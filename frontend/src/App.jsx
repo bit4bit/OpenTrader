@@ -257,6 +257,7 @@ function App() {
     if (type === 'tsi' && indicators.some(i => i.type === 'tsi')) return;
     if (type === 'ad' && indicators.some(i => i.type === 'ad')) return;
     if (type === 'w52' && indicators.some(i => i.type === 'w52')) return;
+    if (type === 'vol_sma' && indicators.some(i => i.type === 'vol_sma')) return;
 
     if (type === 'sma') {
       const slots = DEFAULT_SMA_LENGTHS.map((length, i) => ({
@@ -413,6 +414,16 @@ function App() {
       }]);
     }
 
+    if (type === 'vol_sma') {
+      setIndicators(prev => [...prev, {
+        id: 'vol-sma-main',
+        type: 'vol_sma',
+        length: 20,
+        visible: true,
+        color: '#ff9800',
+      }]);
+    }
+
     if (type === 'tsi') {
       setIndicators(prev => [...prev, {
         id: 'tsi-main',
@@ -487,7 +498,7 @@ function App() {
 
   // Minimized settings buttons: pane indicators anchor to the top of their
   // own pane; overlay indicators stack below the price pane's top area.
-  const OVERLAY_ORDER = ['sma', 'bb', 'supertrend', 'ichimoku', 'volume_profile', 'vp', 'w52'];
+  const OVERLAY_ORDER = ['sma', 'bb', 'supertrend', 'ichimoku', 'volume_profile', 'vp', 'w52', 'vol_sma'];
   const activeOverlayTypes = OVERLAY_ORDER.filter(t => indicators.some(i => i.type === t && i.visible));
   const minimizedTopFor = (type) => {
     if (activePaneTypes.includes(type)) return paneLegendTop(type);
@@ -606,6 +617,19 @@ function App() {
                 {hoveredData?.w52s?.[ind.id]?.high?.toFixed(2) || ''}
                 <span style={{ margin: '0 4px', opacity: 0.5 }}>/</span>
                 {hoveredData?.w52s?.[ind.id]?.low?.toFixed(2) || ''}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* VOLUME SMA LEGEND */}
+        <div className="chart-legend-indicators price-indicators">
+          {indicators.filter(i => i.type === 'vol_sma' && i.visible).map(ind => (
+            <div key={ind.id} className="legend-item">
+              <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
+              <span className="legend-label">Vol SMA ({ind.length})</span>
+              <span className="legend-value" style={{ color: ind.color }}>
+                {hoveredData?.volSmas?.[ind.id]?.value != null ? formatADLValue(hoveredData.volSmas[ind.id].value) : ''}
               </span>
             </div>
           ))}
@@ -932,12 +956,23 @@ function App() {
           <IndicatorPanel
             title="52 Week High/Low"
             groupType="w52"
-            minimizedTop={minimizedTopFor('w52')}
             indicators={indicators.filter(i => i.type === 'w52')}
             updateIndicator={updateIndicator}
             removeIndicator={removeIndicator}
             removeIndicatorGroup={removeIndicatorGroup}
             toggleIndicator={toggleIndicator}
+            minimizedTop={minimizedTopFor('w52')}
+          />
+          {/* Volume SMA Panel */}
+          <IndicatorPanel
+            title="Volume SMA"
+            groupType="vol_sma"
+            indicators={indicators.filter(i => i.type === 'vol_sma')}
+            updateIndicator={updateIndicator}
+            removeIndicator={removeIndicator}
+            removeIndicatorGroup={removeIndicatorGroup}
+            toggleIndicator={toggleIndicator}
+            minimizedTop={minimizedTopFor('vol_sma')}
           />
         </div>
 
