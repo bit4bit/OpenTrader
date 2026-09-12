@@ -1,16 +1,30 @@
-# React + Vite
+# frontend/
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite single-page app — the charting UI of OpenTrader, built on TradingView's Lightweight Charts.
 
-Currently, two official plugins are available:
+## Responsibilities
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Render one `lightweight-charts` instance per chart (series, indicators, drawing tools via SVG overlay).
+- Multi-chart flow layout with per-chart tiles (headers, legends, indicator panes).
+- Client state: auth token, sessions, charts collection, per-chart market data (fetch, refresh polling, pagination).
+- Chart synchronization: broadcast visible range and crosshair between locked charts.
+- Indicator math and the embedded JavaScript runtime for custom script indicators.
 
-## React Compiler
+## Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `src/App.jsx` — root: auth gate, session wiring, layout state, global toolbars. Kept thin; logic lives in hooks/modules.
+- `src/components/` — `Chart.jsx` (one chart), `ChartGrid.jsx` / `ChartPanel.jsx` (layout), toolbars, search modals, login screen.
+- `src/hooks/` — side-effectful state: `useAuth`, `useSessions`, `useCharts`, `useChartData`, etc.
+- `src/chart/` — pure, unit-tested presentation logic extracted from `Chart.jsx` (time formatting, Heikin Ashi, bar search, drawing interaction, pane layout, regression, note geometry).
+- `src/Indicators/` — pure indicator math, config factories (`actions.js`), pane ordering, and `dsl/` (the custom-indicator JS runtime).
+- `src/sync/` — chart registry broadcasting range/crosshair to peers when locked.
 
-## Expanding the ESLint configuration
+## Commands
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm run dev      # dev server
+npm test         # vitest unit tests
+npm run build    # production build into dist/
+```
+
+Note: `docker compose up` serves a build-time image — after any change here, run `docker compose build frontend && docker compose up -d frontend` and hard-refresh.
