@@ -36,6 +36,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
   const [showSymbolCatalog, setShowSymbolCatalog] = useState(false);
   const [symbolSearchMode, setSymbolSearchMode] = useState(null);
   const [activeTool, setActiveTool] = useState('cursor');
+  const [magnetEnabled, setMagnetEnabled] = useState(true);
 
   const activeChart = charts.find(c => c.id === activeChartId) || null;
 
@@ -100,6 +101,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
           <DrawingToolbar
             activeTool={activeTool}
             onSelectTool={handleSelectTool}
+            magnetEnabled={magnetEnabled}
+            onToggleMagnet={() => setMagnetEnabled(m => !m)}
           />
         )}
 
@@ -109,6 +112,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
           locked={locked}
           activeTool={activeTool}
           setActiveTool={setActiveTool}
+          magnetEnabled={magnetEnabled}
           onActivate={setActiveChartId}
           onClose={closeChart}
           onUpdate={updateChart}

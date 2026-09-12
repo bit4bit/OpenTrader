@@ -7,6 +7,7 @@ const ChartGrid = ({
     locked,
     activeTool,
     setActiveTool,
+    magnetEnabled,
     onActivate,
     onClose,
     onUpdate,
@@ -33,6 +34,7 @@ const ChartGrid = ({
                     isActive={chart.id === activeChartId}
                     locked={locked}
                     activeTool={chart.id === activeChartId ? activeTool : 'cursor'}
+                    magnetEnabled={magnetEnabled}
                     setActiveTool={setActiveTool}
                     onActivate={() => onActivate(chart.id)}
                     onClose={() => onClose(chart.id)}

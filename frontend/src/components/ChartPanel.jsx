@@ -29,6 +29,7 @@ const ChartPanel = ({
     locked,
     activeTool,
     setActiveTool,
+    magnetEnabled = true,
     onActivate,
     onClose,
     onUpdate,
@@ -236,6 +237,7 @@ const ChartPanel = ({
                         setDrawings={setDrawings}
                         activeTool={activeTool}
                         setActiveTool={setActiveTool}
+                        magnetEnabled={magnetEnabled}
                         onVisibleLogicalRangeChange={handleVisibleLogicalRangeChange}
                         onCrosshairMove={setHoveredData}
                         indicatorResults={indicatorResults}

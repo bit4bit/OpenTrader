@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     createChart,
     ColorType,
+    CrosshairMode,
     CandlestickSeries,
     LineSeries,
     HistogramSeries,
@@ -58,6 +59,7 @@ const Chart = ({
     setDrawings,
     activeTool,
     setActiveTool,
+    magnetEnabled = true,
     chartId,
     isActive = false,
     syncEnabled = false,
@@ -140,7 +142,7 @@ const Chart = ({
                 alignLabels: true,
             },
             crosshair: {
-                mode: 1,
+                mode: CrosshairMode.Magnet,
                 vertLine: {
                     color: '#758696',
                 },
@@ -236,6 +238,13 @@ const Chart = ({
             genericSeriesRef.current = {};
         };
     }, []); // Removed [activeTool] to prevent chart recreation
+
+    // Magnet off: free crosshair (Normal mode) so the cursor isn't anchored to bars
+    useEffect(() => {
+        chartRef.current?.applyOptions({
+            crosshair: { mode: magnetEnabled ? CrosshairMode.Magnet : CrosshairMode.Normal },
+        });
+    }, [magnetEnabled]);
 
     // Keyboard Shortcuts
     useEffect(() => {

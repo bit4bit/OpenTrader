@@ -1,7 +1,7 @@
 import React from 'react';
 import { useFavoriteTools } from '../hooks/useFavoriteTools';
 
-const DrawingToolbar = ({ activeTool, onSelectTool }) => {
+const DrawingToolbar = ({ activeTool, onSelectTool, magnetEnabled = true, onToggleMagnet }) => {
     const [openCategory, setOpenCategory] = React.useState(null);
     const { favorites, toggleFavorite } = useFavoriteTools();
 
@@ -258,6 +258,14 @@ const DrawingToolbar = ({ activeTool, onSelectTool }) => {
                     )}
                 </div>
             ))}
+            <div className="toolbar-divider" />
+            <button
+                className={`drawing-tool-btn ${magnetEnabled ? 'active' : ''}`}
+                onClick={onToggleMagnet}
+                title={magnetEnabled ? 'Magnet on: crosshair snaps to bars — click to point anywhere' : 'Magnet off: free crosshair — click to snap to bars'}
+            >
+                <span className="tool-icon">🧲</span>
+            </button>
         </div>
     );
 };
