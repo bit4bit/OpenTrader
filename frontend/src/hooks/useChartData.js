@@ -47,11 +47,16 @@ const refreshMsFor = (interval) => {
     return 60000;
 };
 
-export function useChartData(symbol, interval) {
+const historyParams = (symbol, provider, interval, extra = {}) => ({
+    symbol, ...(provider ? { provider } : {}), interval, ...extra,
+});
+
+export function useChartData(symbol, provider, interval) {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState(null);
+    const [unsupported, setUnsupported] = useState(false);
     const loadingMoreRef = useRef(false);
     const dataRef = useRef([]);
     useEffect(() => { dataRef.current = data; }, [data]);
@@ -62,17 +67,23 @@ export function useChartData(symbol, interval) {
             if (controller.signal.aborted) return;
             setLoading(true);
             setError(null);
+            setUnsupported(false);
         };
         const timer = setTimeout(start, 0);
         axios.get('/api/history/', {
-            params: { symbol, interval, range: initialRangeFor(interval) },
+            params: historyParams(symbol, provider, interval, { range: initialRangeFor(interval) }),
             signal: controller.signal,
         })
             .then(response => setData(mergeBars(response.data || [])))
             .catch(err => {
                 if (axios.isCancel(err)) return;
                 console.error('Fetch error:', err);
-                setError('Failed to load data for ' + symbol);
+                if (err.response?.status === 404) {
+                    setError('Symbol not supported by the configured providers');
+                    setUnsupported(true);
+                } else {
+                    setError('Failed to load data for ' + symbol);
+                }
                 setData([]);
             })
             .finally(() => {
@@ -82,14 +93,14 @@ export function useChartData(symbol, interval) {
             clearTimeout(timer);
             controller.abort();
         };
-    }, [symbol, interval]);
+    }, [symbol, provider, interval]);
 
     useEffect(() => {
         const intervalId = setInterval(async () => {
             if (loadingMoreRef.current || dataRef.current.length === 0) return;
             try {
                 const response = await axios.get('/api/history/', {
-                    params: { symbol, interval, range: refreshRangeFor(interval) },
+                    params: historyParams(symbol, provider, interval, { range: refreshRangeFor(interval) }),
                 });
                 if (response.data?.length > 0) {
                     setData(prev => mergeBars([...prev, ...response.data]));
@@ -99,7 +110,7 @@ export function useChartData(symbol, interval) {
             }
         }, refreshMsFor(interval));
         return () => clearInterval(intervalId);
-    }, [symbol, interval]);
+    }, [symbol, provider, interval]);
 
     const fetchMoreData = useCallback(async () => {
         const current = dataRef.current;
@@ -109,10 +120,10 @@ export function useChartData(symbol, interval) {
         setLoadingMore(true);
         try {
             const response = await axios.get('/api/history/', {
-                params: { symbol, interval, start: firstTime - historyOffsetFor(interval), end: firstTime },
+                params: historyParams(symbol, provider, interval, { start: firstTime - historyOffsetFor(interval), end: firstTime }),
             });
             if (response.data?.length > 0) {
-                setData(prev => mergeBars([...response.data, ...prev]));
+                setData(prev => mergeBars([...prev, ...response.data]));
             }
         } catch (err) {
             console.error('Fetch more error:', err);
@@ -120,13 +131,13 @@ export function useChartData(symbol, interval) {
             loadingMoreRef.current = false;
             setLoadingMore(false);
         }
-    }, [symbol, interval]);
+    }, [symbol, provider, interval]);
 
     const handleVisibleLogicalRangeChange = useCallback((range) => {
         if (range && range.from < 50) fetchMoreData();
     }, [fetchMoreData]);
 
-    return { data, loading, loadingMore, error, handleVisibleLogicalRangeChange };
+    return { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange };
 }
 
 export function useMarketIndexData(indicators, interval) {
@@ -165,18 +176,18 @@ export function useMarketIndexData(indicators, interval) {
     };
 }
 
-export function useAdFullData(symbol, interval, indicators) {
+export function useAdFullData(symbol, provider, interval, indicators) {
     const [adFullData, setAdFullData] = useState(null);
     const adFullKey = useRef('');
 
     useEffect(() => {
         const adActive = indicators.some(i => i.type === 'ad' && i.visible);
         if (!adActive) return;
-        const key = `${symbol}-${interval}`;
+        const key = `${symbol}-${provider}-${interval}`;
         if (adFullKey.current === key) return;
         let cancelled = false;
         axios.get('/api/history/', {
-            params: { symbol, interval, range: 'max' },
+            params: historyParams(symbol, provider, interval, { range: 'max' }),
         })
             .then(response => {
                 if (cancelled) return;
@@ -187,7 +198,7 @@ export function useAdFullData(symbol, interval, indicators) {
                 if (!cancelled) console.warn('A/D full history fetch failed:', err);
             });
         return () => { cancelled = true; };
-    }, [symbol, interval, indicators]);
+    }, [symbol, provider, interval, indicators]);
 
     return adFullData;
 }

@@ -5,12 +5,9 @@ from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
-import yfinance as yf
-import pandas as pd
 import math
-from datetime import datetime
-
 from .models import Session
+from .providers import registry
 
 
 def serialize_session(session):
@@ -81,22 +78,30 @@ class TickerSearch(APIView):
         query = request.query_params.get('q', '')
         if not query:
             return Response([])
-        
         try:
-            # yfinance doesn't have a direct "search" in the same way as the website
-            # but we can use the Ticker and info, or the newer Search functionality
-            search = yf.Search(query, max_results=10)
-            results = []
-            for quote in search.quotes:
-                results.append({
-                    'symbol': quote.get('symbol'),
-                    'name': quote.get('shortname') or quote.get('longname'),
-                    'type': quote.get('quoteType'),
-                    'exchange': quote.get('exchange')
-                })
-            return Response(results)
+            return Response(registry.search_all(query))
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProviderSymbols(APIView):
+    def get(self, request):
+        provider_name = request.query_params.get('provider')
+        try:
+            if provider_name:
+                names = [provider_name]
+            else:
+                names = registry.get_configured_provider_names()
+            catalogs = []
+            for name in names:
+                try:
+                    catalogs.extend(registry.get_catalog(name))
+                except Exception as e:
+                    return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(catalogs)
+        except KeyError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 def clean_value(v):
     return None if v is None or (isinstance(v, float) and math.isnan(v)) else v
@@ -109,24 +114,27 @@ class TickerHistory(APIView):
         period = request.query_params.get('range', '1mo')
         start = request.query_params.get('start')
         end = request.query_params.get('end')
-        
+        provider_name = request.query_params.get('provider') or None
+
         if not symbol:
             return Response({'error': 'Symbol is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
-            ticker = yf.Ticker(symbol)
-            
+            provider, _meta = registry.resolve_provider(symbol, provider_name)
+        except registry.SymbolNotSupported as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except KeyError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
             if start and end:
-                # Convert unix timestamps to datetime
-                start_dt = datetime.fromtimestamp(int(start))
-                end_dt = datetime.fromtimestamp(int(end))
-                df = ticker.history(start=start_dt, end=end_dt, interval=interval, auto_adjust=False)
+                df = provider.get_history(symbol, interval, start=int(start), end=int(end))
             else:
-                df = ticker.history(period=period, interval=interval, auto_adjust=False)
+                df = provider.get_history(symbol, interval, period=period)
             
             if df.empty:
                 return Response({'error': 'No data found'}, status=status.HTTP_404_NOT_FOUND)
-            
+
             # Reset index to get Date/Datetime as a column
             df = df.reset_index()
             

@@ -57,6 +57,7 @@ const Chart = ({
     smiData,
     chartType,
     symbol,
+    provider = null,
     interval,
     onVisibleLogicalRangeChange,
     onCrosshairMove,
@@ -100,7 +101,7 @@ const Chart = ({
 
     const isFirstLoad = useRef(true);
     const pendingScrollRef = useRef(null);
-    const lastSymbolInterval = useRef(`${symbol}-${interval}`);
+    const lastSymbolInterval = useRef(`${symbol}-${provider}-${interval}`);
     const lastChartType = useRef(chartType);
 
     const onRangeChangeRef = useRef(onVisibleLogicalRangeChange);
@@ -1781,12 +1782,12 @@ const Chart = ({
 
     // Reset FirstLoad tracking on Symbol or Interval change
     useEffect(() => {
-        const key = `${symbol}-${interval}`;
+        const key = `${symbol}-${provider}-${interval}`;
         if (lastSymbolInterval.current !== key) {
             isFirstLoad.current = true;
             lastSymbolInterval.current = key;
         }
-    }, [symbol, interval]);
+    }, [symbol, provider, interval]);
 
     // MAIN UPDATE LOOP: Price, Volume, and Indicators
     useEffect(() => {

@@ -3,6 +3,7 @@ import TopBar from './components/TopBar';
 import ChartGrid from './components/ChartGrid';
 import IndicatorSearch from './components/IndicatorSearch';
 import SymbolSearch from './components/SymbolSearch';
+import SymbolCatalogModal from './components/SymbolCatalogModal';
 import DrawingToolbar from './components/DrawingToolbar';
 import LoginScreen from './components/LoginScreen';
 import { useAuth } from './hooks/useAuth';
@@ -29,13 +30,14 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
   ));
 
   const [showIndicatorSearch, setShowIndicatorSearch] = useState(false);
+  const [showSymbolCatalog, setShowSymbolCatalog] = useState(false);
   const [symbolSearchMode, setSymbolSearchMode] = useState(null);
   const [activeTool, setActiveTool] = useState('cursor');
 
   const activeChart = charts.find(c => c.id === activeChartId) || null;
 
   useEffect(() => {
-    document.title = activeChart ? `Open trader - ${activeChart.symbol}` : 'Open trader';
+    document.title = activeChart ? `Open trader - ${activeChart.symbol?.symbol || ''}` : 'Open trader';
   }, [activeChart]);
 
   const addIndicator = (type) => {
@@ -43,11 +45,12 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
     updateChart(activeChart.id, c => ({ indicators: addIndicators(c.indicators, type) }));
   };
 
-  const handleSelectSymbol = (symbol) => {
+  const handleSelectSymbol = (selection) => {
+    const next = typeof selection === 'string' ? { symbol: selection, provider: null } : selection;
     if (symbolSearchMode === 'add') {
-      addChart(symbol);
+      addChart(next);
     } else if (activeChart) {
-      updateChart(activeChart.id, { symbol });
+      updateChart(activeChart.id, { symbol: next });
     }
   };
 
@@ -65,7 +68,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
   return (
     <>
       <TopBar
-        symbol={activeChart?.symbol || ''}
+        symbol={activeChart?.symbol?.symbol || ''}
+        symbolProvider={activeChart?.symbol?.provider || null}
         interval={activeChart?.interval || '1d'}
         chartType={activeChart?.chartType || 'candle'}
         hasActiveChart={!!activeChart}
@@ -73,6 +77,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
         setChartType={(chartType) => activeChart && updateChart(activeChart.id, { chartType })}
         openIndicatorSearch={() => activeChart && setShowIndicatorSearch(true)}
         openSymbolSearch={() => setSymbolSearchMode('change')}
+        openSymbolCatalog={() => setShowSymbolCatalog(true)}
         locked={locked}
         onToggleLock={toggleLock}
         onAddChart={() => setSymbolSearchMode('add')}
@@ -105,6 +110,14 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
           <IndicatorSearch
             onAddIndicator={addIndicator}
             onClose={() => setShowIndicatorSearch(false)}
+          />
+        )}
+
+        {showSymbolCatalog && (
+          <SymbolCatalogModal
+            onSelectSymbol={handleSelectSymbol}
+            onOpenInNewChart={addChart}
+            onClose={() => setShowSymbolCatalog(false)}
           />
         )}
 

@@ -75,11 +75,13 @@ const SessionMenu = ({ sessions, activeSession, onSwitchSession, onCreateSession
 
 const TopBar = ({
     symbol,
+    symbolProvider,
     interval, setInterval,
     chartType, setChartType,
     hasActiveChart,
     openIndicatorSearch,
     openSymbolSearch,
+    openSymbolCatalog,
     locked, onToggleLock,
     onAddChart,
     onCloseAll,
@@ -138,6 +140,14 @@ const TopBar = ({
                 >
                     <span className="search-icon">🔍</span>
                     <span className="current-symbol">{symbol || '—'}</span>
+                    {symbolProvider && <span className="current-symbol-provider" style={{ fontSize: '11px', opacity: 0.6, marginLeft: '6px' }}>{symbolProvider}</span>}
+                </button>
+                <button
+                    className="toolbar-btn"
+                    onClick={openSymbolCatalog}
+                    title="Browse all supported symbols"
+                >
+                    <span style={{ fontSize: '13px' }}>☰</span> Catalog
                 </button>
             </div>
 

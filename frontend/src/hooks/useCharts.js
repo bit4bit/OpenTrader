@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+const normalizeSymbol = (symbol) =>
+    typeof symbol === 'string' ? { symbol, provider: null } : symbol;
+
 const createChartConfig = (symbol, interval = '1d') => ({
     id: `chart-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    symbol,
+    symbol: normalizeSymbol(symbol),
     interval,
     chartType: 'candle',
     indicators: [],
@@ -15,10 +18,16 @@ const defaultLayout = () => {
     return { charts: [chart], activeChartId: chart.id, locked: false };
 };
 
+const normalizeLayout = (layout) => ({
+    ...layout,
+    charts: (layout.charts || []).map(c => ({ ...c, symbol: normalizeSymbol(c.symbol) })),
+});
+
 export function useCharts(initialLayout, onLayoutChange) {
-    const [layout] = useState(() => (
-        Array.isArray(initialLayout?.charts) ? initialLayout : defaultLayout()
-    ));
+    const [layout] = useState(() => {
+        const base = Array.isArray(initialLayout?.charts) ? initialLayout : defaultLayout();
+        return normalizeLayout(base);
+    });
     const [charts, setCharts] = useState(layout.charts);
     const [activeChartId, setActiveChartId] = useState(layout.activeChartId);
     const [locked, setLocked] = useState(layout.locked ?? false);

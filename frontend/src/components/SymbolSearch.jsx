@@ -26,7 +26,7 @@ const SymbolSearch = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
             }
             setLoading(true);
             try {
-                const response = await axios.get(`/api/search/?q=${query}`);
+                const response = await axios.get(`/api/search/`, { params: { q: query } });
                 setResults(response.data);
             } catch (error) {
                 console.error('Search error:', error);
@@ -38,6 +38,17 @@ const SymbolSearch = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
         const timer = setTimeout(fetchResults, 300);
         return () => clearTimeout(timer);
     }, [query]);
+
+    const select = (res) => {
+        onSelectSymbol({ symbol: res.symbol, provider: res.provider || null });
+        onClose();
+    };
+
+    const openInNewChart = (e, res) => {
+        e.stopPropagation();
+        onOpenInNewChart({ symbol: res.symbol, provider: res.provider || null });
+        onClose();
+    };
 
     return (
         <div className="indicator-search-overlay symbol-search-overlay" ref={containerRef}>
@@ -55,36 +66,34 @@ const SymbolSearch = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
                 {loading ? (
                     <div className="indicator-search-no-results">Searching...</div>
                 ) : results.length > 0 ? (
-                    results.map((res, i) => (
+                    results.map((res) => (
                         <div
-                            key={i}
+                            key={`${res.provider}-${res.symbol}`}
                             className="indicator-search-item symbol-item"
-                            onClick={() => {
-                                onSelectSymbol(res.symbol);
-                                onClose();
-                            }}
+                            onClick={() => select(res)}
                         >
                             <div className="symbol-item-main">
                                 <div>
                                     <span className="symbol-name">{res.symbol}</span>
                                     <span className="symbol-type" style={{ fontSize: '10px', opacity: 0.6, marginLeft: '8px' }}>{res.type}</span>
+                                    {res.provider && (
+                                        <span className="symbol-provider" style={{ fontSize: '10px', opacity: 0.75, marginLeft: '8px', border: '1px solid #4fc3f7', borderRadius: '4px', padding: '1px 5px', color: '#4fc3f7' }}>
+                                            {res.provider}
+                                        </span>
+                                    )}
                                 </div>
                                 {onOpenInNewChart && (
                                     <button
                                         className="symbol-new-chart-btn"
                                         title="Open in new chart"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onOpenInNewChart(res.symbol);
-                                            onClose();
-                                        }}
+                                        onClick={(e) => openInNewChart(e, res)}
                                     >
                                         ⊕ New chart
                                     </button>
                                 )}
                             </div>
                             <div className="symbol-item-desc" style={{ fontSize: '12px', opacity: 0.7 }}>
-                                {res.name} • {res.exchange}
+                                {[res.fullname || res.name, res.exchange, res.sector].filter(Boolean).join(' • ')}
                             </div>
                         </div>
                     ))

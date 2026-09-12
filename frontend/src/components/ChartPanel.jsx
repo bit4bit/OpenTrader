@@ -43,9 +43,11 @@ const ChartPanel = ({
     onClose,
     onUpdate,
 }) => {
-    const { symbol, interval, chartType, indicators, drawings, minimizedPanels = [] } = chart;
-    const { data, loading, loadingMore, error, handleVisibleLogicalRangeChange } = useChartData(symbol, interval);
-    const adFullData = useAdFullData(symbol, interval, indicators);
+    const { symbol: chartSymbol, interval, chartType, indicators, drawings, minimizedPanels = [] } = chart;
+    const symbol = chartSymbol?.symbol || '';
+    const provider = chartSymbol?.provider || null;
+    const { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange } = useChartData(symbol, provider, interval);
+    const adFullData = useAdFullData(symbol, provider, interval, indicators);
     const { data: smiData, invalidSymbols: smiInvalidSymbols } = useMarketIndexData(indicators, interval);
     const [hoveredData, setHoveredData] = useState(null);
 
@@ -98,7 +100,7 @@ const ChartPanel = ({
             onMouseDown={onActivate}
         >
             <div className="chart-tile-header">
-                <span className="chart-tile-title">{symbol} · {interval}</span>
+                <span className="chart-tile-title">{symbol}{provider ? ` · ${provider}` : ''} · {interval}</span>
                 <button
                     className="chart-tile-close"
                     title="Close chart"
@@ -401,6 +403,15 @@ const ChartPanel = ({
                 {error && !loading && (
                     <div className="chart-error-overlay">
                         {error}
+                        {unsupported && (
+                            <button
+                                className="toolbar-btn"
+                                style={{ marginTop: '10px' }}
+                                onClick={() => onUpdate(chart.id, { symbol: { symbol: '', provider: null } })}
+                            >
+                                Change symbol
+                            </button>
+                        )}
                     </div>
                 )}
                 {data.length > 0 && (
@@ -413,6 +424,7 @@ const ChartPanel = ({
                         smiData={smiData}
                         chartType={chartType}
                         symbol={symbol}
+                        provider={provider}
                         interval={interval}
                         indicators={indicators}
                         drawings={drawings}
