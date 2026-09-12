@@ -101,7 +101,7 @@ const Chart = ({
     const onRangeChangeRef = useRef(onVisibleLogicalRangeChange);
     const onCrosshairMoveRef = useRef(onCrosshairMove);
     const syncEnabledRef = useRef(syncEnabled);
-    const syncEntryRef = useRef({ chart: null, series: null, findPrice: null });
+    const syncEntryRef = useRef({ chart: null, series: null, findNearestBar: null });
     const dataRef = useRef(data);
     const activeToolRef = useRef(activeTool);
     useEffect(() => { onRangeChangeRef.current = onVisibleLogicalRangeChange; }, [onVisibleLogicalRangeChange]);
@@ -144,8 +144,18 @@ const Chart = ({
         chartRef.current = chart;
 
         syncEntryRef.current.chart = chart;
-        syncEntryRef.current.findPrice = (time) =>
-            dataRef.current.find(d => d.time === time)?.close ?? null;
+        syncEntryRef.current.findNearestBar = (time) => {
+            const bars = dataRef.current;
+            if (bars.length === 0) return null;
+            let lo = 0, hi = bars.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (bars[mid].time < time) lo = mid + 1; else hi = mid;
+            }
+            const prev = bars[lo - 1];
+            const best = prev && Math.abs(prev.time - time) <= Math.abs(bars[lo].time - time) ? prev : bars[lo];
+            return { time: best.time, price: best.close };
+        };
         const unregister = chartId ? registerChart(chartId, syncEntryRef.current) : null;
 
         const rangeChangeHandler = (range) => {

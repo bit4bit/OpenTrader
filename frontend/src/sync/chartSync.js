@@ -31,14 +31,14 @@ export function broadcastRange(sourceId, range, enabled) {
 
 export function broadcastCrosshair(sourceId, time, price, enabled) {
     if (!enabled || applyingSync) return;
-    forEachPeer(sourceId, ({ chart, series, findPrice }) => {
-        if (time == null || !series || !findPrice) {
+    forEachPeer(sourceId, ({ chart, series, findNearestBar }) => {
+        if (time == null || !series || !findNearestBar) {
             chart.clearCrosshairPosition?.();
             return;
         }
-        const targetPrice = findPrice(time);
-        if (targetPrice != null) {
-            chart.setCrosshairPosition(targetPrice, time, series);
+        const bar = findNearestBar(time);
+        if (bar) {
+            chart.setCrosshairPosition(bar.price, bar.time, series);
         } else {
             chart.clearCrosshairPosition?.();
         }
