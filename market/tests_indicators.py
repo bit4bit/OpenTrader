@@ -48,7 +48,7 @@ class CustomIndicatorApiTests(TestCase):
     def test_patch_rejects_empty_name(self):
         indicator_id = self.create_indicator().json()['id']
         response = self.client.patch(f'/api/indicators/{indicator_id}/', {'name': ''},
-                                     content_type='application/json')
+                                    content_type='application/json')
         self.assertEqual(response.status_code, 400)
 
     def test_delete(self):

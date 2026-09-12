@@ -1,13 +1,23 @@
 /**
- * ta: standard library exposed to custom indicator scripts.
+ * ta: standard library exposed to indicator scripts.
  *
  * All functions operate on plain aligned arrays (number | null) and return
  * aligned arrays of the same length, so results can be plotted directly.
- * Built-in indicator modules are reused where their output shape allows it.
+ * Wherever a built-in indicator module exists, it is reused verbatim (via
+ * the align() adapter) so script results match the golden outputs exactly.
  */
 import { computeRSI } from '../rsi';
 import { computeMACD } from '../macd';
 import { computeATR } from '../atr';
+import { computeBollingerBands } from '../bollinger';
+import { computeStochastic } from '../stoch';
+import { computeSuperTrend } from '../supertrend';
+import { computeADL } from '../adl';
+import { computeW52 } from '../w52';
+import { computeTSI } from '../tsi';
+import { computeIchimoku } from '../ichimoku';
+import { computeVolumeProfile } from '../volumeProfile';
+import { computeMarketIndex } from '../marketIndex';
 
 function isValid(v) {
     return typeof v === 'number' && isFinite(v);
@@ -49,10 +59,10 @@ function stdev(src, length) {
     });
 }
 
-export function buildTa(data) {
+export function buildTa(data, barsBySymbol = {}) {
     const times = data.map(d => d.time);
 
-    // Adapter: built-in compute fns take (data-with-time, ...) and return
+    // Adapter: built-in compute fns take OHLCV objects and return
     // {time, value}[]; convert back to aligned arrays.
     function align(bars) {
         const out = new Array(data.length).fill(null);
@@ -63,6 +73,11 @@ export function buildTa(data) {
         }
         return out;
     }
+
+    // Wrap a compute fn that only needs a single source series.
+    const fromSource = (src) => src.map((v, i) => ({
+        time: times[i], open: v, high: v, low: v, close: v, volume: null,
+    }));
 
     return {
         sma: (src, length) => rolling(src, length, w => w.reduce((a, b) => a + b, 0) / w.length),
@@ -83,44 +98,66 @@ export function buildTa(data) {
         ohlc4: () => data.map(d => [d.open, d.high, d.low, d.close].every(isValid)
             ? (d.open + d.high + d.low + d.close) / 4 : null),
 
-        rsi: (src, length = 14) => {
-            const fakeData = src.map((v, i) => ({
-                time: times[i], open: v, high: v, low: v, close: v, volume: null,
-            }));
-            return align(computeRSI(fakeData, { length, source: 'close' }).rsi);
-        },
-        macd: (src, fastLength = 12, slowLength = 26, signalLength = 9) => {
-            const fakeData = src.map((v, i) => ({
-                time: times[i], open: v, high: v, low: v, close: v, volume: null,
-            }));
-            const res = computeMACD(fakeData, { fastLength, slowLength, signalLength });
+        rsi: (src, length = 14) =>
+            align(computeRSI(fromSource(src), { length, source: 'close' }).rsi),
+        macd: (src, fastLength = 12, slowLength = 26, signalLength = 9, normLookback = 100) => {
+            const res = computeMACD(fromSource(src), { fastLength, slowLength, signalLength, normLookback });
             return {
                 macd: align(res.macd),
                 signal: align(res.signal),
                 histogram: align(res.histogram),
             };
         },
+        bb: (src, length = 20, stdDev = 2) => {
+            const res = computeBollingerBands(fromSource(src), { length, stdDev, source: 'close' });
+            return { basis: align(res.basis), upper: align(res.upper), lower: align(res.lower) };
+        },
+        stoch: (high, low, close, length = 14, dLength = 3) => {
+            const fakeData = close.map((c, i) => ({
+                time: times[i], open: c, high: high[i], low: low[i], close: c, volume: null,
+            }));
+            const res = computeStochastic(fakeData, { length, dLength });
+            return { k: align(res.k), d: align(res.d) };
+        },
         atr: (length = 14) => align(computeATR(data, { length })),
-        bb: (src, length = 20, mult = 2) => {
-            const basis = rolling(src, length, w => w.reduce((a, b) => a + b, 0) / w.length);
-            const sd = stdev(src, length);
+        adl: () => align(computeADL(data)),
+        tsi: (longLength = 25, shortLength = 13, signalLength = 13) => {
+            const res = computeTSI(data, { longLength, shortLength, signalLength });
+            return { tsi: align(res.tsi), signal: align(res.signal) };
+        },
+        w52: (basis = 'highlow') => {
+            const res = computeW52(data, { basis });
+            return { high: align(res.high), low: align(res.low) };
+        },
+        supertrend: (atrLength = 10, factor = 3) => {
+            const res = computeSuperTrend(data, { atrLength, factor });
+            const up = new Array(data.length).fill(null);
+            const down = new Array(data.length).fill(null);
+            const indexByTime = new Map(times.map((t, i) => [t, i]));
+            for (const p of res) {
+                const i = indexByTime.get(p.time);
+                if (i === undefined) continue;
+                if (p.trend === 1) up[i] = p.value;
+                else down[i] = p.value;
+            }
+            return { up, down };
+        },
+        ichimoku: (conversionLength = 9, baseLength = 26, spanBLength = 52, laggingLength = 26) => {
+            const res = computeIchimoku(data, { conversionLength, baseLength, spanBLength, laggingLength });
             return {
-                basis,
-                upper: basis.map((v, i) => isValid(v) && isValid(sd[i]) ? v + mult * sd[i] : null),
-                lower: basis.map((v, i) => isValid(v) && isValid(sd[i]) ? v - mult * sd[i] : null),
+                tenkan: align(res.tenkan),
+                kijun: align(res.kijun),
+                spanA: align(res.spanA),
+                spanB: align(res.spanB),
+                chikou: align(res.chikou),
             };
         },
-        stoch: (high, low, close, kLength = 14, dLength = 3) => {
-            const k = close.map((c, i) => {
-                if (i < kLength - 1) return null;
-                const hh = high.slice(i - kLength + 1, i + 1);
-                const ll = low.slice(i - kLength + 1, i + 1);
-                if (![c, ...hh, ...ll].every(isValid)) return null;
-                const max = Math.max(...hh);
-                const min = Math.min(...ll);
-                return max === min ? 50 : ((c - min) / (max - min)) * 100;
-            });
-            return { k, d: rolling(k, dLength, w => w.reduce((a, b) => a + b, 0) / w.length) };
-        },
+
+        // Price-by-volume bins for the histogram() primitive.
+        volumeProfile: (priceBins = 40) => computeVolumeProfile(data, { priceBins }),
+
+        // Multi-symbol weighted index, aligned to the chart's bar times.
+        marketIndex: (constituents, baseValue = 100) =>
+            align(computeMarketIndex(barsBySymbol, constituents, baseValue)),
     };
 }

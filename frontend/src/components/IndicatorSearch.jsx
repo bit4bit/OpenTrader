@@ -1,29 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { INDICATOR_TYPES, indicatorTitle } from '../Indicators/scripts';
 
 const IndicatorSearch = ({ onAddIndicator, onClose }) => {
     const [query, setQuery] = useState('');
     const containerRef = useRef();
 
-    const indicators = [
-        { id: 'sma', name: 'Simple Moving Average' },
-        { id: 'rsi', name: 'Relative Strength Index' },
-        { id: 'macd', name: 'Normalized MACD' },
-        { id: 'volume_profile', name: 'Volume Profile / HD' },
-        { id: 'bb', name: 'Bollinger Bands' },
-        { id: 'stoch', name: 'Stochastic Oscillator' },
-        { id: 'supertrend', name: 'Super Trend' },
-        { id: 'atr', name: 'Average True Range' },
-        { id: 'ichimoku', name: 'Ichimoku Cloud' },
-        { id: 'tsi', name: 'True Strength Index' },
-        { id: 'ad', name: 'Accumulation/Distribution' },
-        { id: 'w52', name: '52 Week High/Low' },
-        { id: 'vol_sma', name: 'Volume SMA' },
-        { id: 'smi', name: 'Simple Market Index' },
-    ];
-
-    const filtered = indicators.filter(ind =>
-        ind.name.toLowerCase().includes(query.toLowerCase())
-    );
+    const filtered = INDICATOR_TYPES
+        .map(id => ({ id, name: indicatorTitle(id) }))
+        .filter(ind => ind.name.toLowerCase().includes(query.toLowerCase()));
 
     useEffect(() => {
         const handleClickOutside = (e) => {

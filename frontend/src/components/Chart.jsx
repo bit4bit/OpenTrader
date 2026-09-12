@@ -6,20 +6,9 @@ import {
     LineSeries,
     HistogramSeries,
 } from 'lightweight-charts';
-import { computeSMA } from '../Indicators/sma';
-import { computeRSI } from '../Indicators/rsi';
-import { computeMACD } from '../Indicators/macd';
-import { computeVolumeProfile } from '../Indicators/volumeProfile';
-import { computeBollingerBands } from '../Indicators/bollinger';
-import { computeStochastic } from '../Indicators/stoch';
-import { computeSuperTrend } from '../Indicators/supertrend';
-import { computeATR } from '../Indicators/atr';
-import { computeADL, formatADLValue } from '../Indicators/adl';
-import { computeMarketIndex } from '../Indicators/marketIndex';
-import { computeW52 } from '../Indicators/w52';
+import { formatADLValue } from '../Indicators/adl';
 import { getActivePaneTypes } from '../Indicators/panes';
-import { computeIchimoku } from '../Indicators/ichimoku';
-import { computeTSI } from '../Indicators/tsi';
+import { SCRIPT_TYPES, needsFullData, scriptPriceScale } from '../Indicators/scripts';
 import { registerChart, broadcastRange, broadcastCrosshair, isApplyingSync } from '../sync/chartSync';
 
 const INTRADAY_INTERVALS = ['1m', '5m', '15m', '1h', '4h'];
@@ -75,8 +64,6 @@ function getNoteCoordinates(drawing, ts, priceSeries) {
 
 const Chart = ({
     data,
-    adFullData,
-    smiData,
     chartType,
     symbol,
     provider = null,
@@ -91,8 +78,7 @@ const Chart = ({
     chartId,
     isActive = false,
     syncEnabled = false,
-    customResults = {},
-    customPaneIds = []
+    indicatorResults = {}
 }) => {
     const containerRef = useRef();
     const chartRef = useRef(null);
@@ -101,27 +87,12 @@ const Chart = ({
     const [previewDrawing, setPreviewDrawing] = useState(null);
     const drawingPointsRef = useRef([]);
     const volumeSeriesRef = useRef(null);
-    const smaSeriesRef = useRef({});
-    const rsiSeriesRef = useRef({});
-    const macdSeriesRef = useRef({});
-    const bbSeriesRef = useRef({});
-    const stochSeriesRef = useRef({});
-    const supertrendSeriesRef = useRef({});
-    const atrSeriesRef = useRef({});
-    const adSeriesRef = useRef({});
-    const smiSeriesRef = useRef({});
-    const w52SeriesRef = useRef({});
-    const volSmaSeriesRef = useRef({});
+    const genericSeriesRef = useRef({});
     const lastPaneKey = useRef('');
-    const ichimokuSeriesRef = useRef({});
-    const tsiSeriesRef = useRef({});
-    const customSeriesRef = useRef({});
     const vpRef = useRef(null);
-    const bbFillRef = useRef(null);
-    const ichimokuFillRef = useRef(null);
-    const [vpBins, setVpBins] = useState([]);
-    const [bbFillData, setBbFillData] = useState(null);
-    const [ichimokuFillData, setIchimokuFillData] = useState(null);
+    const fillsRef = useRef(null);
+    const [histogramsData, setHistogramsData] = useState([]);
+    const [fillsData, setFillsData] = useState([]);
     const [chartTick, setChartTick] = useState(0);
     const [noteDrag, setNoteDrag] = useState(null);
     const [notePositions, setNotePositions] = useState({});
@@ -254,153 +225,17 @@ const Chart = ({
 
             const results = {
                 price: param.seriesData.get(priceSeriesRef.current) ?? null,
-                smas: {},
-                rsis: {},
-                macds: {},
-                bbs: {},
-                stochs: {},
-                supertrend: {},
-                atrs: {},
-                ads: {},
-                smis: {},
-                w52s: {},
-                volSmas: {},
-                ichimoku: {},
-                tsi: {},
+                generic: {},
             };
 
-            Object.entries(smaSeriesRef.current).forEach(([id, series]) => {
-                const data = param.seriesData.get(series);
-                if (data) results.smas[id] = data.value;
-            });
-
-            Object.entries(rsiSeriesRef.current).forEach(([id, seriesArr]) => {
-                const [main, smoothed, bbUpper, bbLower] = seriesArr;
-                const mainVal = param.seriesData.get(main);
-                const smoothVal = param.seriesData.get(smoothed);
-                const bbuVal = param.seriesData.get(bbUpper);
-                const bblVal = param.seriesData.get(bbLower);
-
-                if (mainVal) {
-                    results.rsis[id] = {
-                        rsi: mainVal.value,
-                        smoothed: smoothVal?.value ?? null,
-                        bbUpper: bbuVal?.value ?? null,
-                        bbLower: bblVal?.value ?? null
-                    };
-                }
-            });
-
-            Object.entries(macdSeriesRef.current).forEach(([id, seriesArr]) => {
-                const [main, signal, hist] = seriesArr;
-                const mainVal = param.seriesData.get(main);
-                const signalVal = param.seriesData.get(signal);
-                const histVal = param.seriesData.get(hist);
-
-                if (mainVal) {
-                    results.macds[id] = {
-                        macd: mainVal.value,
-                        signal: signalVal?.value ?? null,
-                        histogram: histVal?.value ?? null
-                    };
-                }
-            });
-
-            Object.entries(bbSeriesRef.current).forEach(([id, seriesArr]) => {
-                const [basis, upper, lower] = seriesArr;
-                const bVal = param.seriesData.get(basis);
-                const uVal = param.seriesData.get(upper);
-                const lVal = param.seriesData.get(lower);
-                if (bVal) {
-                    results.bbs[id] = {
-                        basis: bVal.value,
-                        upper: uVal?.value ?? null,
-                        lower: lVal?.value ?? null
-                    };
-                }
-            });
-
-            Object.entries(stochSeriesRef.current).forEach(([id, seriesArr]) => {
-                const [k, d] = seriesArr;
-                const kVal = param.seriesData.get(k);
-                const dVal = param.seriesData.get(d);
-                if (kVal) {
-                    results.stochs[id] = {
-                        k: kVal.value,
-                        d: dVal?.value ?? null
-                    };
-                }
-            });
-
-            Object.entries(supertrendSeriesRef.current || {}).forEach(([id, seriesArr]) => {
-                const [upS, downS] = seriesArr;
-                const upVal = param.seriesData.get(upS);
-                const downVal = param.seriesData.get(downS);
-
-                if (upVal) {
-                    results.supertrend[id] = { value: upVal.value, trend: 1 };
-                } else if (downVal) {
-                    results.supertrend[id] = { value: downVal.value, trend: -1 };
-                }
-            });
-
-            Object.entries(atrSeriesRef.current || {}).forEach(([id, series]) => {
-                const val = param.seriesData.get(series);
-                if (val) {
-                    results.atrs[id] = { value: val.value };
-                }
-            });
-
-            Object.entries(adSeriesRef.current || {}).forEach(([id, series]) => {
-                const val = param.seriesData.get(series);
-                if (val) {
-                    results.ads[id] = { value: val.value };
-                }
-            });
-
-            Object.entries(smiSeriesRef.current || {}).forEach(([id, series]) => {
-                const val = param.seriesData.get(series);
-                if (val) {
-                    results.smis[id] = { value: val.value };
-                }
-            });
-
-            Object.entries(w52SeriesRef.current || {}).forEach(([id, seriesArr]) => {
-                const [hi, lo] = seriesArr;
-                const hiVal = param.seriesData.get(hi);
-                const loVal = param.seriesData.get(lo);
-                if (hiVal || loVal) {
-                    results.w52s[id] = {
-                        high: hiVal?.value ?? null,
-                        low: loVal?.value ?? null,
-                    };
-                }
-            });
-
-            Object.entries(volSmaSeriesRef.current || {}).forEach(([id, series]) => {
-                const val = param.seriesData.get(series);
-                if (val) {
-                    results.volSmas[id] = { value: val.value };
-                }
-            });
-
-            Object.entries(ichimokuSeriesRef.current).forEach(([id, seriesArr]) => {
-                const [tenkan, kijun, spanA, spanB, chikou] = seriesArr;
-                results.ichimoku[id] = {
-                    tenkan: param.seriesData.get(tenkan)?.value ?? null,
-                    kijun: param.seriesData.get(kijun)?.value ?? null,
-                    spanA: param.seriesData.get(spanA)?.value ?? null,
-                    spanB: param.seriesData.get(spanB)?.value ?? null,
-                    chikou: param.seriesData.get(chikou)?.value ?? null
-                };
-            });
-
-            Object.entries(tsiSeriesRef.current).forEach(([id, seriesArr]) => {
-                const [tsi, signal] = seriesArr;
-                results.tsi[id] = {
-                    tsi: param.seriesData.get(tsi)?.value ?? null,
-                    signal: param.seriesData.get(signal)?.value ?? null
-                };
+            // Script-based indicators (built-ins + custom): one entry per
+            // plot, in plot declaration order.
+            Object.entries(genericSeriesRef.current).forEach(([id, seriesArr]) => {
+                results.generic[id] = seriesArr.map(entry => ({
+                    title: entry.title,
+                    color: entry.color,
+                    value: param.seriesData.get(entry.series)?.value ?? null,
+                }));
             });
 
             onCrosshairMoveRef.current(results);
@@ -438,20 +273,8 @@ const Chart = ({
             chartRef.current = null;
             priceSeriesRef.current = null;
             volumeSeriesRef.current = null;
-            smaSeriesRef.current = {};
-            rsiSeriesRef.current = {};
-            macdSeriesRef.current = {};
-            bbSeriesRef.current = {};
-            stochSeriesRef.current = {};
-            supertrendSeriesRef.current = {};
-            atrSeriesRef.current = {};
-            adSeriesRef.current = {};
-            smiSeriesRef.current = {};
-            w52SeriesRef.current = {};
-            volSmaSeriesRef.current = {};
             lastPaneKey.current = '';
-            ichimokuSeriesRef.current = {};
-            tsiSeriesRef.current = {};
+            genericSeriesRef.current = {};
         };
     }, []); // Removed [activeTool] to prevent chart recreation
 
@@ -636,134 +459,98 @@ const Chart = ({
         };
     }, [activeTool, setDrawings, setActiveTool]);
 
-    // Sync BB Background Shade
+    // Sync script indicator fills (BB band shade, Ichimoku cloud, ...).
+    // Two-tone fills (colorAlt) are split into segments where the relation
+    // between the two plots flips, like the Ichimoku cloud.
     useEffect(() => {
-        if (!chartRef.current || !bbFillRef.current || !bbFillData || !priceSeriesRef.current) return;
-        const svg = bbFillRef.current;
+        if (!chartRef.current || !fillsRef.current || !priceSeriesRef.current) return;
+        const svg = fillsRef.current;
         while (svg.firstChild) svg.removeChild(svg.firstChild);
-
-        const bbInd = indicators.find(i => i.type === 'bb' && i.visible);
-        if (!bbInd) return;
-
-        const { upper, lower } = bbFillData;
-        if (upper.length === 0 || lower.length === 0) return;
 
         const ts = chartRef.current.timeScale();
-        const points = [];
+        const xOf = (t) => ts.timeToCoordinate(t);
+        const yOf = (v) => priceSeriesRef.current.priceToCoordinate(v);
 
-        // Build the shaded polygon
-        // Forward through upper band
-        upper.forEach(p => {
-            const x = ts.timeToCoordinate(p.time);
-            const y = priceSeriesRef.current.priceToCoordinate(p.value);
-            if (x !== null && y !== null) points.push(`${x},${y}`);
-        });
-        // Backward through lower band
-        for (let i = lower.length - 1; i >= 0; i--) {
-            const p = lower[i];
-            const x = ts.timeToCoordinate(p.time);
-            const y = priceSeriesRef.current.priceToCoordinate(p.value);
-            if (x !== null && y !== null) points.push(`${x},${y}`);
-        }
-
-        if (points.length > 0) {
-            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-            poly.setAttribute('points', points.join(' '));
-            poly.setAttribute('fill', bbInd.fillColor);
-            svg.appendChild(poly);
-        }
-    }, [bbFillData, indicators, data]); // Redraw on data change as well to sync with timeScale
-
-    // Sync VP SVG Overlays
-    useEffect(() => {
-        if (!chartRef.current || !vpRef.current) return;
-        const svg = vpRef.current;
-        while (svg.firstChild) svg.removeChild(svg.firstChild);
-
-        const vpInd = indicators.find(i => i.type === 'volume_profile' && i.visible);
-        if (!vpInd || vpBins.length === 0 || !priceSeriesRef.current) return;
-
-        const width = containerRef.current.clientWidth;
-
-        vpBins.forEach(bin => {
-            const y1 = priceSeriesRef.current.priceToCoordinate(bin.low);
-            const y2 = priceSeriesRef.current.priceToCoordinate(bin.high);
-            if (y1 === null || y2 === null) return;
-
-            const height = Math.abs(y2 - y1);
-            const y = Math.min(y1, y2);
-            const barWidth = (width * 0.3) * bin.normalizedVolume;
-
-            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            rect.setAttribute('x', (width - barWidth).toString());
-            rect.setAttribute('y', y.toString());
-            rect.setAttribute('width', barWidth.toString());
-            rect.setAttribute('height', Math.max(1, height - 1).toString());
-            rect.setAttribute('fill', vpInd.color);
-            svg.appendChild(rect);
-        });
-    }, [vpBins, indicators]);
-
-    // Ichimoku Cloud Fill
-    useEffect(() => {
-        if (!chartRef.current || !ichimokuFillRef.current || !ichimokuFillData || !priceSeriesRef.current) return;
-        const svg = ichimokuFillRef.current;
-        while (svg.firstChild) svg.removeChild(svg.firstChild);
-
-        const ind = indicators.find(i => i.type === 'ichimoku' && i.visible);
-        if (!ind) return;
-
-        const { spanA, spanB } = ichimokuFillData;
-        if (spanA.length === 0 || spanB.length === 0) return;
-
-        const ts = chartRef.current.timeScale();
-
-        // Group points into segments where trend is constant to support two-tone cloud
-        let currentSegment = [];
-        let currentTrend = null; // true for A > B, false for A < B
-
-        for (let i = 0; i < spanA.length; i++) {
-            const pA = spanA[i];
-            const pB = spanB.find(b => b.time === pA.time);
-            if (!pB) continue;
-
-            const trend = pA.value >= pB.value;
-            if (currentTrend === null) currentTrend = trend;
-
-            if (trend !== currentTrend) {
-                // Flash current segment
-                drawSegment(currentSegment, currentTrend);
-                currentSegment = [currentSegment[currentSegment.length - 1]]; // Start next segment from last point
-                currentTrend = trend;
-            }
-            currentSegment.push({ time: pA.time, a: pA.value, b: pB.value });
-        }
-        if (currentSegment.length > 1) drawSegment(currentSegment, currentTrend);
-
-        function drawSegment(seg, trend) {
+        const drawSegment = (seg, fill) => {
             const points = [];
-            // Forward through Span A
             seg.forEach(p => {
-                const x = ts.timeToCoordinate(p.time);
-                const y = priceSeriesRef.current.priceToCoordinate(p.a);
+                const x = xOf(p.time);
+                const y = yOf(p.a);
                 if (x !== null && y !== null) points.push(`${x},${y}`);
             });
-            // Backward through Span B
             for (let i = seg.length - 1; i >= 0; i--) {
                 const p = seg[i];
-                const x = ts.timeToCoordinate(p.time);
-                const y = priceSeriesRef.current.priceToCoordinate(p.b);
+                const x = xOf(p.time);
+                const y = yOf(p.b);
                 if (x !== null && y !== null) points.push(`${x},${y}`);
             }
-
             if (points.length > 2) {
                 const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
                 poly.setAttribute('points', points.join(' '));
-                poly.setAttribute('fill', trend ? ind.spanAColor : ind.spanBColor);
+                poly.setAttribute('fill', fill);
                 svg.appendChild(poly);
             }
-        }
-    }, [ichimokuFillData, indicators, data]);
+        };
+
+        fillsData.forEach(fill => {
+            const bByTime = new Map(fill.b.map(p => [p.time, p]));
+            let segment = [];
+            let currentTrend = null;
+            const flush = () => {
+                if (segment.length > 1) drawSegment(segment, currentTrend === null || currentTrend
+                    ? fill.color
+                    : (fill.colorAlt || fill.color));
+                segment = segment.length ? [segment[segment.length - 1]] : [];
+            };
+
+            fill.a.forEach(pA => {
+                const pB = bByTime.get(pA.time);
+                if (!pB) return;
+                if (!fill.colorAlt) {
+                    segment.push({ time: pA.time, a: pA.value, b: pB.value });
+                    return;
+                }
+                const trend = pA.value >= pB.value;
+                if (currentTrend === null) currentTrend = trend;
+                if (trend !== currentTrend) {
+                    flush();
+                    currentTrend = trend;
+                }
+                segment.push({ time: pA.time, a: pA.value, b: pB.value });
+            });
+            if (!fill.colorAlt) drawSegment(segment, fill.color);
+            else flush();
+        });
+    }, [fillsData, indicators, data]); // Redraw on data change as well to sync with timeScale
+
+    // Sync script histogram overlays (Volume Profile-style price-by-volume)
+    useEffect(() => {
+        if (!chartRef.current || !vpRef.current || !priceSeriesRef.current) return;
+        const svg = vpRef.current;
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+        const width = containerRef.current.clientWidth;
+
+        histogramsData.forEach(h => {
+            h.bins.forEach(bin => {
+                const y1 = priceSeriesRef.current.priceToCoordinate(bin.low);
+                const y2 = priceSeriesRef.current.priceToCoordinate(bin.high);
+                if (y1 === null || y2 === null) return;
+
+                const height = Math.abs(y2 - y1);
+                const y = Math.min(y1, y2);
+                const barWidth = (width * 0.3) * bin.normalizedVolume;
+
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', (width - barWidth).toString());
+                rect.setAttribute('y', y.toString());
+                rect.setAttribute('width', barWidth.toString());
+                rect.setAttribute('height', Math.max(1, height - 1).toString());
+                rect.setAttribute('fill', h.color);
+                svg.appendChild(rect);
+            });
+        });
+    }, [histogramsData, indicators]);
 
     // Render Drawings and Annotations
     useEffect(() => {
@@ -1935,13 +1722,13 @@ const Chart = ({
         // Pane indicators (oscillators) each get their own dedicated pane,
         // TradingView-style, stacked in canonical order. When the active set
         // changes, extra panes are rebuilt so ordering stays deterministic.
-        const activePaneTypes = [...getActivePaneTypes(indicators), ...customPaneIds];
+        const activePaneTypes = [...getActivePaneTypes(indicators), ...indicatorResults.paneIds];
         const paneKey = activePaneTypes.join(',');
         if (paneKey !== lastPaneKey.current) {
             while (chartRef.current.panes().length > 1) {
                 chartRef.current.removePane(chartRef.current.panes().length - 1);
             }
-            [rsiSeriesRef, macdSeriesRef, stochSeriesRef, atrSeriesRef, tsiSeriesRef, adSeriesRef, smiSeriesRef, customSeriesRef].forEach(ref => { ref.current = {}; });
+            [genericSeriesRef].forEach(ref => { ref.current = {}; });
             for (let i = 0; i < activePaneTypes.length; i++) chartRef.current.addPane();
             lastPaneKey.current = paneKey;
         }
@@ -1993,334 +1780,88 @@ const Chart = ({
 
         // Indicator Management
         const visibleIds = new Set(indicators.filter(ind => ind.visible).map(ind => ind.id));
-        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, smiSeriesRef, w52SeriesRef, volSmaSeriesRef, ichimokuSeriesRef, tsiSeriesRef, customSeriesRef].forEach(ref => {
+        [genericSeriesRef].forEach(ref => {
             Object.keys(ref.current).forEach(id => {
                 if (!visibleIds.has(id)) {
                     try {
                         if (Array.isArray(ref.current[id])) ref.current[id].forEach(s => chartRef.current.removeSeries(s));
                         else chartRef.current.removeSeries(ref.current[id]);
-                    } catch (_) { }
+                    } catch { /* series already gone */ }
                     delete ref.current[id];
                 }
             });
         });
 
-        let vpActive = false;
-        let bbActive = false;
-        let ichimokuActive = false;
+        const nextFills = [];
+        const nextHistograms = [];
         indicators.forEach(ind => {
-            if (ind.type === 'sma' && ind.visible) {
-                const existing = smaSeriesRef.current[ind.id];
-                const smaData = computeSMA(data, ind.length, ind.source);
-                if (existing) { existing.applyOptions({ color: ind.color }); existing.setData(smaData); }
-                else { const s = chartRef.current.addSeries(LineSeries, { color: ind.color, lineWidth: 1.5, crosshairMarkerVisible: false }); s.setData(smaData); smaSeriesRef.current[ind.id] = s; }
-            }
-            if (ind.type === 'rsi' && ind.visible) {
-                let existing = rsiSeriesRef.current[ind.id];
-                const results = computeRSI(data, ind);
-                if (!existing) {
-                    const paneIndex = paneIndexOf('rsi');
-                    const opts = { lineWidth: 1.5, crosshairMarkerVisible: false };
-                    existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.color }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.smoothColor }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.bbColor, lineStyle: 2 }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.bbColor, lineStyle: 2 }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }, paneIndex)
-                    ];
-                    rsiSeriesRef.current[ind.id] = existing;
-                }
-                const [m, s, bu, bl, b70, b30] = existing;
-                const times = data.map(d => ({ time: d.time }));
-                b70.setData(times.map(t => ({ ...t, value: 70 }))); b30.setData(times.map(t => ({ ...t, value: 30 })));
-                m.setData(results.rsi); s.setData(results.smoothed); bu.setData(ind.showBB ? results.bbUpper : []); bl.setData(ind.showBB ? results.bbLower : []);
-            }
-            if (ind.type === 'macd' && ind.visible) {
-                let existing = macdSeriesRef.current[ind.id];
-                const res = computeMACD(data, ind);
-                if (!existing) {
-                    const paneIndex = paneIndexOf('macd');
-                    const opts = { lineWidth: 1.5, crosshairMarkerVisible: false };
-                    existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: '#2962ff' }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: '#ff9800' }, paneIndex),
-                        chartRef.current.addSeries(HistogramSeries, {}, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }, paneIndex)
-                    ];
-                    macdSeriesRef.current[ind.id] = existing;
-                }
-                const [m, s, h, b0] = existing;
-                const times = data.map(d => ({ time: d.time }));
-                b0.setData(times.map(t => ({ ...t, value: 0 })));
-                m.setData(res.macd); s.setData(res.signal); h.setData(res.histogram);
-            }
-            if (ind.type === 'volume_profile' && ind.visible) {
-                setVpBins(computeVolumeProfile(data, ind));
-                vpActive = true;
-            }
-            if (ind.type === 'bb' && ind.visible) {
-                let existing = bbSeriesRef.current[ind.id];
-                const res = computeBollingerBands(data, ind);
-                if (!existing) {
-                    const opts = { lineWidth: 1.2, crosshairMarkerVisible: false, lastValueVisible: ind.showPriceLabels };
-                    existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.basisColor }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.upperColor, lineWidth: 1 }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.lowerColor, lineWidth: 1 })
-                    ];
-                    bbSeriesRef.current[ind.id] = existing;
-                }
-                const [basis, upper, lower] = existing;
-
-                // Update visibility of labels dynamically
-                basis.applyOptions({ lastValueVisible: ind.showPriceLabels });
-                upper.applyOptions({ lastValueVisible: ind.showPriceLabels });
-                lower.applyOptions({ lastValueVisible: ind.showPriceLabels });
-
-                basis.setData(res.basis);
-                upper.setData(res.upper);
-                lower.setData(res.lower);
-                setBbFillData({ upper: res.upper, lower: res.lower });
-                bbActive = true;
-            }
-            if (ind.type === 'stoch' && ind.visible) {
-                let existing = stochSeriesRef.current[ind.id];
-                const res = computeStochastic(data, ind);
-                if (!existing) {
-                    const paneIndex = paneIndexOf('stoch');
-                    const opts = { lineWidth: 1.5, crosshairMarkerVisible: false };
-                    existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.kColor || '#2962ff' }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.dColor || '#ff9800' }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)', lineStyle: 2 }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)', lineStyle: 2 }, paneIndex)
-                    ];
-                    stochSeriesRef.current[ind.id] = existing;
-                }
-                const [k, d, upper, lower] = existing;
-                const times = data.map(d => ({ time: d.time }));
-                upper.setData(times.map(t => ({ ...t, value: ind.upperLine || 80 })));
-                lower.setData(times.map(t => ({ ...t, value: ind.lowerLine || 20 })));
-                k.setData(res.k);
-                d.setData(res.d);
-            }
-            if (ind.type === 'supertrend' && ind.visible) {
-                let existing = supertrendSeriesRef.current[ind.id];
-                const res = computeSuperTrend(data, ind);
-                if (!existing) {
-                    const upS = chartRef.current.addSeries(LineSeries, {
-                        lineWidth: 2,
-                        color: ind.upColor || '#26a69a',
-                        crosshairMarkerVisible: false,
-                        lastValueVisible: false,
-                        priceLineVisible: false,
-                    });
-                    const downS = chartRef.current.addSeries(LineSeries, {
-                        lineWidth: 2,
-                        color: ind.downColor || '#ef5350',
-                        crosshairMarkerVisible: false,
-                        lastValueVisible: false,
-                        priceLineVisible: false,
-                    });
-                    existing = [upS, downS];
-                    supertrendSeriesRef.current[ind.id] = existing;
-                }
-
-                const [upSeries, downSeries] = existing;
-                upSeries.applyOptions({ color: ind.upColor });
-                downSeries.applyOptions({ color: ind.downColor });
-
-                const upData = res.map(d => ({
-                    time: d.time,
-                    value: d.trend === 1 ? d.value : null
-                })).filter(d => d.value !== null);
-
-                const downData = res.map(d => ({
-                    time: d.time,
-                    value: d.trend === -1 ? d.value : null
-                })).filter(d => d.value !== null);
-
-                upSeries.setData(upData);
-                downSeries.setData(downData);
-            }
-            if (ind.type === 'atr' && ind.visible) {
-                let existing = atrSeriesRef.current[ind.id];
-                const res = computeATR(data, ind);
-                if (!existing) {
-                    existing = chartRef.current.addSeries(LineSeries, {
-                        color: ind.color || '#ff5252',
-                        lineWidth: 1.5,
-                        crosshairMarkerVisible: false,
-                    }, paneIndexOf('atr'));
-                    atrSeriesRef.current[ind.id] = existing;
-                }
-                existing.applyOptions({ color: ind.color });
-                existing.setData(res);
-            }
-            if (ind.type === 'ad' && ind.visible) {
-                // A/D gets its own dedicated pane (TradingView-style) so it has
-                // its own visible right-side ruler with volume-magnitude values.
-                let existing = adSeriesRef.current[ind.id];
-                // Compute over the full available history (A/D is cumulative),
-                // then slice to the currently loaded window.
-                const srcData = (adFullData && adFullData.length > 0) ? adFullData : data;
-                let res = computeADL(srcData);
-                if (srcData !== data && data.length > 0) {
-                    const firstTime = data[0].time;
-                    res = res.filter(p => p.time >= firstTime);
-                }
-                if (!existing) {
-                    existing = chartRef.current.addSeries(LineSeries, {
-                        color: ind.color || '#2962ff',
-                        lineWidth: 1.5,
-                        crosshairMarkerVisible: false,
-                        priceFormat: {
-                            type: 'custom',
-                            minMove: 1,
-                            formatter: formatADLValue,
-                        },
-                    }, paneIndexOf('ad'));
-                    adSeriesRef.current[ind.id] = existing;
-                }
-                existing.applyOptions({ color: ind.color });
-                existing.setData(res);
-            }
-            if (ind.type === 'smi' && ind.visible) {
-                // Simple Market Index: own pane, computed from constituent
-                // series data (bars keyed by symbol) fetched by the panel.
-                // Computed over full history (index is cumulative), then
-                // sliced to the currently loaded window like A/D.
-                let existing = smiSeriesRef.current[ind.id];
-                let res = computeMarketIndex(smiData, ind.constituents, ind.baseValue);
-                if (data.length > 0 && res.length > 0) {
-                    const firstTime = data[0].time;
-                    res = res.filter(p => p.time >= firstTime);
-                }
-                if (!existing) {
-                    existing = chartRef.current.addSeries(LineSeries, {
-                        color: ind.color || '#4fc3f7',
-                        lineWidth: 2,
-                        crosshairMarkerVisible: false,
-                    }, paneIndexOf('smi'));
-                    smiSeriesRef.current[ind.id] = existing;
-                }
-                existing.applyOptions({ color: ind.color });
-                existing.setData(res);
-            }
-            if (ind.type === 'w52' && ind.visible) {
-                // Overlay on the price pane (Pine overlay=true), orange lines
-                let existing = w52SeriesRef.current[ind.id];
-                const res = computeW52(data, ind);
-                if (!existing) {
-                    const opts = {
-                        color: ind.color || '#ff9800',
-                        lineWidth: 1.5,
-                        crosshairMarkerVisible: false,
-                    };
-                    existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, title: '52 Week High' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, title: '52 Week Low' }),
-                    ];
-                    w52SeriesRef.current[ind.id] = existing;
-                }
-                const [hi, lo] = existing;
-                hi.applyOptions({ color: ind.color });
-                lo.applyOptions({ color: ind.color });
-                hi.setData(res.high);
-                lo.setData(res.low);
-            }
-            if (ind.type === 'vol_sma' && ind.visible) {
-                // SMA line over the volume histogram (same 'volume' scale)
-                let existing = volSmaSeriesRef.current[ind.id];
-                const res = computeSMA(data, ind.length, 'volume');
-                if (!existing) {
-                    existing = chartRef.current.addSeries(LineSeries, {
-                        priceScaleId: 'volume',
-                        color: ind.color || '#ff9800',
-                        lineWidth: 1.5,
-                        crosshairMarkerVisible: false,
-                        lastValueVisible: false,
-                    });
-                    volSmaSeriesRef.current[ind.id] = existing;
-                }
-                existing.applyOptions({ color: ind.color });
-                existing.setData(res);
-            }
-            if (ind.type === 'tsi' && ind.visible) {
-                let existing = tsiSeriesRef.current[ind.id];
-                const res = computeTSI(data, ind);
-                if (!existing) {
-                    const paneIndex = paneIndexOf('tsi');
-                    const opts = { lineWidth: 1.5, crosshairMarkerVisible: false };
-                    existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.color || '#2962ff' }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.signalColor || '#ff9800', lineWidth: 1.2 }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.1)' }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.05)', lineStyle: 2 }, paneIndex),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(255,255,255,0.05)', lineStyle: 2 }, paneIndex)
-                    ];
-                    tsiSeriesRef.current[ind.id] = existing;
-                }
-                const [tsi, sig, b0, b25, bN25] = existing;
-                const times = data.map(d => ({ time: d.time }));
-                b0.setData(times.map(t => ({ ...t, value: 0 })));
-                b25.setData(times.map(t => ({ ...t, value: 25 })));
-                bN25.setData(times.map(t => ({ ...t, value: -25 })));
-                tsi.setData(res.tsi);
-                sig.setData(res.signal);
-            }
-            if (ind.type === 'ichimoku' && ind.visible) {
-                let existing = ichimokuSeriesRef.current[ind.id];
-                const res = computeIchimoku(data, ind);
-                if (!existing) {
-                    const opts = { lineWidth: 1, crosshairMarkerVisible: false };
-                    existing = [
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.tenkanColor, title: 'Tenkan' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.kijunColor, title: 'Kijun' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(38,166,154,0.5)', title: 'Span A' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: 'rgba(239,83,80,0.5)', title: 'Span B' }),
-                        chartRef.current.addSeries(LineSeries, { ...opts, color: ind.chikouColor, title: 'Chikou' })
-                    ];
-                    ichimokuSeriesRef.current[ind.id] = existing;
-                }
-                const [t, k, sa, sb, c] = existing;
-                t.setData(res.tenkan); k.setData(res.kijun); sa.setData(res.spanA); sb.setData(res.spanB); c.setData(res.chikou);
-                setIchimokuFillData({ spanA: res.spanA, spanB: res.spanB });
-                ichimokuActive = true;
-            }
-            if (ind.type === 'custom' && ind.visible) {
-                const res = customResults[ind.id];
+            const isScriptType = SCRIPT_TYPES.includes(ind.type) || ind.type === 'custom';
+            if (isScriptType && ind.visible) {
+                // All script-based indicators (built-ins from the registry
+                // and user custom scripts) render through one descriptor path.
+                const res = indicatorResults.resultsById[ind.id];
                 if (!res || res.error) return;
-                const paneIndex = customPaneIds.includes(`custom-${ind.id}`)
-                    ? paneIndexOf(`custom-${ind.id}`) : null;
-                const plots = [
-                    ...res.overlays.map(p => ({ ...p, pane: 0 })),
-                    ...(paneIndex != null ? res.panes.map(p => ({ ...p, pane: paneIndex })) : []),
-                ];
-                let existing = customSeriesRef.current[ind.id];
-                if (existing && existing.length !== plots.length) {
-                    existing.forEach(s => { try { chartRef.current.removeSeries(s); } catch (_) { } });
+
+                const paneKey = ind.type === 'custom' ? `custom-${ind.id}` : ind.type;
+                const hasPanes = res.plots.some(p => !p.overlay);
+                const paneIndex = hasPanes ? paneIndexOf(paneKey) : 0;
+                const priceScaleId = scriptPriceScale(ind.type);
+                // Cumulative indicators run over full history; slice plots
+                // back to the currently loaded window (like the old A/D path).
+                const sliceWindow = needsFullData(ind.type) && data.length > 0;
+                const firstTime = sliceWindow ? data[0].time : null;
+
+                let existing = genericSeriesRef.current[ind.id];
+                if (existing && existing.length !== res.plots.length) {
+                    existing.forEach(e => { try { chartRef.current.removeSeries(e.series); } catch { /* series already gone */ } });
                     existing = null;
                 }
                 if (!existing) {
-                    existing = plots.map(p => chartRef.current.addSeries(LineSeries, {
-                        color: p.color,
-                        lineWidth: 1.5,
-                        crosshairMarkerVisible: false,
-                        title: p.title,
-                    }, p.pane));
-                    customSeriesRef.current[ind.id] = existing;
+                    existing = res.plots.map(p => {
+                        const SeriesClass = p.style === 'histogram' ? HistogramSeries : LineSeries;
+                        const series = chartRef.current.addSeries(SeriesClass, {
+                            color: p.color,
+                            lineWidth: p.lineWidth ?? 1.5,
+                            lineStyle: p.lineStyle,
+                            crosshairMarkerVisible: false,
+                            title: p.title,
+                            ...(p.lastValueVisible != null ? { lastValueVisible: p.lastValueVisible } : {}),
+                            ...(p.priceLineVisible != null ? { priceLineVisible: p.priceLineVisible } : {}),
+                            ...(priceScaleId ? { priceScaleId, lastValueVisible: false } : {}),
+                            ...(ind.type === 'ad' ? {
+                                priceFormat: { type: 'custom', minMove: 1, formatter: formatADLValue },
+                            } : {}),
+                        }, p.overlay ? 0 : paneIndex);
+                        return { series, title: p.title, color: p.color };
+                    });
+                    genericSeriesRef.current[ind.id] = existing;
                 }
-                plots.forEach((p, i) => {
-                    existing[i].applyOptions({ color: p.color, title: p.title });
-                    existing[i].setData(p.series);
+
+                res.plots.forEach((p, i) => {
+                    const entry = existing[i];
+                    entry.series.applyOptions({ color: p.color, title: p.title });
+                    entry.series.setData(firstTime != null
+                        ? p.series.filter(b => b.time >= firstTime)
+                        : p.series);
+                    entry.title = p.title;
+                    entry.color = p.color;
                 });
+
+                if (res.fills.length > 0 && res.plots.every(p => p.overlay)) {
+                    res.fills.forEach(f => nextFills.push({
+                        a: res.plots[f.a].series,
+                        b: res.plots[f.b].series,
+                        color: f.color,
+                        colorAlt: f.colorAlt,
+                    }));
+                }
+                if (res.histograms.length > 0) {
+                    nextHistograms.push(...res.histograms);
+                }
             }
         });
-        if (!vpActive) setVpBins([]);
-        if (!bbActive) setBbFillData(null);
-        if (!ichimokuActive) setIchimokuFillData(null);
+        setHistogramsData(nextHistograms);
+        setFillsData(nextFills);
 
         if (isFirstLoad.current && data.length > 0) {
             const timeScale = chartRef.current.timeScale();
@@ -2345,7 +1886,7 @@ const Chart = ({
             }
             pendingScrollRef.current = null;
         }
-    }, [data, adFullData, smiData, chartType, indicators, symbol, interval, customResults, customPaneIds]);
+    }, [data, chartType, indicators, symbol, interval, indicatorResults]);
 
     const updateNoteRef = useRef(updateNote);
     useEffect(() => { updateNoteRef.current = updateNote; }, [updateNote]);
@@ -2468,8 +2009,7 @@ const Chart = ({
         <div style={{ position: 'relative', width: '100%', height: '100%' }} className={`${activeTool !== 'cursor' ? 'drawing-active' : ''} ${activeTool === 'eraserOne' ? 'erase-mode' : ''}`}>
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
             {/* Overlay SVGs for Background Shades and Volume Profiles */}
-            <svg ref={bbFillRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.8 }} />
-            <svg ref={ichimokuFillRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.8 }} />
+            <svg ref={fillsRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.8 }} />
             <svg ref={vpRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }} />
             <svg ref={drawingRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 100 }} />
             <div className="chart-notes-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>

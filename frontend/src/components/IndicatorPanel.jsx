@@ -1,64 +1,76 @@
 import React from 'react';
 import { SMA_SOURCES } from '../Indicators/sma';
 import { discoverInputs } from '../Indicators/dsl/runtime';
+import { SCRIPT_TYPES, scriptFields } from '../Indicators/scripts';
 
-const CustomIndicatorSettings = ({ ind, script, scriptError, updateIndicator }) => {
-    if (!script) return <div className="custom-script-error">Script not found on server</div>;
-    const { schema, error } = discoverInputs(script.code);
-    if (error) return <div className="custom-script-error">{error}</div>;
-
-    const setInput = (key, value) => updateIndicator(ind.id, { inputs: { ...ind.inputs, [key]: value } });
-
-    return (
-        <div className="indicator-settings rsi-grid">
-            {schema.map(field => (
-                <div key={field.key} className="setting-item">
-                    <label>{field.label}</label>
-                    {(field.type === 'int' || field.type === 'float') && (
-                        <input
-                            type="number"
-                            min={field.min} max={field.max} step={field.step ?? (field.type === 'int' ? 1 : 0.1)}
-                            value={ind.inputs?.[field.key] ?? field.default}
-                            onChange={(e) => setInput(field.key, field.type === 'int'
-                                ? (parseInt(e.target.value) || 0)
-                                : (parseFloat(e.target.value) || 0))}
-                        />
-                    )}
-                    {field.type === 'bool' && (
-                        <input
-                            type="checkbox"
-                            checked={ind.inputs?.[field.key] ?? field.default}
-                            onChange={(e) => setInput(field.key, e.target.checked)}
-                        />
-                    )}
-                    {field.type === 'string' && (
-                        <input
-                            type="text"
-                            value={ind.inputs?.[field.key] ?? field.default}
-                            onChange={(e) => setInput(field.key, e.target.value)}
-                        />
-                    )}
-                    {field.type === 'color' && (
-                        <input
-                            type="color"
-                            value={ind.inputs?.[field.key] ?? field.default}
-                            onChange={(e) => setInput(field.key, e.target.value)}
-                        />
-                    )}
-                    {field.type === 'source' && (
-                        <select
-                            value={ind.inputs?.[field.key] ?? field.default}
-                            onChange={(e) => setInput(field.key, e.target.value)}
-                        >
-                            {SMA_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                        </select>
-                    )}
-                </div>
-            ))}
-            {scriptError && <div className="custom-script-error" style={{ gridColumn: '1 / -1' }}>{scriptError}</div>}
-        </div>
-    );
-};
+/**
+ * Schema-driven settings form for script-based indicators. `fields` is the
+ * input schema (registry fields for built-ins, discoverInputs for custom
+ * scripts); `values` holds the current value per field key.
+ */
+const ScriptSettings = ({ fields, values = {}, disabled = false, onChange, scriptError }) => (
+    <div className="indicator-settings rsi-grid">
+        {fields.filter(f => f.type !== 'symbols').map(field => (
+            <div key={field.key} className="setting-item">
+                <label>{field.label}</label>
+                {(field.type === 'int' || field.type === 'float') && (
+                    <input
+                        type="number"
+                        disabled={disabled}
+                        min={field.min} max={field.max} step={field.step ?? (field.type === 'int' ? 1 : 0.1)}
+                        value={values[field.key] ?? field.default}
+                        onChange={(e) => onChange(field.key, field.type === 'int'
+                            ? (parseInt(e.target.value) || 0)
+                            : (parseFloat(e.target.value) || 0))}
+                    />
+                )}
+                {field.type === 'bool' && (
+                    <input
+                        type="checkbox"
+                        disabled={disabled}
+                        checked={values[field.key] ?? field.default}
+                        onChange={(e) => onChange(field.key, e.target.checked)}
+                    />
+                )}
+                {field.type === 'string' && !field.options && (
+                    <input
+                        type="text"
+                        disabled={disabled}
+                        value={values[field.key] ?? field.default}
+                        onChange={(e) => onChange(field.key, e.target.value)}
+                    />
+                )}
+                {field.type === 'string' && field.options && (
+                    <select
+                        disabled={disabled}
+                        value={values[field.key] ?? field.default}
+                        onChange={(e) => onChange(field.key, e.target.value)}
+                    >
+                        {field.options.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                )}
+                {field.type === 'color' && (
+                    <input
+                        type="color"
+                        disabled={disabled}
+                        value={values[field.key] ?? field.default}
+                        onChange={(e) => onChange(field.key, e.target.value)}
+                    />
+                )}
+                {field.type === 'source' && (
+                    <select
+                        disabled={disabled}
+                        value={values[field.key] ?? field.default}
+                        onChange={(e) => onChange(field.key, e.target.value)}
+                    >
+                        {SMA_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                )}
+            </div>
+        ))}
+        {scriptError && <div className="custom-script-error" style={{ gridColumn: '1 / -1' }}>{scriptError}</div>}
+    </div>
+);
 
 /**
  * A standalone component for an indicator group (e.g. SMA or RSI)
@@ -173,353 +185,22 @@ const IndicatorGroupPanel = ({
                             </div>
                         </div>
 
-                        {/* SMA-Specific Settings */}
-                        {groupType === 'sma' && (
-                            <div className="indicator-settings">
-                                <div className="setting-item">
-                                    <label>Len</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.length}
-                                        disabled={!ind.visible}
-                                        onChange={(e) => updateIndicator(ind.id, { length: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item" style={{ flex: 1 }}>
-                                    <label>Source</label>
-                                    <select
-                                        value={ind.source} disabled={!ind.visible}
-                                        onChange={(e) => updateIndicator(ind.id, { source: e.target.value })}
-                                    >
-                                        {SMA_SOURCES.map(src => <option key={src.value} value={src.value}>{src.label}</option>)}
-                                    </select>
-                                </div>
-                            </div>
+                        {/* Script-based indicator settings: schema-driven from
+                            the field registry (built-ins) or input
+                            declarations (custom scripts). */}
+                        {SCRIPT_TYPES.includes(groupType) && (
+                            <ScriptSettings
+                                fields={scriptFields(groupType)}
+                                values={ind}
+                                disabled={!ind.visible}
+                                onChange={(key, value) => updateIndicator(ind.id, { [key]: value })}
+                            />
                         )}
 
-                        {/* RSI-Specific Settings */}
-                        {groupType === 'rsi' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item">
-                                    <label>Length</label>
-                                    <input
-                                        type="number" min="1" max="100" value={ind.length}
-                                        onChange={(e) => updateIndicator(ind.id, { length: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Source</label>
-                                    <select
-                                        value={ind.source}
-                                        onChange={(e) => updateIndicator(ind.id, { source: e.target.value })}
-                                    >
-                                        {SMA_SOURCES.map(src => <option key={src.value} value={src.value}>{src.label}</option>)}
-                                    </select>
-                                </div>
-                                <div className="setting-item">
-                                    <label>Smooth</label>
-                                    <select
-                                        value={ind.smoothingType}
-                                        onChange={(e) => updateIndicator(ind.id, { smoothingType: e.target.value })}
-                                    >
-                                        <option value="None">None</option>
-                                        <option value="SMA">SMA</option>
-                                    </select>
-                                </div>
-                                {ind.smoothingType === 'SMA' && (
-                                    <>
-                                        <div className="setting-item">
-                                            <label>S-Len</label>
-                                            <input
-                                                type="number" min="1" max="100" value={ind.smoothingLength}
-                                                onChange={(e) => updateIndicator(ind.id, { smoothingLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                            />
-                                        </div>
-                                        <div className="setting-item" style={{ gridColumn: 'span 2' }}>
-                                            <label style={{ flexDirection: 'row', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '11px' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={ind.showBB}
-                                                    onChange={(e) => updateIndicator(ind.id, { showBB: e.target.checked })}
-                                                />
-                                                Bollinger Bands
-                                            </label>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        {/* MACD-Specific Settings */}
-                        {groupType === 'macd' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item">
-                                    <label>Fast</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.fastLength}
-                                        onChange={(e) => updateIndicator(ind.id, { fastLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Slow</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.slowLength}
-                                        onChange={(e) => updateIndicator(ind.id, { slowLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Signal</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.signalLength}
-                                        onChange={(e) => updateIndicator(ind.id, { signalLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Norm</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.normLookback}
-                                        onChange={(e) => updateIndicator(ind.id, { normLookback: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Volume Profile Settings */}
-                        {groupType === 'vp' && (
-                            <div className="indicator-settings">
-                                <div className="setting-item">
-                                    <label>Bins</label>
-                                    <input
-                                        type="number" min="10" max="200" value={ind.priceBins}
-                                        onChange={(e) => updateIndicator(ind.id, { priceBins: Math.max(10, parseInt(e.target.value) || 10) })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Volume Profile Settings */}
-                        {groupType === 'volume_profile' && (
-                            <div className="indicator-settings">
-                                <div className="setting-item">
-                                    <label>Bins</label>
-                                    <input
-                                        type="number" min="10" max="500" value={ind.priceBins}
-                                        onChange={(e) => updateIndicator(ind.id, { priceBins: Math.max(10, parseInt(e.target.value) || 10) })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Bollinger Bands Settings */}
-                        {groupType === 'bb' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item">
-                                    <label>Length</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.length}
-                                        onChange={(e) => updateIndicator(ind.id, { length: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>StdDev</label>
-                                    <input
-                                        type="number" step="0.1" min="0.1" max="10" value={ind.stdDev}
-                                        onChange={(e) => updateIndicator(ind.id, { stdDev: Math.max(0.1, parseFloat(e.target.value) || 0.1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Source</label>
-                                    <select
-                                        value={ind.source}
-                                        onChange={(e) => updateIndicator(ind.id, { source: e.target.value })}
-                                    >
-                                        {['Close', 'Open', 'High', 'Low', 'HL2', 'HLC3', 'OHLC4', 'HLCC4'].map(src => (
-                                            <option key={src} value={src}>{src}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="setting-item">
-                                    <label>Offset</label>
-                                    <input
-                                        type="number" value={ind.offset}
-                                        onChange={(e) => updateIndicator(ind.id, { offset: parseInt(e.target.value) || 0 })}
-                                    />
-                                </div>
-                                <div className="setting-item" style={{ gridColumn: 'span 2' }}>
-                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '10px' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <input type="checkbox" checked={ind.showPriceLabels} onChange={(e) => updateIndicator(ind.id, { showPriceLabels: e.target.checked })} /> Lbls
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <input type="checkbox" checked={ind.showStatusValues} onChange={(e) => updateIndicator(ind.id, { showStatusValues: e.target.checked })} /> Vals
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <input type="checkbox" checked={ind.showInputInStatus} onChange={(e) => updateIndicator(ind.id, { showInputInStatus: e.target.checked })} /> Input
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {/* Stochastic Oscillator Settings */}
-                        {groupType === 'stoch' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item">
-                                    <label>Length</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.length}
-                                        onChange={(e) => updateIndicator(ind.id, { length: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>D Length</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.dLength}
-                                        onChange={(e) => updateIndicator(ind.id, { dLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Upper</label>
-                                    <input
-                                        type="number" min="1" max="100" value={ind.upperLine}
-                                        onChange={(e) => updateIndicator(ind.id, { upperLine: parseInt(e.target.value) || 0 })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Lower</label>
-                                    <input
-                                        type="number" min="1" max="100" value={ind.lowerLine}
-                                        onChange={(e) => updateIndicator(ind.id, { lowerLine: parseInt(e.target.value) || 0 })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        {/* SuperTrend Settings */}
-                        {groupType === 'supertrend' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item">
-                                    <label>ATR Length</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.atrLength}
-                                        onChange={(e) => updateIndicator(ind.id, { atrLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Factor</label>
-                                    <input
-                                        type="number" step="0.1" min="0.1" max="20" value={ind.factor}
-                                        onChange={(e) => updateIndicator(ind.id, { factor: Math.max(0.1, parseFloat(e.target.value) || 0.1) })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        {/* ATR Settings */}
-                        {groupType === 'atr' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item">
-                                    <label>Length</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.length}
-                                        onChange={(e) => updateIndicator(ind.id, { length: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        {/* 52 Week High/Low Settings */}
-                        {groupType === 'w52' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item" style={{ flex: 1 }}>
-                                    <label>Base values on</label>
-                                    <select
-                                        value={ind.basis || 'highlow'}
-                                        onChange={(e) => updateIndicator(ind.id, { basis: e.target.value })}
-                                    >
-                                        <option value="highlow">Highs/Lows</option>
-                                        <option value="close">Close</option>
-                                    </select>
-                                </div>
-                            </div>
-                        )}
-                        {/* Volume SMA Settings */}
-                        {groupType === 'vol_sma' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item">
-                                    <label>Length</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.length}
-                                        onChange={(e) => updateIndicator(ind.id, { length: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        {/* Ichimoku Settings */}
-                        {groupType === 'ichimoku' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item">
-                                    <label>Conv Length</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.conversionLength}
-                                        onChange={(e) => updateIndicator(ind.id, { conversionLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Base Length</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.baseLength}
-                                        onChange={(e) => updateIndicator(ind.id, { baseLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Span B Length</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.spanBLength}
-                                        onChange={(e) => updateIndicator(ind.id, { spanBLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Lagging Line</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.laggingLength}
-                                        onChange={(e) => updateIndicator(ind.id, { laggingLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        {/* TSI Settings */}
-                        {groupType === 'tsi' && (
-                            <div className="indicator-settings rsi-grid">
-                                <div className="setting-item">
-                                    <label>Long Len</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.longLength}
-                                        onChange={(e) => updateIndicator(ind.id, { longLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Short Len</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.shortLength}
-                                        onChange={(e) => updateIndicator(ind.id, { shortLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                                <div className="setting-item">
-                                    <label>Signal</label>
-                                    <input
-                                        type="number" min="1" max="500" value={ind.signalLength}
-                                        onChange={(e) => updateIndicator(ind.id, { signalLength: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        {/* Simple Market Index Settings */}
+                        {/* SMI Constituents (base value and color are
+                            handled by the generic script settings above) */}
                         {groupType === 'smi' && (
                             <div className="indicator-settings smi-grid">
-                                <div className="setting-item" style={{ gridColumn: '1 / -1' }}>
-                                    <label>Base</label>
-                                    <input
-                                        type="number" min="1" value={ind.baseValue}
-                                        disabled={!ind.visible}
-                                        onChange={(e) => updateIndicator(ind.id, { baseValue: Math.max(1, parseFloat(e.target.value) || 1) })}
-                                    />
-                                </div>
                                 {(ind.constituents || []).map((c, ci) => (
                                     <React.Fragment key={ci}>
                                         <div className="setting-item">
@@ -581,14 +262,21 @@ const IndicatorGroupPanel = ({
                             </div>
                         )}
                         {/* Custom Script Settings */}
-                        {groupType === 'custom' && (
-                            <CustomIndicatorSettings
-                                ind={ind}
-                                script={scriptsById?.[ind.scriptId]}
-                                scriptError={scriptErrors?.[ind.id]}
-                                updateIndicator={updateIndicator}
-                            />
-                        )}
+                        {groupType === 'custom' && (() => {
+                            const script = scriptsById?.[ind.scriptId];
+                            if (!script) return <div className="custom-script-error">Script not found on server</div>;
+                            const { schema, error } = discoverInputs(script.code);
+                            if (error) return <div className="custom-script-error">{error}</div>;
+                            return (
+                                <ScriptSettings
+                                    fields={schema}
+                                    values={ind.inputs}
+                                    disabled={!ind.visible}
+                                    onChange={(key, value) => updateIndicator(ind.id, { inputs: { ...ind.inputs, [key]: value } })}
+                                    scriptError={scriptErrors?.[ind.id]}
+                                />
+                            );
+                        })()}
                     </div>
                 ))}
             </div>
