@@ -680,6 +680,20 @@ div[class*="tradingview"] {
   cursor: crosshair !important;
 }
 
+.erase-mode {
+  cursor: pointer !important;
+}
+
+.erase-mode g[data-drawing-id] {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.erase-mode g[data-drawing-id]:hover {
+  opacity: 0.5;
+  filter: drop-shadow(0 0 3px rgba(239, 83, 80, 0.9));
+}
+
 .toolbar-section {
   display: flex;
   flex-direction: column;

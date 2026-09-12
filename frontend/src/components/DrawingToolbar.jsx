@@ -143,6 +143,11 @@ const DrawingToolbar = ({ activeTool, onSelectTool }) => {
             ]
         },
         {
+            id: 'eraser_cat',
+            type: 'single',
+            tool: { id: 'eraserOne', icon: '🧽', label: 'Erase Drawing' }
+        },
+        {
             id: 'utils_cat',
             type: 'single',
             tool: { id: 'eraser', icon: '🧹', label: 'Clear All' }

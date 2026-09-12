@@ -229,7 +229,7 @@ const Chart = ({
             }
 
             const currentTool = activeToolRef.current;
-            if (currentTool && currentTool !== 'cursor' && param.point && priceSeriesRef.current) {
+            if (currentTool && currentTool !== 'cursor' && currentTool !== 'eraserOne' && param.point && param.time !== undefined && priceSeriesRef.current) {
                 const time = param.time;
                 const price = priceSeriesRef.current.coordinateToPrice(param.point.y);
 
@@ -494,7 +494,7 @@ const Chart = ({
 
     // Handle Clicks for Drawing
     useEffect(() => {
-        if (!chartRef.current || !activeTool || activeTool === 'cursor') {
+        if (!chartRef.current || !activeTool || activeTool === 'cursor' || activeTool === 'eraserOne') {
             drawingPointsRef.current = [];
             setPreviewDrawing(null);
             return;
@@ -503,6 +503,7 @@ const Chart = ({
         const clickHandler = (param) => {
             if (!param.point || !priceSeriesRef.current) return;
             const time = param.time;
+            if (time === undefined || time === null) return;
             const price = priceSeriesRef.current.coordinateToPrice(param.point.y);
 
             const points = drawingPointsRef.current;
@@ -773,7 +774,7 @@ const Chart = ({
         const height = containerRef.current.clientHeight;
         const allDrawings = [...drawings, ...(previewDrawing ? [previewDrawing] : [])];
 
-        allDrawings.forEach(d => {
+        const renderDrawing = (d) => {
             if (d.type === 'textNote') {
                 const coords = getNoteCoordinates(d, ts, ps);
                 if (!coords) return;
@@ -800,14 +801,16 @@ const Chart = ({
                 svg.appendChild(anchor);
                 return;
             }
-            if (!d.p1) return;
+            if (d.points && d.points.some(p => !p || p.time === undefined || p.time === null)) return;
+            if (!d.p1 || d.p1.time === undefined || d.p1.time === null) return;
             const x1 = ts.timeToCoordinate(d.p1.time);
             const y1 = ps.priceToCoordinate(d.p1.price);
 
             if (x1 === null || y1 === null) return;
 
-            let x2 = d.p2 ? ts.timeToCoordinate(d.p2.time) : null;
-            let y2 = d.p2 ? ps.priceToCoordinate(d.p2.price) : null;
+            const hasP2 = d.p2 && d.p2.time !== undefined && d.p2.time !== null;
+            let x2 = hasP2 ? ts.timeToCoordinate(d.p2.time) : null;
+            let y2 = hasP2 ? ps.priceToCoordinate(d.p2.price) : null;
 
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('stroke', d.color || '#2962ff');
@@ -1874,8 +1877,44 @@ const Chart = ({
                     }
                 });
             }
+        };
+
+        // Group each drawing's nodes so eraserOne can hit-test by id
+        allDrawings.forEach(d => {
+            if (d.id === undefined) {
+                renderDrawing(d);
+                return;
+            }
+            const start = svg.childNodes.length;
+            renderDrawing(d);
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('data-drawing-id', d.id);
+            while (svg.childNodes.length > start) g.appendChild(svg.childNodes[start]);
+            svg.appendChild(g);
         });
     }, [drawings, previewDrawing, data, chartTick]);
+
+    // Erase single drawing: click a <g data-drawing-id> to remove it
+    useEffect(() => {
+        const svg = drawingRef.current;
+        if (!svg) return;
+        if (activeTool !== 'eraserOne') {
+            svg.style.pointerEvents = 'none';
+            return;
+        }
+        svg.style.pointerEvents = 'auto';
+        const handleErase = (e) => {
+            const g = e.target.closest?.('[data-drawing-id]');
+            if (!g) return;
+            const id = g.getAttribute('data-drawing-id');
+            setDrawings(prev => prev.filter(d => d.id !== id));
+        };
+        svg.addEventListener('click', handleErase);
+        return () => {
+            svg.style.pointerEvents = 'none';
+            svg.removeEventListener('click', handleErase);
+        };
+    }, [activeTool, setDrawings]);
 
     // Reset FirstLoad tracking on Symbol or Interval change
     useEffect(() => {
@@ -2395,7 +2434,7 @@ const Chart = ({
     };
 
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%' }} className={activeTool !== 'cursor' ? 'drawing-active' : ''}>
+        <div style={{ position: 'relative', width: '100%', height: '100%' }} className={`${activeTool !== 'cursor' ? 'drawing-active' : ''} ${activeTool === 'eraserOne' ? 'erase-mode' : ''}`}>
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
             {/* Overlay SVGs for Background Shades and Volume Profiles */}
             <svg ref={bbFillRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.8 }} />
