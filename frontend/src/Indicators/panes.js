@@ -6,7 +6,7 @@
  * dedicated pane (TradingView-style), stacked in this canonical order so pane
  * positions are deterministic for the legend layout.
  */
-export const PANE_ORDER = ['rsi', 'stoch', 'macd', 'atr', 'tsi', 'ad'];
+export const PANE_ORDER = ['rsi', 'stoch', 'macd', 'atr', 'tsi', 'ad', 'smi'];
 
 /**
  * Given the indicators array, return the active pane types in canonical order.

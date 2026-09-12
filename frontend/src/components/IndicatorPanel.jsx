@@ -12,6 +12,7 @@ const IndicatorGroupPanel = ({
     removeIndicator,
     removeIndicatorGroup,
     toggleIndicator,
+    invalidSymbols = [],
     minimizedTop,
     isMinimized,
     onMinimizeChange
@@ -29,6 +30,7 @@ const IndicatorGroupPanel = ({
                                     groupType === 'ichimoku' ? '📊' :
                                         groupType === 'tsi' ? '📊' :
                                             groupType === 'ad' ? '📊' :
+                                                groupType === 'smi' ? '🧮' :
                                                 groupType === 'w52' ? '📈' :
                                                     groupType === 'vol_sma' ? '📊' : '📊';
         return (
@@ -44,7 +46,7 @@ const IndicatorGroupPanel = ({
     }
 
     return (
-        <div className="indicator-panel">
+        <div className={`indicator-panel${groupType === 'smi' ? ' wide' : ''}`}>
             {/* Header for this specific group */}
             <div className="indicator-panel-header">
                 <span className="panel-title">{title}</span>
@@ -84,7 +86,8 @@ const IndicatorGroupPanel = ({
                                                                 groupType === 'atr' ? `ATR (${ind.length})` :
                                                                     groupType === 'ichimoku' ? `Ichimoku Cloud` :
                                                                         groupType === 'tsi' ? `TSI (${ind.longLength}, ${ind.shortLength}, ${ind.signalLength})` :
-                                                                            groupType === 'ad' ? 'Accum/Dist' :
+                                                                                groupType === 'ad' ? 'Accum/Dist' :
+                                                                                    groupType === 'smi' ? `SMI (${(ind.constituents || []).length} symbols)` :
                                                                                 groupType === 'w52' ? `52W High/Low (${ind.basis === 'close' ? 'Close' : 'Highs/Lows'})` :
                                                                                     groupType === 'vol_sma' ? `Vol SMA (${ind.length})` : 'Indicator'}
                                 </label>
@@ -441,6 +444,77 @@ const IndicatorGroupPanel = ({
                                         type="number" min="1" max="500" value={ind.signalLength}
                                         onChange={(e) => updateIndicator(ind.id, { signalLength: Math.max(1, parseInt(e.target.value) || 1) })}
                                     />
+                                </div>
+                            </div>
+                        )}
+                        {/* Simple Market Index Settings */}
+                        {groupType === 'smi' && (
+                            <div className="indicator-settings smi-grid">
+                                <div className="setting-item" style={{ gridColumn: '1 / -1' }}>
+                                    <label>Base</label>
+                                    <input
+                                        type="number" min="1" value={ind.baseValue}
+                                        disabled={!ind.visible}
+                                        onChange={(e) => updateIndicator(ind.id, { baseValue: Math.max(1, parseFloat(e.target.value) || 1) })}
+                                    />
+                                </div>
+                                {(ind.constituents || []).map((c, ci) => (
+                                    <React.Fragment key={ci}>
+                                        <div className="setting-item">
+                                            <label>Symbol {ci + 1}</label>
+                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={c.enabled !== false}
+                                                    title={c.enabled !== false ? 'Disable symbol' : 'Enable symbol'}
+                                                    onChange={(e) => {
+                                                        const constituents = ind.constituents.map((x, xi) => xi === ci ? { ...x, enabled: e.target.checked } : x);
+                                                        updateIndicator(ind.id, { constituents });
+                                                    }}
+                                                />
+                                                <input
+                                                    type="text" value={c.symbol}
+                                                    disabled={!ind.visible || c.enabled === false}
+                                                    style={{ ...(invalidSymbols.includes(c.symbol) ? { borderColor: '#ef5350', color: '#ef5350' } : {}), ...(c.enabled === false ? { opacity: 0.4 } : {}) }}
+                                                    title={invalidSymbols.includes(c.symbol) ? 'Invalid symbol: no data received' : undefined}
+                                                    onChange={(e) => {
+                                                        const constituents = ind.constituents.map((x, xi) => xi === ci ? { ...x, symbol: e.target.value.toUpperCase() } : x);
+                                                        updateIndicator(ind.id, { constituents });
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="setting-item">
+                                            <label>Weight</label>
+                                            <input
+                                                type="number" step="0.01" min="0" max="1" value={c.weight}
+                                                disabled={!ind.visible}
+                                                onChange={(e) => {
+                                                    const constituents = ind.constituents.map((x, xi) => xi === ci ? { ...x, weight: Math.max(0, parseFloat(e.target.value) || 0) } : x);
+                                                    updateIndicator(ind.id, { constituents });
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="setting-item" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                                            <button
+                                                className="action-btn remove-single"
+                                                title="Remove symbol"
+                                                onClick={() => updateIndicator(ind.id, { constituents: ind.constituents.filter((_, xi) => xi !== ci) })}
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </React.Fragment>
+                                ))}
+                                <div className="setting-item" style={{ gridColumn: 'span 3' }}>
+                                    <button
+                                        className="action-btn"
+                                        title="Add symbol"
+                                        style={{ width: '100%' }}
+                                        onClick={() => updateIndicator(ind.id, { constituents: [...(ind.constituents || []), { symbol: '', weight: 0, enabled: true }] })}
+                                    >
+                                        + Add Symbol
+                                    </button>
                                 </div>
                             </div>
                         )}

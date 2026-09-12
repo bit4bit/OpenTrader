@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import Chart from './Chart';
 import IndicatorPanel from './IndicatorPanel';
-import { useChartData, useAdFullData } from '../hooks/useChartData';
+import { useChartData, useAdFullData, useMarketIndexData } from '../hooks/useChartData';
 import {
     updateIndicator as updateIndicatorIn,
     removeIndicator as removeIndicatorIn,
@@ -30,6 +30,7 @@ const PANEL_DEFS = [
     { title: 'Accumulation/Distribution', groupType: 'ad' },
     { title: '52 Week High/Low', groupType: 'w52' },
     { title: 'Volume SMA', groupType: 'vol_sma' },
+    { title: 'Simple Market Index', groupType: 'smi' },
 ];
 
 const ChartPanel = ({
@@ -45,6 +46,7 @@ const ChartPanel = ({
     const { symbol, interval, chartType, indicators, drawings, minimizedPanels = [] } = chart;
     const { data, loading, loadingMore, error, handleVisibleLogicalRangeChange } = useChartData(symbol, interval);
     const adFullData = useAdFullData(symbol, interval, indicators);
+    const { data: smiData, invalidSymbols: smiInvalidSymbols } = useMarketIndexData(indicators, interval);
     const [hoveredData, setHoveredData] = useState(null);
 
     const patchIndicators = useCallback((fn) => {
@@ -345,6 +347,28 @@ const ChartPanel = ({
                     </div>
                 )}
 
+                {/* SIMPLE MARKET INDEX LEGEND */}
+                {indicators.find(i => i.type === 'smi' && i.visible) && (
+                    <div className="chart-legend-indicators" style={{ top: paneLegendTop('smi') }}>
+                        {indicators.filter(i => i.type === 'smi' && i.visible).map(ind => (
+                            <div key={ind.id} className="legend-item">
+                                <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
+                                <span className="legend-label">
+                                    SMI ({(ind.constituents || []).filter(c => c.enabled !== false).map(c => c.symbol).join(', ')})
+                                </span>
+                                {smiInvalidSymbols.length > 0 && (
+                                    <span className="legend-value" style={{ color: '#ef5350' }} title={`No data for: ${smiInvalidSymbols.join(', ')}`}>
+                                        ⚠
+                                    </span>
+                                )}
+                                <span className="legend-value" style={{ color: ind.color }}>
+                                    {hoveredData?.smis?.[ind.id]?.value != null ? hoveredData.smis[ind.id].value.toFixed(2) : ''}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 <div className="indicator-panels-container">
                     {PANEL_DEFS.map(def => (
                         <IndicatorPanel
@@ -355,6 +379,7 @@ const ChartPanel = ({
                             isMinimized={minimizedPanels.includes(def.groupType)}
                             onMinimizeChange={(minimized) => setPanelMinimized(def.groupType, minimized)}
                             indicators={indicators.filter(i => i.type === def.groupType)}
+                            invalidSymbols={def.groupType === 'smi' ? smiInvalidSymbols : []}
                             updateIndicator={updateIndicator}
                             removeIndicator={removeIndicator}
                             removeIndicatorGroup={removeIndicatorGroup}
@@ -384,6 +409,7 @@ const ChartPanel = ({
                         syncEnabled={locked}
                         data={data}
                         adFullData={adFullData}
+                        smiData={smiData}
                         chartType={chartType}
                         symbol={symbol}
                         interval={interval}

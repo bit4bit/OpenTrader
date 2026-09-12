@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 import yfinance as yf
 import pandas as pd
+import math
 from datetime import datetime
 
 from .models import Session
@@ -97,6 +98,10 @@ class TickerSearch(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+def clean_value(v):
+    return None if v is None or (isinstance(v, float) and math.isnan(v)) else v
+
+
 class TickerHistory(APIView):
     def get(self, request):
         symbol = request.query_params.get('symbol')
@@ -142,14 +147,17 @@ class TickerHistory(APIView):
                 # Convert to unix timestamp (seconds)
                 timestamp = int(time.timestamp())
                 
-                data.append({
+                row_data = {
                     'time': timestamp,
-                    'open': row['Open'],
-                    'high': row['High'],
-                    'low': row['Low'],
-                    'close': row['Close'],
-                    'volume': row['Volume']
-                })
+                    'open': clean_value(row['Open']),
+                    'high': clean_value(row['High']),
+                    'low': clean_value(row['Low']),
+                    'close': clean_value(row['Close']),
+                    'volume': clean_value(row['Volume']),
+                }
+                if row_data['close'] is None and row_data['open'] is None:
+                    continue
+                data.append(row_data)
             
             return Response(data)
         except Exception as e:

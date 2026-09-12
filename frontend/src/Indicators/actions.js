@@ -2,7 +2,7 @@ import { SMA_COLORS } from './sma';
 
 const DEFAULT_SMA_LENGTHS = [5, 10, 20, 50, 100, 200, 7, 14, 30, 150];
 
-const SINGLETON_TYPES = ['macd', 'volume_profile', 'bb', 'stoch', 'supertrend', 'atr', 'ichimoku', 'tsi', 'ad', 'w52', 'vol_sma'];
+const SINGLETON_TYPES = ['macd', 'volume_profile', 'bb', 'stoch', 'supertrend', 'atr', 'ichimoku', 'tsi', 'ad', 'w52', 'vol_sma', 'smi'];
 
 const FACTORIES = {
     sma: () => DEFAULT_SMA_LENGTHS.map((length, i) => ({
@@ -129,6 +129,17 @@ const FACTORIES = {
         length: 20,
         visible: true,
         color: '#ff9800',
+    }],
+    smi: () => [{
+        id: 'smi-main',
+        type: 'smi',
+        baseValue: 100,
+        constituents: [
+            { symbol: 'AAPL', weight: 0.5, enabled: true },
+            { symbol: 'MSFT', weight: 0.5, enabled: true },
+        ],
+        visible: true,
+        color: '#4fc3f7',
     }],
     tsi: () => [{
         id: 'tsi-main',

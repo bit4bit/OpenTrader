@@ -15,6 +15,7 @@ import { computeStochastic } from '../Indicators/stoch';
 import { computeSuperTrend } from '../Indicators/supertrend';
 import { computeATR } from '../Indicators/atr';
 import { computeADL, formatADLValue } from '../Indicators/adl';
+import { computeMarketIndex } from '../Indicators/marketIndex';
 import { computeW52 } from '../Indicators/w52';
 import { getActivePaneTypes } from '../Indicators/panes';
 import { computeIchimoku } from '../Indicators/ichimoku';
@@ -53,6 +54,7 @@ class SyncPrimitive {
 const Chart = ({
     data,
     adFullData,
+    smiData,
     chartType,
     symbol,
     interval,
@@ -81,6 +83,7 @@ const Chart = ({
     const supertrendSeriesRef = useRef({});
     const atrSeriesRef = useRef({});
     const adSeriesRef = useRef({});
+    const smiSeriesRef = useRef({});
     const w52SeriesRef = useRef({});
     const volSmaSeriesRef = useRef({});
     const lastPaneKey = useRef('');
@@ -196,6 +199,7 @@ const Chart = ({
                 supertrend: {},
                 atrs: {},
                 ads: {},
+                smis: {},
                 w52s: {},
                 volSmas: {},
                 ichimoku: {},
@@ -291,6 +295,13 @@ const Chart = ({
                 }
             });
 
+            Object.entries(smiSeriesRef.current || {}).forEach(([id, series]) => {
+                const val = param.seriesData.get(series);
+                if (val) {
+                    results.smis[id] = { value: val.value };
+                }
+            });
+
             Object.entries(w52SeriesRef.current || {}).forEach(([id, seriesArr]) => {
                 const [hi, lo] = seriesArr;
                 const hiVal = param.seriesData.get(hi);
@@ -372,6 +383,7 @@ const Chart = ({
             supertrendSeriesRef.current = {};
             atrSeriesRef.current = {};
             adSeriesRef.current = {};
+            smiSeriesRef.current = {};
             w52SeriesRef.current = {};
             volSmaSeriesRef.current = {};
             lastPaneKey.current = '';
@@ -1766,7 +1778,7 @@ const Chart = ({
             while (chartRef.current.panes().length > 1) {
                 chartRef.current.removePane(chartRef.current.panes().length - 1);
             }
-            [rsiSeriesRef, macdSeriesRef, stochSeriesRef, atrSeriesRef, tsiSeriesRef, adSeriesRef].forEach(ref => { ref.current = {}; });
+            [rsiSeriesRef, macdSeriesRef, stochSeriesRef, atrSeriesRef, tsiSeriesRef, adSeriesRef, smiSeriesRef].forEach(ref => { ref.current = {}; });
             for (let i = 0; i < activePaneTypes.length; i++) chartRef.current.addPane();
             lastPaneKey.current = paneKey;
         }
@@ -1818,7 +1830,7 @@ const Chart = ({
 
         // Indicator Management
         const visibleIds = new Set(indicators.filter(ind => ind.visible).map(ind => ind.id));
-        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, w52SeriesRef, volSmaSeriesRef, ichimokuSeriesRef, tsiSeriesRef].forEach(ref => {
+        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, smiSeriesRef, w52SeriesRef, volSmaSeriesRef, ichimokuSeriesRef, tsiSeriesRef].forEach(ref => {
             Object.keys(ref.current).forEach(id => {
                 if (!visibleIds.has(id)) {
                     try {
@@ -2011,6 +2023,28 @@ const Chart = ({
                 existing.applyOptions({ color: ind.color });
                 existing.setData(res);
             }
+            if (ind.type === 'smi' && ind.visible) {
+                // Simple Market Index: own pane, computed from constituent
+                // series data (bars keyed by symbol) fetched by the panel.
+                // Computed over full history (index is cumulative), then
+                // sliced to the currently loaded window like A/D.
+                let existing = smiSeriesRef.current[ind.id];
+                let res = computeMarketIndex(smiData, ind.constituents, ind.baseValue);
+                if (data.length > 0 && res.length > 0) {
+                    const firstTime = data[0].time;
+                    res = res.filter(p => p.time >= firstTime);
+                }
+                if (!existing) {
+                    existing = chartRef.current.addSeries(LineSeries, {
+                        color: ind.color || '#4fc3f7',
+                        lineWidth: 2,
+                        crosshairMarkerVisible: false,
+                    }, paneIndexOf('smi'));
+                    smiSeriesRef.current[ind.id] = existing;
+                }
+                existing.applyOptions({ color: ind.color });
+                existing.setData(res);
+            }
             if (ind.type === 'w52' && ind.visible) {
                 // Overlay on the price pane (Pine overlay=true), orange lines
                 let existing = w52SeriesRef.current[ind.id];
@@ -2104,7 +2138,7 @@ const Chart = ({
             if (lr) timeScale.setVisibleLogicalRange({ from: lr.from, to: lr.to + 20 });
             isFirstLoad.current = false;
         }
-    }, [data, adFullData, chartType, indicators, symbol, interval]);
+    }, [data, adFullData, smiData, chartType, indicators, symbol, interval]);
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }} className={activeTool !== 'cursor' ? 'drawing-active' : ''}>

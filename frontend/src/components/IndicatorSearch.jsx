@@ -18,6 +18,7 @@ const IndicatorSearch = ({ onAddIndicator, onClose }) => {
         { id: 'ad', name: 'Accumulation/Distribution' },
         { id: 'w52', name: '52 Week High/Low' },
         { id: 'vol_sma', name: 'Volume SMA' },
+        { id: 'smi', name: 'Simple Market Index' },
     ];
 
     const filtered = indicators.filter(ind =>

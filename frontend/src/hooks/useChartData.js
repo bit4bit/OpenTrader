@@ -129,6 +129,42 @@ export function useChartData(symbol, interval) {
     return { data, loading, loadingMore, error, handleVisibleLogicalRangeChange };
 }
 
+export function useMarketIndexData(indicators, interval) {
+    const smiActive = indicators.some(i => i.type === 'smi' && i.visible);
+    const symbolsKey = (indicators.find(i => i.type === 'smi' && i.visible)?.constituents || [])
+        .filter(c => c.enabled !== false)
+        .map(c => c.symbol)
+        .join(',');
+    const [barsBySymbol, setBarsBySymbol] = useState({});
+    const [invalidSymbols, setInvalidSymbols] = useState([]);
+
+    useEffect(() => {
+        if (!smiActive || !symbolsKey) return;
+        let cancelled = false;
+        const timer = setTimeout(() => {
+            if (cancelled) return;
+            // Full history so the cumulative index covers the whole chart
+            // window as the user paginates back; sliced to the window in Chart.
+            Promise.all(symbolsKey.split(',').filter(Boolean).map(sym =>
+                axios.get('/api/history/', { params: { symbol: sym, interval, range: 'max' } })
+                    .then(response => [sym, mergeBars(response.data || [])])
+                    .catch(err => { console.warn('SMI fetch failed for ' + sym, err); return [sym, []]; })
+            )).then(entries => {
+                if (cancelled) return;
+                setBarsBySymbol(Object.fromEntries(entries));
+                setInvalidSymbols(entries.filter(([, bars]) => bars.length === 0).map(([sym]) => sym));
+            });
+        }, 300);
+        return () => { cancelled = true; clearTimeout(timer); };
+    }, [symbolsKey, interval, smiActive]);
+
+    const active = smiActive && symbolsKey;
+    return {
+        data: active ? barsBySymbol : {},
+        invalidSymbols: active ? invalidSymbols : [],
+    };
+}
+
 export function useAdFullData(symbol, interval, indicators) {
     const [adFullData, setAdFullData] = useState(null);
     const adFullKey = useRef('');
