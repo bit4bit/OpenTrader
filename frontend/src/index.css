@@ -931,3 +931,94 @@ div[class*="tradingview"] {
   color: var(--text-main);
   background: rgba(41, 98, 255, 0.15);
 }
+
+/* Chart text notes */
+.chart-note {
+  position: absolute;
+  pointer-events: auto;
+  background: rgba(30, 34, 45, 0.92);
+  border: 1px solid var(--accent, #2962ff);
+  border-radius: 6px;
+  padding: 6px 10px;
+  max-width: 240px;
+  font-size: 12px;
+  color: var(--text-main, #d1d4dc);
+  line-height: 1.4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  user-select: none;
+  word-wrap: break-word;
+}
+
+.chart-note.dragging {
+  cursor: grabbing;
+  border-color: #7889ff;
+}
+
+.chart-note-text {
+  white-space: pre-wrap;
+}
+
+.chart-note:empty {
+  min-width: 60px;
+  min-height: 22px;
+}
+
+.chart-note-close {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: #f23645;
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.chart-note:hover .chart-note-close {
+  opacity: 1;
+}
+
+.chart-note-close:hover {
+  background: #ff5062;
+}
+
+.chart-note-textarea {
+  width: 200px;
+  min-height: 48px;
+  resize: both;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-main, #d1d4dc);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 0;
+}
+
+.chart-note-anchor {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid var(--accent, #2962ff);
+  box-sizing: border-box;
+  pointer-events: auto;
+  cursor: move;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+
+.chart-note-anchor:hover {
+  opacity: 1;
+  background: rgba(41, 98, 255, 0.25);
+}

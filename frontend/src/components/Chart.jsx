@@ -51,6 +51,15 @@ class SyncPrimitive {
     timeAxisViews() { return []; }
 }
 
+// Compute screen coordinates of a text note's anchor and box.
+function getNoteCoordinates(drawing, ts, priceSeries) {
+    const x = ts.timeToCoordinate(drawing.anchor.time);
+    const y = priceSeries.priceToCoordinate(drawing.anchor.price);
+    if (x === null || y === null) return null;
+    const { dx, dy } = drawing.boxOffset;
+    return { anchorX: x, anchorY: y, boxX: x + dx, boxY: y + dy };
+}
+
 const Chart = ({
     data,
     adFullData,
@@ -98,6 +107,20 @@ const Chart = ({
     const [bbFillData, setBbFillData] = useState(null);
     const [ichimokuFillData, setIchimokuFillData] = useState(null);
     const [chartTick, setChartTick] = useState(0);
+    const [noteDrag, setNoteDrag] = useState(null);
+    const [notePositions, setNotePositions] = useState({});
+
+    const updateNote = React.useCallback((id, updater) => {
+        setDrawings(prev => prev.map(d => d.type === 'textNote' && d.id === id ? updater(d) : d));
+    }, []);
+
+    const deleteNote = (id) => {
+        setDrawings(prev => prev.filter(d => d.id !== id));
+    };
+
+    const commitNoteText = (id, text) => {
+        updateNote(id, d => ({ ...d, text, editing: false }));
+    };
 
     const isFirstLoad = useRef(true);
     const pendingScrollRef = useRef(null);
@@ -400,7 +423,9 @@ const Chart = ({
     // Keyboard Shortcuts
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.ctrlKey && e.key === 'z') {
+            const target = e.target;
+            const inEditable = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+            if (e.ctrlKey && e.key === 'z' && !inEditable) {
                 setDrawings(prev => prev.slice(0, -1));
                 drawingPointsRef.current = [];
                 setPreviewDrawing(null);
@@ -461,6 +486,20 @@ const Chart = ({
                     lineWidth: 2
                 };
                 setDrawings(prev => [...prev, newDrawing]);
+                setActiveTool('cursor');
+                return;
+            }
+
+            if (activeTool === 'textNote') {
+                const newNote = {
+                    id: Date.now().toString(),
+                    type: 'textNote',
+                    anchor: { time, price },
+                    boxOffset: { dx: 20, dy: -50 },
+                    text: '',
+                    editing: true
+                };
+                setDrawings(prev => [...prev, newNote]);
                 setActiveTool('cursor');
                 return;
             }
@@ -703,6 +742,32 @@ const Chart = ({
         const allDrawings = [...drawings, ...(previewDrawing ? [previewDrawing] : [])];
 
         allDrawings.forEach(d => {
+            if (d.type === 'textNote') {
+                const coords = getNoteCoordinates(d, ts, ps);
+                if (!coords) return;
+                const { anchorX, anchorY, boxX, boxY } = coords;
+
+                const connector = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                connector.setAttribute('x1', anchorX);
+                connector.setAttribute('y1', anchorY);
+                connector.setAttribute('x2', boxX);
+                connector.setAttribute('y2', boxY);
+                connector.setAttribute('stroke', d.color || '#2962ff');
+                connector.setAttribute('stroke-width', 1.5);
+                connector.setAttribute('stroke-dasharray', '4,3');
+                connector.setAttribute('opacity', '0.8');
+                svg.appendChild(connector);
+
+                const anchor = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                anchor.setAttribute('cx', anchorX);
+                anchor.setAttribute('cy', anchorY);
+                anchor.setAttribute('r', 4);
+                anchor.setAttribute('fill', '#131722');
+                anchor.setAttribute('stroke', d.color || '#2962ff');
+                anchor.setAttribute('stroke-width', 2);
+                svg.appendChild(anchor);
+                return;
+            }
             if (!d.p1) return;
             const x1 = ts.timeToCoordinate(d.p1.time);
             const y1 = ps.priceToCoordinate(d.p1.price);
@@ -2180,6 +2245,123 @@ const Chart = ({
         }
     }, [data, adFullData, smiData, chartType, indicators, symbol, interval]);
 
+    const updateNoteRef = useRef(updateNote);
+    useEffect(() => { updateNoteRef.current = updateNote; }, [updateNote]);
+
+    // Text note drag: move box (offset in px) or anchor (time+price).
+    useEffect(() => {
+        if (!noteDrag) return;
+        const ps = priceSeriesRef.current;
+        const ts = chartRef.current?.timeScale();
+        if (!ps || !ts) return;
+
+        const handleMove = (e) => {
+            const rect = containerRef.current.getBoundingClientRect();
+            const px = e.clientX - rect.left;
+            const py = e.clientY - rect.top;
+
+            if (noteDrag.mode === 'box') {
+                const { anchorX, anchorY } = noteDrag;
+                updateNoteRef.current(noteDrag.id, d => ({
+                    ...d,
+                    boxOffset: { dx: px - anchorX, dy: py - anchorY }
+                }));
+            } else {
+                const time = ts.coordinateToTime(px);
+                const price = ps.coordinateToPrice(py);
+                if (time !== null && price !== null) {
+                    updateNoteRef.current(noteDrag.id, d => ({ ...d, anchor: { time, price } }));
+                }
+            }
+        };
+
+        const handleUp = () => setNoteDrag(null);
+
+        window.addEventListener('pointermove', handleMove);
+        window.addEventListener('pointerup', handleUp);
+        return () => {
+            window.removeEventListener('pointermove', handleMove);
+            window.removeEventListener('pointerup', handleUp);
+        };
+    }, [noteDrag]);
+
+    const startNoteAnchorDrag = (note, e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setNoteDrag({ id: note.id, mode: 'anchor' });
+    };
+
+    // Compute note screen positions on every redraw tick (pan/zoom/data).
+    useEffect(() => {
+        if (!chartRef.current || !priceSeriesRef.current) return;
+        const ts = chartRef.current.timeScale();
+        const ps = priceSeriesRef.current;
+        const positions = {};
+        drawings.forEach(d => {
+            if (d.type !== 'textNote') return;
+            positions[d.id] = getNoteCoordinates(d, ts, ps);
+        });
+        setNotePositions(positions);
+    }, [drawings, chartTick]);
+
+    const startNoteBoxDrag = (note, e) => {
+        if (note.editing) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const coords = notePositions[note.id];
+        if (!coords) return;
+        setNoteDrag({ id: note.id, mode: 'box', anchorX: coords.anchorX, anchorY: coords.anchorY });
+    };
+
+    const renderNotes = () => {
+        return drawings.filter(d => d.type === 'textNote').map(d => {
+            const coords = notePositions[d.id];
+            if (!coords) return null;
+            const { anchorX, anchorY, boxX, boxY } = coords;
+
+            return (
+                <React.Fragment key={d.id}>
+                    <div
+                        className="chart-note-anchor"
+                        style={{ left: anchorX - 5, top: anchorY - 5 }}
+                        onPointerDown={(e) => startNoteAnchorDrag(d, e)}
+                        title="Drag to re-anchor the note"
+                    />
+                    <div
+                        className={`chart-note ${noteDrag?.id === d.id ? 'dragging' : ''}`}
+                        style={{ left: boxX, top: boxY }}
+                        onPointerDown={(e) => startNoteBoxDrag(d, e)}
+                        onDoubleClick={() => updateNote(d.id, n => ({ ...n, editing: true }))}
+                    >
+                        {d.editing ? (
+                            <textarea
+                                autoFocus
+                                className="chart-note-textarea"
+                                defaultValue={d.text}
+                                onBlur={(e) => commitNoteText(d.id, e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Escape') commitNoteText(d.id, e.target.value);
+                                }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                            />
+                        ) : (
+                            <>
+                                <button
+                                    className="chart-note-close"
+                                    onClick={(e) => { e.stopPropagation(); deleteNote(d.id); }}
+                                    title="Delete note"
+                                >
+                                    ×
+                                </button>
+                                <span className="chart-note-text">{d.text}</span>
+                            </>
+                        )}
+                    </div>
+                </React.Fragment>
+            );
+        });
+    };
+
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }} className={activeTool !== 'cursor' ? 'drawing-active' : ''}>
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
@@ -2188,6 +2370,9 @@ const Chart = ({
             <svg ref={ichimokuFillRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.8 }} />
             <svg ref={vpRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }} />
             <svg ref={drawingRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 100 }} />
+            <div className="chart-notes-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
+                {renderNotes()}
+            </div>
         </div>
     );
 };
