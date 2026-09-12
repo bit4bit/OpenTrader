@@ -1,24 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import TopBar from './components/TopBar';
 import ChartGrid from './components/ChartGrid';
 import IndicatorSearch from './components/IndicatorSearch';
 import SymbolSearch from './components/SymbolSearch';
 import DrawingToolbar from './components/DrawingToolbar';
+import LoginScreen from './components/LoginScreen';
+import { useAuth } from './hooks/useAuth';
+import { useSessions } from './hooks/useSessions';
 import { useCharts } from './hooks/useCharts';
 import { addIndicators } from './Indicators/actions';
 
 const FIRST_VISIT_KEY = 'opentrader_first_visit';
 
-function App() {
-  const [showWelcome, setShowWelcome] = useState(() => {
-    const visited = localStorage.getItem(FIRST_VISIT_KEY);
-    if (!visited) {
-      localStorage.setItem(FIRST_VISIT_KEY, 'false');
-      return true;
-    }
-    return false;
-  });
-
+function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
   const {
     charts,
     activeChartId,
@@ -29,7 +23,10 @@ function App() {
     closeAllCharts,
     updateChart,
     toggleLock,
-  } = useCharts();
+  } = useCharts(initialLayout, useCallback(
+    (layout) => saveLayout(sessionId, layout),
+    [saveLayout, sessionId]
+  ));
 
   const [showIndicatorSearch, setShowIndicatorSearch] = useState(false);
   const [symbolSearchMode, setSymbolSearchMode] = useState(null);
@@ -63,6 +60,112 @@ function App() {
     } else {
       setActiveTool(tool);
     }
+  };
+
+  return (
+    <>
+      <TopBar
+        symbol={activeChart?.symbol || ''}
+        interval={activeChart?.interval || '1d'}
+        chartType={activeChart?.chartType || 'candle'}
+        hasActiveChart={!!activeChart}
+        setInterval={(interval) => activeChart && updateChart(activeChart.id, { interval })}
+        setChartType={(chartType) => activeChart && updateChart(activeChart.id, { chartType })}
+        openIndicatorSearch={() => activeChart && setShowIndicatorSearch(true)}
+        openSymbolSearch={() => setSymbolSearchMode('change')}
+        locked={locked}
+        onToggleLock={toggleLock}
+        onAddChart={() => setSymbolSearchMode('add')}
+        onCloseAll={() => {
+          if (charts.length > 0 && window.confirm('Close all charts?')) closeAllCharts();
+        }}
+        {...sessionProps}
+      />
+      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+        {activeChart && (
+          <DrawingToolbar
+            activeTool={activeTool}
+            onSelectTool={handleSelectTool}
+          />
+        )}
+
+        <ChartGrid
+          charts={charts}
+          activeChartId={activeChartId}
+          locked={locked}
+          activeTool={activeTool}
+          setActiveTool={setActiveTool}
+          onActivate={setActiveChartId}
+          onClose={closeChart}
+          onUpdate={updateChart}
+          onAddChart={() => setSymbolSearchMode('add')}
+        />
+
+        {showIndicatorSearch && (
+          <IndicatorSearch
+            onAddIndicator={addIndicator}
+            onClose={() => setShowIndicatorSearch(false)}
+          />
+        )}
+
+        {symbolSearchMode && (
+          <SymbolSearch
+            onSelectSymbol={handleSelectSymbol}
+            onOpenInNewChart={addChart}
+            onClose={() => setSymbolSearchMode(null)}
+          />
+        )}
+      </div>
+    </>
+  );
+}
+
+function App() {
+  const { token, username, login, logout } = useAuth();
+  const {
+    sessions,
+    activeSession,
+    createSession,
+    renameSession,
+    deleteSession,
+    switchSession,
+    saveLayout,
+    loaded,
+  } = useSessions(!!token);
+
+  const [showWelcome, setShowWelcome] = useState(() => {
+    const visited = localStorage.getItem(FIRST_VISIT_KEY);
+    if (!visited) {
+      localStorage.setItem(FIRST_VISIT_KEY, 'false');
+      return true;
+    }
+    return false;
+  });
+
+  if (!token) {
+    return <LoginScreen onLogin={login} />;
+  }
+
+  const sessionProps = {
+    sessions,
+    activeSession,
+    onSwitchSession: switchSession,
+    onCreateSession: () => {
+      const name = window.prompt('Session name:');
+      if (name?.trim()) createSession(name.trim());
+    },
+    onRenameSession: () => {
+      if (!activeSession) return;
+      const name = window.prompt('Rename session:', activeSession.name);
+      if (name?.trim()) renameSession(activeSession.id, name.trim());
+    },
+    onDeleteSession: () => {
+      if (activeSession && window.confirm(`Delete session "${activeSession.name}"?`)) {
+        deleteSession(activeSession.id);
+      }
+    },
+    username,
+    onLogout: logout,
   };
 
   return (
@@ -119,57 +222,29 @@ function App() {
           </div>
         </div>
       )}
-      <TopBar
-        symbol={activeChart?.symbol || ''}
-        interval={activeChart?.interval || '1d'}
-        chartType={activeChart?.chartType || 'candle'}
-        hasActiveChart={!!activeChart}
-        setInterval={(interval) => activeChart && updateChart(activeChart.id, { interval })}
-        setChartType={(chartType) => activeChart && updateChart(activeChart.id, { chartType })}
-        openIndicatorSearch={() => activeChart && setShowIndicatorSearch(true)}
-        openSymbolSearch={() => setSymbolSearchMode('change')}
-        locked={locked}
-        onToggleLock={toggleLock}
-        onAddChart={() => setSymbolSearchMode('add')}
-        onCloseAll={() => {
-          if (charts.length > 0 && window.confirm('Close all charts?')) closeAllCharts();
-        }}
-      />
-      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        {activeChart && (
-          <DrawingToolbar
-            activeTool={activeTool}
-            onSelectTool={handleSelectTool}
-          />
-        )}
-
-        <ChartGrid
-          charts={charts}
-          activeChartId={activeChartId}
-          locked={locked}
-          activeTool={activeTool}
-          setActiveTool={setActiveTool}
-          onActivate={setActiveChartId}
-          onClose={closeChart}
-          onUpdate={updateChart}
-          onAddChart={() => setSymbolSearchMode('add')}
+      {activeSession ? (
+        <Workspace
+          key={activeSession.id}
+          initialLayout={activeSession.layout}
+          sessionId={activeSession.id}
+          saveLayout={saveLayout}
+          sessionProps={sessionProps}
         />
-
-        {showIndicatorSearch && (
-          <IndicatorSearch
-            onAddIndicator={addIndicator}
-            onClose={() => setShowIndicatorSearch(false)}
-          />
-        )}
-
-        {symbolSearchMode && (
-          <SymbolSearch
-            onSelectSymbol={handleSelectSymbol}
-            onOpenInNewChart={addChart}
-            onClose={() => setSymbolSearchMode(null)}
-          />
-        )}
-      </div>
+      ) : (
+        <>
+          <TopBar hasActiveChart={false} {...sessionProps} />
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#888',
+            backgroundColor: '#0f0f1a',
+          }}>
+            {loaded ? 'No session selected. Create one from the session menu.' : 'Loading…'}
+          </div>
+        </>
+      )}
     </div>
   );
 }

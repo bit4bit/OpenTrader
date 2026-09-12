@@ -1,7 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-
-const LAYOUT_KEY = 'opentrader_layout';
-const LEGACY_KEY = 'opentrader_settings';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const createChartConfig = (symbol, interval = '1d') => ({
     id: `chart-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -10,43 +7,31 @@ const createChartConfig = (symbol, interval = '1d') => ({
     chartType: 'candle',
     indicators: [],
     drawings: [],
+    minimizedPanels: [],
 });
 
-function loadInitialLayout() {
-    try {
-        const saved = localStorage.getItem(LAYOUT_KEY);
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed.charts)) return parsed;
-        }
-        const legacy = localStorage.getItem(LEGACY_KEY);
-        if (legacy) {
-            const old = JSON.parse(legacy);
-            const chart = {
-                ...createChartConfig(old.symbol || 'AAPL', old.interval || '1d'),
-                chartType: old.chartType || 'candle',
-                indicators: old.indicators || [],
-                drawings: old.drawings || [],
-            };
-            localStorage.removeItem(LEGACY_KEY);
-            return { charts: [chart], activeChartId: chart.id, locked: false };
-        }
-    } catch (e) {
-        console.warn('Failed to load layout:', e);
-    }
+const defaultLayout = () => {
     const chart = createChartConfig('AAPL');
     return { charts: [chart], activeChartId: chart.id, locked: false };
-}
+};
 
-export function useCharts() {
-    const [layout] = useState(loadInitialLayout);
+export function useCharts(initialLayout, onLayoutChange) {
+    const [layout] = useState(() => (
+        Array.isArray(initialLayout?.charts) ? initialLayout : defaultLayout()
+    ));
     const [charts, setCharts] = useState(layout.charts);
     const [activeChartId, setActiveChartId] = useState(layout.activeChartId);
     const [locked, setLocked] = useState(layout.locked ?? false);
 
+    const mounted = useRef(false);
+
     useEffect(() => {
-        localStorage.setItem(LAYOUT_KEY, JSON.stringify({ charts, activeChartId, locked }));
-    }, [charts, activeChartId, locked]);
+        if (!mounted.current) {
+            mounted.current = true;
+            return;
+        }
+        onLayoutChange?.({ charts, activeChartId, locked });
+    }, [charts, activeChartId, locked, onLayoutChange]);
 
     const addChart = useCallback((symbol) => {
         const chart = createChartConfig(symbol);

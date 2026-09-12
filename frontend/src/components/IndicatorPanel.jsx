@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { SMA_SOURCES } from '../Indicators/sma';
 
 /**
@@ -12,10 +12,10 @@ const IndicatorGroupPanel = ({
     removeIndicator,
     removeIndicatorGroup,
     toggleIndicator,
-    minimizedTop
+    minimizedTop,
+    isMinimized,
+    onMinimizeChange
 }) => {
-    const [isMinimized, setIsMinimized] = useState(false);
-
     if (!indicators || indicators.length === 0) return null;
 
     if (isMinimized) {
@@ -35,7 +35,7 @@ const IndicatorGroupPanel = ({
             <button
                 className="indicator-panel-minimized-btn"
                 style={{ position: 'absolute', top: minimizedTop || '36px', right: 0 }}
-                onClick={() => setIsMinimized(false)}
+                onClick={() => onMinimizeChange(false)}
                 title={`Expand ${title} settings`}
             >
                 {icon}
@@ -51,7 +51,7 @@ const IndicatorGroupPanel = ({
                 <div className="panel-controls">
                     <button
                         className="header-action-btn minimize"
-                        onClick={(e) => { e.stopPropagation(); setIsMinimized(true); }}
+                        onClick={(e) => { e.stopPropagation(); onMinimizeChange(true); }}
                         title="Minimize"
                     >
                         −

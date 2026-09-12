@@ -1,9 +1,79 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.authtoken.models import Token
+from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+
+from .models import Session
+
+
+def serialize_session(session):
+    return {
+        'id': session.id,
+        'name': session.name,
+        'layout': session.layout,
+        'created_at': session.created_at.isoformat(),
+        'updated_at': session.updated_at.isoformat(),
+    }
+
+
+class LoginView(APIView):
+    def post(self, request):
+        username = (request.data.get('username') or '').strip()
+        if not username:
+            return Response({'error': 'Username is required'}, status=status.HTTP_400_BAD_REQUEST)
+        user, created = User.objects.get_or_create(username=username)
+        if created:
+            Session.objects.create(user=user, name='My Session', layout={})
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({'token': token.key, 'username': user.username})
+
+
+class SessionListCreate(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        sessions = request.user.sessions.all()
+        return Response([serialize_session(s) for s in sessions])
+
+    def post(self, request):
+        name = (request.data.get('name') or '').strip()
+        if not name:
+            return Response({'error': 'Name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        session = Session.objects.create(user=request.user, name=name, layout=request.data.get('layout') or {})
+        return Response(serialize_session(session), status=status.HTTP_201_CREATED)
+
+
+class SessionDetail(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_session(self, request, pk):
+        return get_object_or_404(Session, pk=pk, user=request.user)
+
+    def get(self, request, pk):
+        return Response(serialize_session(self.get_session(request, pk)))
+
+    def patch(self, request, pk):
+        session = self.get_session(request, pk)
+        if 'name' in request.data:
+            name = (request.data.get('name') or '').strip()
+            if not name:
+                return Response({'error': 'Name cannot be empty'}, status=status.HTTP_400_BAD_REQUEST)
+            session.name = name
+        if 'layout' in request.data:
+            session.layout = request.data['layout']
+        session.save()
+        return Response(serialize_session(session))
+
+    def delete(self, request, pk):
+        self.get_session(request, pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class TickerSearch(APIView):
     def get(self, request):

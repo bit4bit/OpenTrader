@@ -42,7 +42,7 @@ const ChartPanel = ({
     onClose,
     onUpdate,
 }) => {
-    const { symbol, interval, chartType, indicators, drawings } = chart;
+    const { symbol, interval, chartType, indicators, drawings, minimizedPanels = [] } = chart;
     const { data, loading, loadingMore, error, handleVisibleLogicalRangeChange } = useChartData(symbol, interval);
     const adFullData = useAdFullData(symbol, interval, indicators);
     const [hoveredData, setHoveredData] = useState(null);
@@ -61,6 +61,14 @@ const ChartPanel = ({
     const removeIndicator = useCallback((id) => patchIndicators(list => removeIndicatorIn(list, id)), [patchIndicators]);
     const removeIndicatorGroup = useCallback((type) => patchIndicators(list => removeIndicatorGroupIn(list, type)), [patchIndicators]);
     const toggleIndicator = useCallback((id) => patchIndicators(list => toggleIndicatorIn(list, id)), [patchIndicators]);
+
+    const setPanelMinimized = useCallback((groupType, minimized) => {
+        onUpdate(chart.id, c => ({
+            minimizedPanels: minimized
+                ? [...new Set([...(c.minimizedPanels || []), groupType])]
+                : (c.minimizedPanels || []).filter(t => t !== groupType),
+        }));
+    }, [chart.id, onUpdate]);
 
     const priceData = hoveredData?.price;
     const pnl = priceData ? ((priceData.close - priceData.open) / priceData.open * 100) : null;
@@ -344,6 +352,8 @@ const ChartPanel = ({
                             title={def.title}
                             groupType={def.groupType}
                             minimizedTop={minimizedTopFor(def.groupType)}
+                            isMinimized={minimizedPanels.includes(def.groupType)}
+                            onMinimizeChange={(minimized) => setPanelMinimized(def.groupType, minimized)}
                             indicators={indicators.filter(i => i.type === def.groupType)}
                             updateIndicator={updateIndicator}
                             removeIndicator={removeIndicator}
