@@ -100,26 +100,42 @@ def get_catalog(name):
     provider = get_provider(name)
     ttl = _cache_ttl(name, config)
     now = time.time()
+    path = _cache_path(name)
+    mtime = _disk_mtime(path)
     cached = _catalog_cache.get(name)
-    if cached and now - cached['fetched_at'] < ttl:
+    # The memory copy is only valid while the disk file is unchanged:
+    # other gunicorn workers merge search results straight to disk, and a
+    # stale per-process memory cache would 404 symbols they learned.
+    if cached and now - cached['fetched_at'] < ttl and cached.get('mtime') == mtime:
         return cached['symbols']
 
-    path = _cache_path(name)
     disk = _read_disk_cache(path)
     if disk and now - disk['fetched_at'] < ttl:
+        disk['mtime'] = mtime
         _catalog_cache[name] = disk
         return disk['symbols']
 
     try:
         symbols = _stamp(provider.symbols(), name)
+        # Re-read the disk after the fetch: another worker may have merged
+        # new symbols into it while this fetch was in flight.
+        disk = _read_disk_cache(path)
+        if disk:
+            # A refresh rebuilds the catalog from the source alone (screener,
+            # exchange listing), which drops symbols only known from past
+            # searches. Preserve them so users keep routing to what they picked.
+            known = {e['symbol'] for e in symbols}
+            symbols += [e for e in disk['symbols'] if e['symbol'] not in known]
         entry = {'fetched_at': now, 'symbols': symbols}
         _write_disk_cache(path, entry)
+        entry['mtime'] = _disk_mtime(path)
         _catalog_cache[name] = entry
         return symbols
     except Exception as e:
         logger.warning('Catalog fetch failed for provider %s: %s', name, e)
         if disk:
             logger.info('Serving stale catalog for provider %s', name)
+            disk['mtime'] = _disk_mtime(path)
             _catalog_cache[name] = disk
             return disk['symbols']
         raise
@@ -140,6 +156,13 @@ def _read_disk_cache(path):
     return None
 
 
+def _disk_mtime(path):
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return None
+
+
 def _write_disk_cache(path, entry):
     os.makedirs(path.parent, exist_ok=True)
     tmp = path.with_suffix('.tmp')
@@ -149,12 +172,29 @@ def _write_disk_cache(path, entry):
 
 
 def resolve_provider(symbol, provider_name=None):
-    """Return (provider, metadata) for a symbol, or raise SymbolNotSupported."""
+    """Return (provider, metadata) for a symbol, or raise SymbolNotSupported.
+
+    An unknown symbol is looked up via search once: search results are merged
+    into the provider catalogs, so free-text symbols typed into indicators
+    resolve without a manual search step.
+    """
     if provider_name:
         for entry in get_catalog(provider_name):
             if entry['symbol'] == symbol:
                 return get_provider(provider_name), entry
+        _learn_symbol(symbol)
+        for entry in get_catalog(provider_name):
+            if entry['symbol'] == symbol:
+                return get_provider(provider_name), entry
         raise SymbolNotSupported(f'Symbol {symbol} is not supported by provider {provider_name}')
+    try:
+        return _resolve_from_catalogs(symbol)
+    except SymbolNotSupported:
+        _learn_symbol(symbol)
+        return _resolve_from_catalogs(symbol)
+
+
+def _resolve_from_catalogs(symbol):
     errors = []
     for name in get_configured_provider_names():
         try:
@@ -168,6 +208,31 @@ def resolve_provider(symbol, provider_name=None):
     if errors:
         logger.warning('Provider resolution errors for %s: %s', symbol, '; '.join(errors))
     raise SymbolNotSupported(f'Symbol {symbol} is not supported by the configured providers')
+
+
+def _learn_symbol(symbol):
+    """Search for an unknown free-text symbol so it can be routed.
+
+    Queries the exact symbol first; crypto symbols like 'RNDR-USD' are also
+    retried without the quote suffix, since Yahoo's search ignores exact
+    suffixed tickers of renamed tokens ('RNDR-USD' -> 'RENDER-USD').
+    """
+    queries = [symbol]
+    base, _, quote = symbol.partition('-')
+    if quote:
+        queries.append(base)
+    for query in queries:
+        try:
+            search_all(query)
+        except Exception as e:
+            logger.warning('Symbol lookup for %s failed: %s', query, e)
+            continue
+        for name in get_configured_provider_names():
+            try:
+                if any(e['symbol'] == symbol for e in get_catalog(name)):
+                    return
+            except Exception:
+                continue
 
 
 def search_all(query):
@@ -200,11 +265,12 @@ def _merge_search_results(results):
             continue
         merged = catalog + additions
         entry = {'fetched_at': time.time(), 'symbols': merged}
-        _catalog_cache[name] = entry
         try:
             _write_disk_cache(_cache_path(name), entry)
+            entry['mtime'] = _disk_mtime(_cache_path(name))
         except OSError as e:
             logger.warning('Failed to persist catalog merge for %s: %s', name, e)
+        _catalog_cache[name] = entry
 
 
 def providers_config_hash():

@@ -7,6 +7,7 @@ and Yahoo's API (yf.screen / yf.Search / yf.Ticker). Database, config
 parsing, routing, and the disk cache run for real.
 """
 import json
+import time
 from unittest import mock
 
 from django.test import TestCase
@@ -241,6 +242,37 @@ class YahooCatalogBehavior(ProviderScenarioTestCase):
         self.assertIn('TSLA', [e['symbol'] for e in payload['symbols']])
 
 
+    def test_searched_symbols_survive_a_catalog_refresh(self):
+        with yahoo_screen([yahoo_quote('AAPL', 'Apple')]):
+            registry.get_catalog('yahoo')
+        with yahoo_search([yahoo_quote('JST-USD', 'JST', quote_type='CRYPTOCURRENCY')]):
+            registry.search_all('JST')
+        provider, meta = registry.resolve_provider('JST-USD')
+        self.assertEqual(meta['provider'], 'yahoo')
+
+        # TTL expires: refresh fetches only screener data again, but the
+        # searched symbol must still resolve afterwards.
+        expired = mock.patch('time.time', return_value=time.time() + 7200)
+        with expired, yahoo_screen([yahoo_quote('AAPL', 'Apple')]):
+            registry.get_catalog('yahoo')
+        provider, meta = registry.resolve_provider('JST-USD')
+        self.assertEqual(meta['provider'], 'yahoo')
+
+
+    def test_worker_with_stale_memory_sees_symbols_another_worker_merged(self):
+        # gunicorn runs several worker processes, each with its own memory
+        # catalog cache. Worker B serves a chart, warming its memory copy;
+        # worker A then merges a searched symbol straight to disk. Worker B's
+        # next resolution must pick the merge up instead of 404ing.
+        with yahoo_screen([yahoo_quote('AAPL', 'Apple')]):
+            registry.get_catalog('yahoo')  # worker B warms its memory copy
+        with yahoo_search([yahoo_quote('JST-USD', 'JST', quote_type='CRYPTOCURRENCY')]):
+            registry.search_all('JST')     # worker A merges to disk
+
+        provider, meta = registry.resolve_provider('JST-USD')
+        self.assertEqual(meta['provider'], 'yahoo')
+
+
 class SymbolRoutingBehavior(ProviderScenarioTestCase):
     def setUp(self):
         super().setUp()
@@ -286,6 +318,16 @@ class HistoryApiBehavior(ProviderScenarioTestCase):
         self.assertEqual(data[0]['low'], 95.0)
         self.assertEqual(data[0]['close'], 105.0)
         self.assertEqual(data[0]['volume'], 12.5)
+
+    def test_free_text_symbol_resolves_without_a_prior_search(self):
+        # The SMI constituent editor submits bare free-text symbols; the user
+        # never searches first. An unknown symbol must self-heal: search once,
+        # merge the result into the catalogs, then resolve.
+        with kraken_http(), yahoo_search([yahoo_quote('JST-USD', 'JST', quote_type='CRYPTOCURRENCY')]):
+            response = self.client.get('/api/history/',
+                                       {'symbol': 'JST-USD', 'interval': '1d', 'range': 'max'})
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(len(response.json()), 0)
 
     def test_unsupported_symbol_returns_404(self):
         self.given_config({'kraken': {}})
