@@ -52,4 +52,4 @@ The `frontend` container copies `dist/` into the shared `dist` volume served by 
 - Chart state is per-chart: `{ id, symbol, interval, chartType, indicators, drawings }`. Global toolbar actions target the **active** chart (`activeChartId`).
 - Layout (`{charts, activeChartId, locked}`) persists to the active `Session` on the backend via debounced PATCH; the old `opentrader_layout` localStorage key is gone. Sessions require a token from `POST /api/auth/login/`; a new user gets a "My Session" seeded at first login.
 - Sync (lock) works by logical range for zoom/pan and nearest-bar snapping for the crosshair, so charts with different symbols/sessions stay aligned.
-- Commit style: short imperative subject, lowercase (e.g. `add Volume SMA indicator`), optional body explaining why.
+- Commit style: short imperative subject, lowercase (e.g. `add Volume SMA indicator`), optional body explaining why. Every commit message should include `Co-Authored-By: LLM Assisted`.
