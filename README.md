@@ -4,10 +4,15 @@ OpenTrader is an open-source alternative to TradingView: a Django + DRF backend 
 
 > **Note:** OpenTrader is in an early stage — suggestions and issue reports are welcome!
 
+> **Acknowledgements:** This repository is a fork of the great [OpenTrader](https://github.com/nodminger/OpenTrader) by [@nodminger](https://github.com/nodminger) — many thanks for creating and open-sourcing such an awesome project! 🙏
+
 ## 📸 Screenshots
 
-![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot2.png)
-![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot3.png)
+![open trader trading view opensource alternative](https://raw.githubusercontent.com/bit4bit/OpenTrader/refs/heads/master/Screenshots/screenshot1.png)
+![open trader trading view opensource alternative](https://raw.githubusercontent.com/bit4bit/OpenTrader/refs/heads/master/Screenshots/screenshot2.png)
+![open trader trading view opensource alternative](https://raw.githubusercontent.com/bit4bit/OpenTrader/refs/heads/master/Screenshots/screenshot3.png)
+![open trader trading view opensource alternative](https://raw.githubusercontent.com/bit4bit/OpenTrader/refs/heads/master/Screenshots/screenshot4.png)
+![open trader trading view opensource alternative](https://raw.githubusercontent.com/bit4bit/OpenTrader/refs/heads/master/Screenshots/screenshot5.png)
 
 ## ✨ Features
 
