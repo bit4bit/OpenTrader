@@ -7,38 +7,25 @@ import {
     HistogramSeries,
 } from 'lightweight-charts';
 import { formatADLValue } from '../Indicators/adl';
-import { getActivePaneTypes } from '../Indicators/panes';
-import { SCRIPT_TYPES, needsFullData, scriptPriceScale } from '../Indicators/scripts';
+import { scriptPriceScale } from '../Indicators/scripts';
 import { registerChart, broadcastRange, broadcastCrosshair, isApplyingSync } from '../sync/chartSync';
-
-const INTRADAY_INTERVALS = ['1m', '5m', '15m', '1h', '4h'];
-
-// Crosshair time-scale label: weekday name + date (UTC, matching the library's rendering)
-function formatCrosshairTime(time, interval) {
-    const d = new Date(time * 1000);
-    const day = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
-    const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
-    if (!INTRADAY_INTERVALS.includes(interval)) return `${day}, ${date}`;
-    const hh = String(d.getUTCHours()).padStart(2, '0');
-    const mm = String(d.getUTCMinutes()).padStart(2, '0');
-    return `${day}, ${date} ${hh}:${mm}`;
-}
-
-// Compute Heikin-Ashi candles from OHLCV data
-function computeHeikinAshi(data) {
-    const ha = [];
-    for (let i = 0; i < data.length; i++) {
-        const curr = data[i];
-        const haClose = (curr.open + curr.high + curr.low + curr.close) / 4;
-        const haOpen = i === 0
-            ? (curr.open + curr.close) / 2
-            : (ha[i - 1].open + ha[i - 1].close) / 2;
-        const haHigh = Math.max(curr.high, haOpen, haClose);
-        const haLow = Math.min(curr.low, haOpen, haClose);
-        ha.push({ time: curr.time, open: haOpen, high: haHigh, low: haLow, close: haClose });
-    }
-    return ha;
-}
+import { formatCrosshairTime, crosshairLineColor } from '../chart/timeFormat';
+import { priceSeriesData } from '../chart/heikinAshi';
+import { findNearestBar } from '../chart/barSearch';
+import { isDrawingTool, buildPreviewDrawing } from '../chart/drawingTools';
+import { applyDrawingClick, edgeRange } from '../chart/drawingInteraction';
+import { buildLegendResults } from '../chart/crosshairLegend';
+import {
+    computeActivePaneTypes,
+    paneIndexOf as paneIndexOfType,
+    paneStretchFactors,
+    computeRenderableIds,
+    isScriptIndicator,
+    scriptPaneKey,
+    sliceToWindow,
+} from '../chart/paneLayout';
+import { linearRegression, maxDeviation, stdError, timeWindowIndices } from '../chart/regression';
+import { getNoteCoordinates, noteBoxOffset, updateTextNote, deleteDrawing } from '../chart/noteGeometry';
 
 // Custom primitive to sync SVG with chart movements
 class SyncPrimitive {
@@ -54,12 +41,8 @@ class SyncPrimitive {
 }
 
 // Compute screen coordinates of a text note's anchor and box.
-function getNoteCoordinates(drawing, ts, priceSeries) {
-    const x = ts.timeToCoordinate(drawing.anchor.time);
-    const y = priceSeries.priceToCoordinate(drawing.anchor.price);
-    if (x === null || y === null) return null;
-    const { dx, dy } = drawing.boxOffset;
-    return { anchorX: x, anchorY: y, boxX: x + dx, boxY: y + dy };
+function noteCoordinates(drawing, ts, priceSeries) {
+    return getNoteCoordinates(drawing, t => ts.timeToCoordinate(t), p => priceSeries.priceToCoordinate(p));
 }
 
 const Chart = ({
@@ -98,11 +81,11 @@ const Chart = ({
     const [notePositions, setNotePositions] = useState({});
 
     const updateNote = React.useCallback((id, updater) => {
-        setDrawings(prev => prev.map(d => d.type === 'textNote' && d.id === id ? updater(d) : d));
+        setDrawings(prev => updateTextNote(prev, id, updater));
     }, []);
 
     const deleteNote = (id) => {
-        setDrawings(prev => prev.filter(d => d.id !== id));
+        setDrawings(prev => deleteDrawing(prev, id));
     };
 
     const commitNoteText = (id, text) => {
@@ -170,18 +153,7 @@ const Chart = ({
         chartRef.current = chart;
 
         syncEntryRef.current.chart = chart;
-        syncEntryRef.current.findNearestBar = (time) => {
-            const bars = dataRef.current;
-            if (bars.length === 0) return null;
-            let lo = 0, hi = bars.length - 1;
-            while (lo < hi) {
-                const mid = (lo + hi) >> 1;
-                if (bars[mid].time < time) lo = mid + 1; else hi = mid;
-            }
-            const prev = bars[lo - 1];
-            const best = prev && Math.abs(prev.time - time) <= Math.abs(bars[lo].time - time) ? prev : bars[lo];
-            return { time: best.time, price: best.close };
-        };
+        syncEntryRef.current.findNearestBar = (time) => findNearestBar(dataRef.current, time);
         const unregister = chartId ? registerChart(chartId, syncEntryRef.current) : null;
 
         const rangeChangeHandler = (range) => {
@@ -190,30 +162,24 @@ const Chart = ({
         };
         chart.timeScale().subscribeVisibleLogicalRangeChange(rangeChangeHandler);
 
-        let crosshairLineColor = '#758696';
+        let currentCrosshairColor = '#758696';
         const crosshairHandler = (param) => {
             // Highlight the vertical crosshair line on weekend bars
             if (param.time) {
-                const day = new Date(param.time * 1000).getUTCDay();
-                const color = (day === 0 || day === 6) ? '#4da3ff' : '#758696';
-                if (color !== crosshairLineColor) {
-                    crosshairLineColor = color;
+                const color = crosshairLineColor(param.time);
+                if (color !== currentCrosshairColor) {
+                    currentCrosshairColor = color;
                     chart.applyOptions({ crosshair: { vertLine: { color } } });
                 }
             }
 
             const currentTool = activeToolRef.current;
-            if (currentTool && currentTool !== 'cursor' && currentTool !== 'eraserOne' && param.point && param.time !== undefined && priceSeriesRef.current) {
+            if (isDrawingTool(currentTool) && param.point && param.time !== undefined && priceSeriesRef.current) {
                 const time = param.time;
                 const price = priceSeriesRef.current.coordinateToPrice(param.point.y);
 
                 if (drawingPointsRef.current.length > 0) {
-                    setPreviewDrawing({
-                        type: currentTool,
-                        points: [...drawingPointsRef.current, { time, price }],
-                        p1: drawingPointsRef.current[0], // backward compatibility
-                        p2: { time, price }
-                    });
+                    setPreviewDrawing(buildPreviewDrawing(currentTool, drawingPointsRef.current, { time, price }));
                 }
             }
 
@@ -223,20 +189,13 @@ const Chart = ({
                 return;
             }
 
-            const results = {
-                price: param.seriesData.get(priceSeriesRef.current) ?? null,
-                generic: {},
-            };
-
             // Script-based indicators (built-ins + custom): one entry per
             // plot, in plot declaration order.
-            Object.entries(genericSeriesRef.current).forEach(([id, seriesArr]) => {
-                results.generic[id] = seriesArr.map(entry => ({
-                    title: entry.title,
-                    color: entry.color,
-                    value: param.seriesData.get(entry.series)?.value ?? null,
-                }));
-            });
+            const results = buildLegendResults(
+                param.seriesData.get(priceSeriesRef.current),
+                genericSeriesRef.current,
+                series => param.seriesData.get(series)
+            );
 
             onCrosshairMoveRef.current(results);
         };
@@ -305,13 +264,8 @@ const Chart = ({
                 // Slide the current window to the edge, preserving zoom (bar width).
                 const range = ts.getVisibleLogicalRange();
                 if (!range) return;
-                const width = range.to - range.from;
                 pendingScrollRef.current = e.key === 'End' ? 'end' : 'start';
-                if (e.key === 'End') {
-                    ts.setVisibleLogicalRange({ from: data.length - 1 + 20 - width, to: data.length - 1 + 20 });
-                } else {
-                    ts.setVisibleLogicalRange({ from: 0, to: width });
-                }
+                ts.setVisibleLogicalRange(edgeRange(e.key, range.to - range.from, data.length));
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -320,7 +274,7 @@ const Chart = ({
 
     // Handle Clicks for Drawing
     useEffect(() => {
-        if (!chartRef.current || !activeTool || activeTool === 'cursor' || activeTool === 'eraserOne') {
+        if (!chartRef.current || !isDrawingTool(activeTool)) {
             drawingPointsRef.current = [];
             setPreviewDrawing(null);
             return;
@@ -332,122 +286,12 @@ const Chart = ({
             if (time === undefined || time === null) return;
             const price = priceSeriesRef.current.coordinateToPrice(param.point.y);
 
-            const points = drawingPointsRef.current;
-
-            if (activeTool === 'horizontalLine' || activeTool === 'verticalLine' || activeTool === 'horizontalRay' || activeTool === 'crossLine') {
-                const newDrawing = {
-                    id: Date.now().toString(),
-                    type: activeTool,
-                    points: [{ time, price }],
-                    p1: { time, price },
-                    p2: { time, price }, // Some tools might need same values initially
-                    color: '#2962ff',
-                    lineWidth: 2
-                };
-                setDrawings(prev => [...prev, newDrawing]);
-                setActiveTool('cursor');
-                return;
-            }
-
-            if (activeTool === 'textNote') {
-                const newNote = {
-                    id: Date.now().toString(),
-                    type: 'textNote',
-                    anchor: { time, price },
-                    boxOffset: { dx: 20, dy: -50 },
-                    text: '',
-                    editing: true
-                };
-                setDrawings(prev => [...prev, newNote]);
-                setActiveTool('cursor');
-                return;
-            }
-
-            // For multi-point tools
-            const newPoints = [...points, { time, price }];
-            drawingPointsRef.current = newPoints;
-
-            const requiredPoints = {
-                trend: 2,
-                arrow: 2,
-                ray: 2,
-                extendedLine: 2,
-                infoLine: 2,
-                trendAngle: 2,
-                rectangle: 2,
-                rotatedRectangle: 3,
-                circle: 2,
-                ellipse: 2,
-                triangle: 3,
-                polyline: 4,
-                curve: 3,
-                doubleCurve: 4,
-                arc: 3,
-                xabcd: 5,
-                cypher: 5,
-                abcd: 4,
-                threeDrives: 6,
-                shark: 5,
-                fiveO: 6,
-                elliottImpulse: 5,
-                elliottCorrection: 3,
-                elliottTriangle: 5,
-                elliottDoubleCombo: 3,
-                elliottTripleCombo: 5,
-                headAndShoulders: 7,
-                trianglePattern: 4,
-                wedgePattern: 4,
-                rectanglePattern: 4,
-                channelPattern: 3,
-                doubleTop: 5,
-                doubleBottom: 5,
-                pitchfork: 3,
-                schiffPitchfork: 3,
-                modifiedSchiffPitchfork: 3,
-                insidePitchfork: 3,
-                regressionChannel: 3,
-                buyLabel: 1,
-                sellLabel: 1,
-                arrowMark: 1,
-                longPosition: 2,
-                shortPosition: 2,
-                riskReward: 2,
-                forecast: 2,
-                priceRange: 2,
-                dateRange: 2,
-                ghostFeed: 2,
-                fibRetracement: 2,
-                fibExtension: 3,
-                fibSpeedArcs: 2,
-                fibFan: 2,
-                fibTimeZone: 2,
-                fibChannel: 3,
-                fibWedge: 3,
-                fibSpiral: 2,
-                fibCircles: 2,
-                gannFan: 2,
-                gannSquare: 2,
-                gannBox: 2,
-                parallelChannel: 3,
-                flatTopBottom: 3,
-                disjointChannel: 4,
-                regressionTrend: 2,
-                ellipse: 2,
-                triangle: 3
-            };
-
-            if (newPoints.length >= requiredPoints[activeTool]) {
-                const newDrawing = {
-                    id: Date.now().toString(),
-                    type: activeTool,
-                    points: newPoints,
-                    p1: newPoints[0],
-                    p2: newPoints[1],
-                    color: '#2962ff',
-                    lineWidth: 2
-                };
-                setDrawings(prev => [...prev, newDrawing]);
-                drawingPointsRef.current = [];
+            const { drawing, pendingPoints, finished } = applyDrawingClick(
+                activeTool, { time, price }, drawingPointsRef.current, Date.now().toString()
+            );
+            drawingPointsRef.current = pendingPoints;
+            if (drawing) setDrawings(prev => [...prev, drawing]);
+            if (finished) {
                 setPreviewDrawing(null);
                 setActiveTool('cursor');
             }
@@ -566,7 +410,7 @@ const Chart = ({
 
         const renderDrawing = (d) => {
             if (d.type === 'textNote') {
-                const coords = getNoteCoordinates(d, ts, ps);
+                const coords = noteCoordinates(d, ts, ps);
                 if (!coords) return;
                 const { anchorX, anchorY, boxX, boxY } = coords;
 
@@ -803,40 +647,34 @@ const Chart = ({
                 const endIdx = data.findIndex(item => item.time === p2.time);
                 if (startIdx !== -1 && endIdx !== -1) {
                     const subset = data.slice(Math.min(startIdx, endIdx), Math.max(startIdx, endIdx) + 1);
-                    const n = subset.length;
-                    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-                    subset.forEach((d, i) => {
-                        sumX += i; sumY += d.close; sumXY += i * d.close; sumXX += i * i;
-                    });
-                    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-                    const intercept = (sumY - slope * sumX) / n;
+                    const closes = subset.map(b => b.close);
+                    const reg = linearRegression(closes);
+                    if (reg) {
+                        const { slope, intercept } = reg;
+                        const n = subset.length;
+                        const lx1 = ts.timeToCoordinate(subset[0].time);
+                        const lx2 = ts.timeToCoordinate(subset[n - 1].time);
+                        const ly1 = ps.priceToCoordinate(intercept);
+                        const ly2 = ps.priceToCoordinate(slope * (n - 1) + intercept);
 
-                    const lx1 = ts.timeToCoordinate(subset[0].time);
-                    const lx2 = ts.timeToCoordinate(subset[n - 1].time);
-                    const ly1 = ps.priceToCoordinate(intercept);
-                    const ly2 = ps.priceToCoordinate(slope * (n - 1) + intercept);
+                        if (lx1 !== null && lx2 !== null && ly1 !== null && ly2 !== null) {
+                            const med = line.cloneNode();
+                            med.setAttribute('x1', lx1); med.setAttribute('y1', ly1);
+                            med.setAttribute('x2', lx2); med.setAttribute('y2', ly2);
+                            svg.appendChild(med);
 
-                    if (lx1 !== null && lx2 !== null && ly1 !== null && ly2 !== null) {
-                        const med = line.cloneNode();
-                        med.setAttribute('x1', lx1); med.setAttribute('y1', ly1);
-                        med.setAttribute('x2', lx2); med.setAttribute('y2', ly2);
-                        svg.appendChild(med);
+                            // Deviation for channel
+                            const maxDev = maxDeviation(closes, slope, intercept);
+                            const devY = Math.abs(ps.priceToCoordinate(intercept + maxDev) - ly1);
 
-                        // Deviation for channel
-                        let maxDev = 0;
-                        subset.forEach((d, i) => {
-                            const pred = slope * i + intercept;
-                            maxDev = Math.max(maxDev, Math.abs(d.close - pred));
-                        });
-                        const devY = Math.abs(ps.priceToCoordinate(intercept + maxDev) - ly1);
-
-                        [devY, -devY].forEach(off => {
-                            const l = line.cloneNode();
-                            l.setAttribute('x1', lx1); l.setAttribute('y1', ly1 + off);
-                            l.setAttribute('x2', lx2); l.setAttribute('y2', ly2 + off);
-                            l.setAttribute('opacity', '0.4');
-                            svg.appendChild(l);
-                        });
+                            [devY, -devY].forEach(off => {
+                                const l = line.cloneNode();
+                                l.setAttribute('x1', lx1); l.setAttribute('y1', ly1 + off);
+                                l.setAttribute('x2', lx2); l.setAttribute('y2', ly2 + off);
+                                l.setAttribute('opacity', '0.4');
+                                svg.appendChild(l);
+                            });
+                        }
                     }
                 }
             } else if (d.type === 'trend' && x2 !== null && y2 !== null) {
@@ -889,10 +727,7 @@ const Chart = ({
                 // Info Box
                 const priceDiff = d.p2.price - d.p1.price;
                 const percDiff = (priceDiff / d.p1.price) * 100;
-                const bars = Math.round(Math.abs(x2 - x1) / 10); // Approximation if we don't count data points exactly
 
-                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
 
                 text.textContent = `${priceDiff.toFixed(2)} (${percDiff.toFixed(2)}%)`;
@@ -1540,7 +1375,6 @@ const Chart = ({
                 const p1 = d.points[0];
                 const p2 = d.points[1];
                 const p3 = d.points[2];
-                const p4 = d.points[3] || (allDrawings.includes(previewDrawing) && d.points.length === 4 ? d.points[3] : null);
 
                 const px1 = ts.timeToCoordinate(p1.time);
                 const py1 = ps.priceToCoordinate(p1.price);
@@ -1554,7 +1388,6 @@ const Chart = ({
                     svg.appendChild(l1);
 
                     const currentP3 = p3;
-                    const currentP4 = p4 || (allDrawings.includes(previewDrawing) && d.points.length === 4 ? d.points[3] : null);
 
                     // If we have p3, we can preview l2 with mouse (which is p4 in preview points)
                     if (currentP3) {
@@ -1573,34 +1406,18 @@ const Chart = ({
                     }
                 }
             } else if (d.type === 'regressionTrend' && x2 !== null && y2 !== null) {
-                // Optimized Regression: Find indices instead of filtering every frame
                 const t1 = Math.min(d.p1.time, d.p2.time);
                 const t2 = Math.max(d.p1.time, d.p2.time);
 
-                // Assuming data is sorted by time (standard for candle data)
-                let startIdx = -1, endIdx = -1;
-                for (let i = 0; i < data.length; i++) {
-                    if (startIdx === -1 && data[i].time >= t1) startIdx = i;
-                    if (data[i].time <= t2) endIdx = i;
-                    if (data[i].time > t2) break;
-                }
+                const window_ = timeWindowIndices(data, t1, t2);
 
-                if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-                    const n = endIdx - startIdx + 1;
-                    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-                    for (let i = startIdx; i <= endIdx; i++) {
-                        const x = i - startIdx;
-                        const y = data[i].close;
-                        sumX += x;
-                        sumY += y;
-                        sumXY += x * y;
-                        sumX2 += x * x;
-                    }
-                    const denominator = (n * sumX2 - sumX * sumX);
-                    if (denominator !== 0) {
-                        const slope = (n * sumXY - sumX * sumY) / denominator;
-                        const intercept = (sumY - slope * sumX) / n;
-
+                if (window_) {
+                    const { start: startIdx, end: endIdx } = window_;
+                    const closes = data.slice(startIdx, endIdx + 1).map(b => b.close);
+                    const n = closes.length;
+                    const reg = linearRegression(closes);
+                    if (reg) {
+                        const { slope, intercept } = reg;
                         const startPrice = intercept;
                         const endPrice = intercept + slope * (n - 1);
 
@@ -1615,12 +1432,7 @@ const Chart = ({
                             svg.appendChild(line);
 
                             // Standard Error Bands
-                            let sumSqErrors = 0;
-                            for (let i = startIdx; i <= endIdx; i++) {
-                                const pred = intercept + slope * (i - startIdx);
-                                sumSqErrors += Math.pow(data[i].close - pred, 2);
-                            }
-                            const stdev = Math.sqrt(sumSqErrors / n);
+                            const stdev = stdError(closes, slope, intercept);
                             const bandOffset = Math.abs(ps.priceToCoordinate(startPrice + stdev) - ry1);
 
                             [1, -1].forEach(dir => {
@@ -1697,7 +1509,7 @@ const Chart = ({
             const g = e.target.closest?.('[data-drawing-id]');
             if (!g) return;
             const id = g.getAttribute('data-drawing-id');
-            setDrawings(prev => prev.filter(d => d.id !== id));
+            setDrawings(prev => deleteDrawing(prev, id));
         };
         svg.addEventListener('click', handleErase);
         return () => {
@@ -1722,7 +1534,7 @@ const Chart = ({
         // Pane indicators (oscillators) each get their own dedicated pane,
         // TradingView-style, stacked in canonical order. When the active set
         // changes, extra panes are rebuilt so ordering stays deterministic.
-        const activePaneTypes = [...getActivePaneTypes(indicators), ...indicatorResults.paneIds];
+        const activePaneTypes = computeActivePaneTypes(indicators, indicatorResults.paneIds);
         const paneKey = activePaneTypes.join(',');
         if (paneKey !== lastPaneKey.current) {
             while (chartRef.current.panes().length > 1) {
@@ -1740,9 +1552,8 @@ const Chart = ({
         }
         // Price pane gets 3x the height of each indicator pane so pane
         // boundaries are deterministic: share = 100 / (3 + n) percent.
-        chartRef.current.panes()[0].setStretchFactor(3);
-        chartRef.current.panes().slice(1).forEach(p => p.setStretchFactor(1));
-        const paneIndexOf = (type) => activePaneTypes.indexOf(type) + 1;
+        chartRef.current.panes().forEach((p, i) => p.setStretchFactor(paneStretchFactors(chartRef.current.panes().length)[i]));
+        const paneIndexOf = (type) => paneIndexOfType(activePaneTypes, type);
 
         chartRef.current.priceScale('right').applyOptions({ scaleMargins: { top: 0.02, bottom: 0.12 } });
 
@@ -1781,22 +1592,14 @@ const Chart = ({
             priceSeriesRef.current.attachPrimitive(syncProp);
         }
 
-        const priceData = chartType === 'heikin' ? computeHeikinAshi(data) : (chartType === 'line' ? data.map(d => ({ time: d.time, value: d.close })) : data);
+        const priceData = priceSeriesData(data, chartType);
         priceSeriesRef.current.setData(priceData);
 
         // Indicator Management
         // A tracked series is renderable only while its indicator is visible
         // AND has a usable script result — a deleted or broken script must
         // drop its series instead of leaving them on the chart.
-        const renderableIds = new Set(
-            indicators
-                .filter(ind => ind.visible)
-                .filter(ind => {
-                    const res = indicatorResults.resultsById[ind.id];
-                    return res && !res.error;
-                })
-                .map(ind => ind.id)
-        );
+        const renderableIds = computeRenderableIds(indicators, indicatorResults.resultsById);
         [genericSeriesRef].forEach(ref => {
             Object.keys(ref.current).forEach(id => {
                 if (!renderableIds.has(id)) {
@@ -1812,21 +1615,19 @@ const Chart = ({
         const nextFills = [];
         const nextHistograms = [];
         indicators.forEach(ind => {
-            const isScriptType = SCRIPT_TYPES.includes(ind.type) || ind.type === 'custom';
-            if (isScriptType && ind.visible) {
+            if (isScriptIndicator(ind) && ind.visible) {
                 // All script-based indicators (built-ins from the registry
                 // and user custom scripts) render through one descriptor path.
                 const res = indicatorResults.resultsById[ind.id];
                 if (!res || res.error) return;
 
-                const paneKey = ind.type === 'custom' ? `custom-${ind.id}` : ind.type;
+                const paneKey = scriptPaneKey(ind);
                 const hasPanes = res.plots.some(p => !p.overlay);
                 const paneIndex = hasPanes ? paneIndexOf(paneKey) : 0;
                 const priceScaleId = scriptPriceScale(ind.type);
                 // Cumulative indicators run over full history; slice plots
                 // back to the currently loaded window (like the old A/D path).
-                const sliceWindow = needsFullData(ind.type) && data.length > 0;
-                const firstTime = sliceWindow ? data[0].time : null;
+                const firstTime = data.length > 0 ? data[0].time : null;
 
                 let existing = genericSeriesRef.current[ind.id];
                 if (existing && existing.length !== res.plots.length) {
@@ -1857,9 +1658,7 @@ const Chart = ({
                 res.plots.forEach((p, i) => {
                     const entry = existing[i];
                     entry.series.applyOptions({ color: p.color, title: p.title });
-                    entry.series.setData(firstTime != null
-                        ? p.series.filter(b => b.time >= firstTime)
-                        : p.series);
+                    entry.series.setData(sliceToWindow(p.series, ind.type, firstTime));
                     entry.title = p.title;
                     entry.color = p.color;
                 });
@@ -1924,7 +1723,7 @@ const Chart = ({
                 const { anchorX, anchorY } = noteDrag;
                 updateNoteRef.current(noteDrag.id, d => ({
                     ...d,
-                    boxOffset: { dx: px - anchorX, dy: py - anchorY }
+                    boxOffset: noteBoxOffset(anchorX, anchorY, px, py)
                 }));
             } else {
                 const time = ts.coordinateToTime(px);
@@ -1959,7 +1758,7 @@ const Chart = ({
         const positions = {};
         drawings.forEach(d => {
             if (d.type !== 'textNote') return;
-            positions[d.id] = getNoteCoordinates(d, ts, ps);
+            positions[d.id] = noteCoordinates(d, ts, ps);
         });
         setNotePositions(positions);
     }, [drawings, chartTick]);

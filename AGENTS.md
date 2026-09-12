@@ -19,6 +19,7 @@ OpenTrader is an open-source TradingView alternative: Django + DRF backend servi
   - `hooks/useCharts.js` — charts collection state: CRUD, active chart, lock flag. No persistence of its own; reports changes via `onLayoutChange`.
   - `hooks/useChartData.js` — per-chart market data: initial fetch, refresh polling, left-scroll pagination, `useAdFullData`.
   - `sync/chartSync.js` — registry of live chart APIs; broadcasts visible range and crosshair to peers when locked, with a re-entrancy guard.
+  - `chart/` — pure, unit-tested presentation logic extracted from `Chart.jsx` (Humble Object pattern): `timeFormat.js` (crosshair labels, weekend color), `heikinAshi.js`, `barSearch.js` (nearest-bar binary search), `drawingTools.js` + `drawingInteraction.js` (tool point requirements, click state machine, Home/End ranges), `crosshairLegend.js`, `paneLayout.js` (pane ordering/stretch, renderable ids, full-data slicing), `regression.js` (OLS, std error, time windows), `noteGeometry.js` (text-note coordinates and array transforms). Tests live in `chart/__tests__/` (vitest, `npm test`).
   - `Indicators/` — pure indicator math (`sma.js`, `rsi.js`, ...) plus `actions.js` (pure indicator config factories/operations) and `panes.js` (pane ordering).
 
 ## Coding Guidelines
@@ -33,8 +34,8 @@ OpenTrader is an open-source TradingView alternative: Django + DRF backend servi
 ## Commands
 
 - Frontend dev: `cd frontend && npm run dev`
-- Frontend check: `cd frontend && npm run build` and `npx eslint <changed files>`
-  - Note: `Chart.jsx` has pre-existing lint errors (duplicate keys, unused vars) — don't add new ones.
+- Frontend check: `cd frontend && npm test && npm run build` and `npx eslint <changed files>`
+  - Note: `Chart.jsx` has pre-existing exhaustive-deps lint warnings — don't add new ones.
 - Backend: `python3 -m venv venv && venv/bin/pip install -r requirements.txt`, then `venv/bin/python manage.py migrate && venv/bin/python manage.py runserver`
 
 ## Docker Workflow (important)
