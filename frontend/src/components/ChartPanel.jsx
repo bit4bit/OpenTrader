@@ -406,6 +406,7 @@ const ChartPanel = ({
                 {data.length > 0 && (
                     <Chart
                         chartId={chart.id}
+                        isActive={isActive}
                         syncEnabled={locked}
                         data={data}
                         adFullData={adFullData}

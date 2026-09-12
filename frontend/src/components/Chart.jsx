@@ -66,6 +66,7 @@ const Chart = ({
     activeTool,
     setActiveTool,
     chartId,
+    isActive = false,
     syncEnabled = false
 }) => {
     const containerRef = useRef();
@@ -98,6 +99,7 @@ const Chart = ({
     const [chartTick, setChartTick] = useState(0);
 
     const isFirstLoad = useRef(true);
+    const pendingScrollRef = useRef(null);
     const lastSymbolInterval = useRef(`${symbol}-${interval}`);
     const lastChartType = useRef(chartType);
 
@@ -107,9 +109,11 @@ const Chart = ({
     const syncEntryRef = useRef({ chart: null, series: null, findNearestBar: null });
     const dataRef = useRef(data);
     const activeToolRef = useRef(activeTool);
+    const isActiveRef = useRef(isActive);
     useEffect(() => { onRangeChangeRef.current = onVisibleLogicalRangeChange; }, [onVisibleLogicalRangeChange]);
     useEffect(() => { onCrosshairMoveRef.current = onCrosshairMove; }, [onCrosshairMove]);
     useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
+    useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
     useEffect(() => { syncEnabledRef.current = syncEnabled; }, [syncEnabled]);
     useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -405,6 +409,25 @@ const Chart = ({
                 setActiveTool('cursor');
                 drawingPointsRef.current = [];
                 setPreviewDrawing(null);
+            }
+            if (isActiveRef.current && (e.key === 'Home' || e.key === 'End')
+                && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                const target = e.target;
+                if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
+                const data = dataRef.current;
+                const ts = chartRef.current?.timeScale();
+                if (!chartRef.current || !ts || data.length === 0) return;
+                e.preventDefault();
+                // Slide the current window to the edge, preserving zoom (bar width).
+                const range = ts.getVisibleLogicalRange();
+                if (!range) return;
+                const width = range.to - range.from;
+                pendingScrollRef.current = e.key === 'End' ? 'end' : 'start';
+                if (e.key === 'End') {
+                    ts.setVisibleLogicalRange({ from: data.length - 1 + 20 - width, to: data.length - 1 + 20 });
+                } else {
+                    ts.setVisibleLogicalRange({ from: 0, to: width });
+                }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -2137,6 +2160,22 @@ const Chart = ({
             const lr = timeScale.getVisibleLogicalRange();
             if (lr) timeScale.setVisibleLogicalRange({ from: lr.from, to: lr.to + 20 });
             isFirstLoad.current = false;
+        }
+
+        // Re-anchor edge jumps after data updates so prepended/appended
+        // bars don't leave the view stranded mid-history.
+        if (pendingScrollRef.current && data.length > 0) {
+            const timeScale = chartRef.current.timeScale();
+            const range = timeScale.getVisibleLogicalRange();
+            if (range) {
+                const width = range.to - range.from;
+                if (pendingScrollRef.current === 'end') {
+                    timeScale.setVisibleLogicalRange({ from: data.length - 1 + 20 - width, to: data.length - 1 + 20 });
+                } else {
+                    timeScale.setVisibleLogicalRange({ from: 0, to: width });
+                }
+            }
+            pendingScrollRef.current = null;
         }
     }, [data, adFullData, smiData, chartType, indicators, symbol, interval]);
 
