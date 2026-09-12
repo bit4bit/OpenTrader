@@ -1,5 +1,64 @@
 import React from 'react';
 import { SMA_SOURCES } from '../Indicators/sma';
+import { discoverInputs } from '../Indicators/dsl/runtime';
+
+const CustomIndicatorSettings = ({ ind, script, scriptError, updateIndicator }) => {
+    if (!script) return <div className="custom-script-error">Script not found on server</div>;
+    const { schema, error } = discoverInputs(script.code);
+    if (error) return <div className="custom-script-error">{error}</div>;
+
+    const setInput = (key, value) => updateIndicator(ind.id, { inputs: { ...ind.inputs, [key]: value } });
+
+    return (
+        <div className="indicator-settings rsi-grid">
+            {schema.map(field => (
+                <div key={field.key} className="setting-item">
+                    <label>{field.label}</label>
+                    {(field.type === 'int' || field.type === 'float') && (
+                        <input
+                            type="number"
+                            min={field.min} max={field.max} step={field.step ?? (field.type === 'int' ? 1 : 0.1)}
+                            value={ind.inputs?.[field.key] ?? field.default}
+                            onChange={(e) => setInput(field.key, field.type === 'int'
+                                ? (parseInt(e.target.value) || 0)
+                                : (parseFloat(e.target.value) || 0))}
+                        />
+                    )}
+                    {field.type === 'bool' && (
+                        <input
+                            type="checkbox"
+                            checked={ind.inputs?.[field.key] ?? field.default}
+                            onChange={(e) => setInput(field.key, e.target.checked)}
+                        />
+                    )}
+                    {field.type === 'string' && (
+                        <input
+                            type="text"
+                            value={ind.inputs?.[field.key] ?? field.default}
+                            onChange={(e) => setInput(field.key, e.target.value)}
+                        />
+                    )}
+                    {field.type === 'color' && (
+                        <input
+                            type="color"
+                            value={ind.inputs?.[field.key] ?? field.default}
+                            onChange={(e) => setInput(field.key, e.target.value)}
+                        />
+                    )}
+                    {field.type === 'source' && (
+                        <select
+                            value={ind.inputs?.[field.key] ?? field.default}
+                            onChange={(e) => setInput(field.key, e.target.value)}
+                        >
+                            {SMA_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                    )}
+                </div>
+            ))}
+            {scriptError && <div className="custom-script-error" style={{ gridColumn: '1 / -1' }}>{scriptError}</div>}
+        </div>
+    );
+};
 
 /**
  * A standalone component for an indicator group (e.g. SMA or RSI)
@@ -13,6 +72,8 @@ const IndicatorGroupPanel = ({
     removeIndicatorGroup,
     toggleIndicator,
     invalidSymbols = [],
+    scriptsById = null,
+    scriptErrors = null,
     minimizedTop,
     isMinimized,
     onMinimizeChange
@@ -74,9 +135,10 @@ const IndicatorGroupPanel = ({
                         {/* Main Controls */}
                         <div className="indicator-row-main">
                             <div className="indicator-info">
-                                <span className="color-swatch" style={{ backgroundColor: ind.color }} />
+                                {ind.color && <span className="color-swatch" style={{ backgroundColor: ind.color }} />}
                                 <label className="indicator-label">
-                                    {groupType === 'sma' ? `SMA ${idx + 1}` :
+                                    {groupType === 'custom' ? (ind.name || 'Custom Script') :
+                                    groupType === 'sma' ? `SMA ${idx + 1}` :
                                         groupType === 'rsi' ? `RSI (${ind.length})` :
                                             groupType === 'macd' ? 'Normalized MACD' :
                                                 groupType === 'volume_profile' ? `Volume Profile (${ind.priceBins})` :
@@ -99,11 +161,11 @@ const IndicatorGroupPanel = ({
                                 >
                                     {ind.visible ? '👁' : '👁\u200d🗨'}
                                 </button>
-                                {groupType === 'sma' && (
+                                {(groupType === 'sma' || groupType === 'custom') && (
                                     <button
                                         className="action-btn remove-single"
                                         onClick={() => removeIndicator(ind.id)}
-                                        title="Remove specific SMA"
+                                        title="Remove this indicator"
                                     >
                                         ✕
                                     </button>
@@ -517,6 +579,15 @@ const IndicatorGroupPanel = ({
                                     </button>
                                 </div>
                             </div>
+                        )}
+                        {/* Custom Script Settings */}
+                        {groupType === 'custom' && (
+                            <CustomIndicatorSettings
+                                ind={ind}
+                                script={scriptsById?.[ind.scriptId]}
+                                scriptError={scriptErrors?.[ind.id]}
+                                updateIndicator={updateIndicator}
+                            />
                         )}
                     </div>
                 ))}

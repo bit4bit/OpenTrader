@@ -6,14 +6,16 @@ import SymbolSearch from './components/SymbolSearch';
 import SymbolCatalogModal from './components/SymbolCatalogModal';
 import DrawingToolbar from './components/DrawingToolbar';
 import LoginScreen from './components/LoginScreen';
+import CustomIndicatorModal from './components/CustomIndicatorModal';
 import { useAuth } from './hooks/useAuth';
 import { useSessions } from './hooks/useSessions';
 import { useCharts } from './hooks/useCharts';
-import { addIndicators } from './Indicators/actions';
+import { useCustomIndicators } from './hooks/useCustomIndicators';
+import { addIndicators, addCustomIndicator } from './Indicators/actions';
 
 const FIRST_VISIT_KEY = 'opentrader_first_visit';
 
-function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
+function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customIndicators }) {
   const {
     charts,
     activeChartId,
@@ -30,6 +32,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
   ));
 
   const [showIndicatorSearch, setShowIndicatorSearch] = useState(false);
+  const [showCustomIndicators, setShowCustomIndicators] = useState(false);
   const [showSymbolCatalog, setShowSymbolCatalog] = useState(false);
   const [symbolSearchMode, setSymbolSearchMode] = useState(null);
   const [activeTool, setActiveTool] = useState('cursor');
@@ -43,6 +46,11 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
   const addIndicator = (type) => {
     if (!activeChart) return;
     updateChart(activeChart.id, c => ({ indicators: addIndicators(c.indicators, type) }));
+  };
+
+  const addCustomToChart = (script) => {
+    if (!activeChart) return;
+    updateChart(activeChart.id, c => ({ indicators: addCustomIndicator(c.indicators, script) }));
   };
 
   const handleSelectSymbol = (selection) => {
@@ -76,6 +84,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
         setInterval={(interval) => activeChart && updateChart(activeChart.id, { interval })}
         setChartType={(chartType) => activeChart && updateChart(activeChart.id, { chartType })}
         openIndicatorSearch={() => activeChart && setShowIndicatorSearch(true)}
+        openCustomIndicators={() => setShowCustomIndicators(true)}
         openSymbolSearch={() => setSymbolSearchMode('change')}
         openSymbolCatalog={() => setShowSymbolCatalog(true)}
         locked={locked}
@@ -104,7 +113,19 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps }) {
           onClose={closeChart}
           onUpdate={updateChart}
           onAddChart={() => setSymbolSearchMode('add')}
+          scriptsById={customIndicators.scriptsById}
         />
+
+        {showCustomIndicators && (
+          <CustomIndicatorModal
+            scripts={customIndicators.scripts}
+            createScript={customIndicators.createScript}
+            updateScript={customIndicators.updateScript}
+            deleteScript={customIndicators.deleteScript}
+            onAddToChart={activeChart ? addCustomToChart : null}
+            onClose={() => setShowCustomIndicators(false)}
+          />
+        )}
 
         {showIndicatorSearch && (
           <IndicatorSearch
@@ -154,6 +175,8 @@ function App() {
     }
     return false;
   });
+
+  const customIndicators = useCustomIndicators(!!token);
 
   if (!token) {
     return <LoginScreen onLogin={login} />;
@@ -242,6 +265,7 @@ function App() {
           sessionId={activeSession.id}
           saveLayout={saveLayout}
           sessionProps={sessionProps}
+          customIndicators={customIndicators}
         />
       ) : (
         <>

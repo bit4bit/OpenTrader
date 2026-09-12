@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 import math
-from .models import Session
+from .models import Session, CustomIndicator
 from .providers import registry
 
 
@@ -70,6 +70,58 @@ class SessionDetail(APIView):
 
     def delete(self, request, pk):
         self.get_session(request, pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def serialize_indicator(indicator):
+    return {
+        'id': indicator.id,
+        'name': indicator.name,
+        'code': indicator.code,
+        'created_at': indicator.created_at.isoformat(),
+        'updated_at': indicator.updated_at.isoformat(),
+    }
+
+
+class IndicatorListCreate(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        indicators = request.user.custom_indicators.all()
+        return Response([serialize_indicator(i) for i in indicators])
+
+    def post(self, request):
+        name = (request.data.get('name') or '').strip()
+        if not name:
+            return Response({'error': 'Name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        code = request.data.get('code') or ''
+        indicator = CustomIndicator.objects.create(user=request.user, name=name, code=code)
+        return Response(serialize_indicator(indicator), status=status.HTTP_201_CREATED)
+
+
+class IndicatorDetail(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_indicator(self, request, pk):
+        return get_object_or_404(CustomIndicator, pk=pk, user=request.user)
+
+    def get(self, request, pk):
+        return Response(serialize_indicator(self.get_indicator(request, pk)))
+
+    def patch(self, request, pk):
+        indicator = self.get_indicator(request, pk)
+        if 'name' in request.data:
+            name = (request.data.get('name') or '').strip()
+            if not name:
+                return Response({'error': 'Name cannot be empty'}, status=status.HTTP_400_BAD_REQUEST)
+            indicator.name = name
+        if 'code' in request.data:
+            indicator.code = request.data['code']
+        indicator.save()
+        return Response(serialize_indicator(indicator))
+
+    def delete(self, request, pk):
+        self.get_indicator(request, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

@@ -11,6 +11,7 @@ const ChartGrid = ({
     onClose,
     onUpdate,
     onAddChart,
+    scriptsById,
 }) => {
     if (charts.length === 0) {
         return (
@@ -36,6 +37,7 @@ const ChartGrid = ({
                     onActivate={() => onActivate(chart.id)}
                     onClose={() => onClose(chart.id)}
                     onUpdate={onUpdate}
+                    scriptsById={scriptsById}
                 />
             ))}
         </div>

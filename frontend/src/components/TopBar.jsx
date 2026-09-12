@@ -80,6 +80,7 @@ const TopBar = ({
     chartType, setChartType,
     hasActiveChart,
     openIndicatorSearch,
+    openCustomIndicators,
     openSymbolSearch,
     openSymbolCatalog,
     locked, onToggleLock,
@@ -195,6 +196,14 @@ const TopBar = ({
                 >
                     <span style={{ fontSize: '16px', marginRight: '4px' }}>📊</span>
                     Indicators
+                </button>
+                <button
+                    className="toolbar-btn"
+                    onClick={openCustomIndicators}
+                    title="Custom script indicators"
+                >
+                    <span style={{ fontSize: '16px', marginRight: '4px' }}>ƒ</span>
+                    Scripts
                 </button>
             </div>
 

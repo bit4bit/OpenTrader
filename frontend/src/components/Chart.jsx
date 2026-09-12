@@ -90,7 +90,9 @@ const Chart = ({
     setActiveTool,
     chartId,
     isActive = false,
-    syncEnabled = false
+    syncEnabled = false,
+    customResults = {},
+    customPaneIds = []
 }) => {
     const containerRef = useRef();
     const chartRef = useRef(null);
@@ -113,6 +115,7 @@ const Chart = ({
     const lastPaneKey = useRef('');
     const ichimokuSeriesRef = useRef({});
     const tsiSeriesRef = useRef({});
+    const customSeriesRef = useRef({});
     const vpRef = useRef(null);
     const bbFillRef = useRef(null);
     const ichimokuFillRef = useRef(null);
@@ -1932,13 +1935,13 @@ const Chart = ({
         // Pane indicators (oscillators) each get their own dedicated pane,
         // TradingView-style, stacked in canonical order. When the active set
         // changes, extra panes are rebuilt so ordering stays deterministic.
-        const activePaneTypes = getActivePaneTypes(indicators);
+        const activePaneTypes = [...getActivePaneTypes(indicators), ...customPaneIds];
         const paneKey = activePaneTypes.join(',');
         if (paneKey !== lastPaneKey.current) {
             while (chartRef.current.panes().length > 1) {
                 chartRef.current.removePane(chartRef.current.panes().length - 1);
             }
-            [rsiSeriesRef, macdSeriesRef, stochSeriesRef, atrSeriesRef, tsiSeriesRef, adSeriesRef, smiSeriesRef].forEach(ref => { ref.current = {}; });
+            [rsiSeriesRef, macdSeriesRef, stochSeriesRef, atrSeriesRef, tsiSeriesRef, adSeriesRef, smiSeriesRef, customSeriesRef].forEach(ref => { ref.current = {}; });
             for (let i = 0; i < activePaneTypes.length; i++) chartRef.current.addPane();
             lastPaneKey.current = paneKey;
         }
@@ -1990,7 +1993,7 @@ const Chart = ({
 
         // Indicator Management
         const visibleIds = new Set(indicators.filter(ind => ind.visible).map(ind => ind.id));
-        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, smiSeriesRef, w52SeriesRef, volSmaSeriesRef, ichimokuSeriesRef, tsiSeriesRef].forEach(ref => {
+        [smaSeriesRef, rsiSeriesRef, macdSeriesRef, bbSeriesRef, stochSeriesRef, supertrendSeriesRef, atrSeriesRef, adSeriesRef, smiSeriesRef, w52SeriesRef, volSmaSeriesRef, ichimokuSeriesRef, tsiSeriesRef, customSeriesRef].forEach(ref => {
             Object.keys(ref.current).forEach(id => {
                 if (!visibleIds.has(id)) {
                     try {
@@ -2286,6 +2289,34 @@ const Chart = ({
                 setIchimokuFillData({ spanA: res.spanA, spanB: res.spanB });
                 ichimokuActive = true;
             }
+            if (ind.type === 'custom' && ind.visible) {
+                const res = customResults[ind.id];
+                if (!res || res.error) return;
+                const paneIndex = customPaneIds.includes(`custom-${ind.id}`)
+                    ? paneIndexOf(`custom-${ind.id}`) : null;
+                const plots = [
+                    ...res.overlays.map(p => ({ ...p, pane: 0 })),
+                    ...(paneIndex != null ? res.panes.map(p => ({ ...p, pane: paneIndex })) : []),
+                ];
+                let existing = customSeriesRef.current[ind.id];
+                if (existing && existing.length !== plots.length) {
+                    existing.forEach(s => { try { chartRef.current.removeSeries(s); } catch (_) { } });
+                    existing = null;
+                }
+                if (!existing) {
+                    existing = plots.map(p => chartRef.current.addSeries(LineSeries, {
+                        color: p.color,
+                        lineWidth: 1.5,
+                        crosshairMarkerVisible: false,
+                        title: p.title,
+                    }, p.pane));
+                    customSeriesRef.current[ind.id] = existing;
+                }
+                plots.forEach((p, i) => {
+                    existing[i].applyOptions({ color: p.color, title: p.title });
+                    existing[i].setData(p.series);
+                });
+            }
         });
         if (!vpActive) setVpBins([]);
         if (!bbActive) setBbFillData(null);
@@ -2314,7 +2345,7 @@ const Chart = ({
             }
             pendingScrollRef.current = null;
         }
-    }, [data, adFullData, smiData, chartType, indicators, symbol, interval]);
+    }, [data, adFullData, smiData, chartType, indicators, symbol, interval, customResults, customPaneIds]);
 
     const updateNoteRef = useRef(updateNote);
     useEffect(() => { updateNoteRef.current = updateNote; }, [updateNote]);

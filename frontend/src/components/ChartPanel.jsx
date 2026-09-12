@@ -10,6 +10,7 @@ import {
 } from '../Indicators/actions';
 import { formatADLValue } from '../Indicators/adl';
 import { getActivePaneTypes } from '../Indicators/panes';
+import { useCustomIndicatorResults } from '../hooks/useCustomIndicatorResults';
 
 const formatPrice = (price) => (price != null ? price.toFixed(2) : '');
 const formatPercent = (val) => (val != null ? (val >= 0 ? '+' : '') + val.toFixed(2) + '%' : '');
@@ -31,6 +32,7 @@ const PANEL_DEFS = [
     { title: '52 Week High/Low', groupType: 'w52' },
     { title: 'Volume SMA', groupType: 'vol_sma' },
     { title: 'Simple Market Index', groupType: 'smi' },
+    { title: 'Custom Script', groupType: 'custom' },
 ];
 
 const ChartPanel = ({
@@ -42,6 +44,7 @@ const ChartPanel = ({
     onActivate,
     onClose,
     onUpdate,
+    scriptsById,
 }) => {
     const { symbol: chartSymbol, interval, chartType, indicators, drawings, minimizedPanels = [] } = chart;
     const symbol = chartSymbol?.symbol || '';
@@ -79,7 +82,10 @@ const ChartPanel = ({
     const pnlColor = pnl >= 0 ? '#26a69a' : '#ef5350';
     const activeRsi = indicators.find(i => i.type === 'rsi' && i.visible);
 
-    const activePaneTypes = getActivePaneTypes(indicators);
+    const { resultsById: customResults, paneIds: customPaneIds, errorsById: customErrors } =
+        useCustomIndicatorResults(data, indicators, scriptsById);
+
+    const activePaneTypes = [...getActivePaneTypes(indicators), ...customPaneIds];
     const paneLegendTop = (type) => {
         const idx = activePaneTypes.indexOf(type);
         if (idx === -1) return undefined;
@@ -382,6 +388,8 @@ const ChartPanel = ({
                             onMinimizeChange={(minimized) => setPanelMinimized(def.groupType, minimized)}
                             indicators={indicators.filter(i => i.type === def.groupType)}
                             invalidSymbols={def.groupType === 'smi' ? smiInvalidSymbols : []}
+                            scriptsById={def.groupType === 'custom' ? scriptsById : null}
+                            scriptErrors={def.groupType === 'custom' ? customErrors : null}
                             updateIndicator={updateIndicator}
                             removeIndicator={removeIndicator}
                             removeIndicatorGroup={removeIndicatorGroup}
@@ -433,6 +441,8 @@ const ChartPanel = ({
                         setActiveTool={setActiveTool}
                         onVisibleLogicalRangeChange={handleVisibleLogicalRangeChange}
                         onCrosshairMove={setHoveredData}
+                        customResults={customResults}
+                        customPaneIds={customPaneIds}
                     />
                 )}
             </div>
