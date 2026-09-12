@@ -8,6 +8,10 @@ services:
     build: .
     expose:
       - "8000"
+    environment:
+      - OPENTRADER_WORKING_DIR=/data
+    volumes:
+      - opentrader_data:/data
 
   router:
     image: nginx:alpine
@@ -22,3 +26,4 @@ services:
 
 volumes:
   dist:
+  opentrader_data:

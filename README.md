@@ -63,6 +63,16 @@ OpenTrader is currently in early stage. Suggestions and issue raising are highly
    python manage.py runserver
    ```
 
+### Working Directory
+
+Application state (the SQLite database) is stored in a working directory, by default `~/.opentrader`. Override it with the `OPENTRADER_WORKING_DIR` environment variable:
+
+```bash
+OPENTRADER_WORKING_DIR=/path/to/data python manage.py runserver
+```
+
+In Docker, the backend stores state in the `opentrader_data` named volume (mounted at `/data`), which persists across rebuilds and `docker compose down`. It is only removed by `docker compose down -v`.
+
 ### Frontend Setup
 1. Navigate to the `frontend` directory:
    ```bash
