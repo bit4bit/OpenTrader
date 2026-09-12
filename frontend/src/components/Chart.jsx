@@ -22,6 +22,19 @@ import { computeIchimoku } from '../Indicators/ichimoku';
 import { computeTSI } from '../Indicators/tsi';
 import { registerChart, broadcastRange, broadcastCrosshair, isApplyingSync } from '../sync/chartSync';
 
+const INTRADAY_INTERVALS = ['1m', '5m', '15m', '1h', '4h'];
+
+// Crosshair time-scale label: weekday name + date (UTC, matching the library's rendering)
+function formatCrosshairTime(time, interval) {
+    const d = new Date(time * 1000);
+    const day = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
+    const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    if (!INTRADAY_INTERVALS.includes(interval)) return `${day}, ${date}`;
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${day}, ${date} ${hh}:${mm}`;
+}
+
 // Compute Heikin-Ashi candles from OHLCV data
 function computeHeikinAshi(data) {
     const ha = [];
@@ -134,7 +147,9 @@ const Chart = ({
     const dataRef = useRef(data);
     const activeToolRef = useRef(activeTool);
     const isActiveRef = useRef(isActive);
+    const intervalRef = useRef(interval);
     useEffect(() => { onRangeChangeRef.current = onVisibleLogicalRangeChange; }, [onVisibleLogicalRangeChange]);
+    useEffect(() => { intervalRef.current = interval; }, [interval]);
     useEffect(() => { onCrosshairMoveRef.current = onCrosshairMove; }, [onCrosshairMove]);
     useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
     useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
@@ -169,6 +184,12 @@ const Chart = ({
             },
             crosshair: {
                 mode: 1,
+                vertLine: {
+                    color: '#758696',
+                },
+            },
+            localization: {
+                timeFormatter: (time) => formatCrosshairTime(time, intervalRef.current),
             },
         });
 
@@ -195,7 +216,18 @@ const Chart = ({
         };
         chart.timeScale().subscribeVisibleLogicalRangeChange(rangeChangeHandler);
 
+        let crosshairLineColor = '#758696';
         const crosshairHandler = (param) => {
+            // Highlight the vertical crosshair line on weekend bars
+            if (param.time) {
+                const day = new Date(param.time * 1000).getUTCDay();
+                const color = (day === 0 || day === 6) ? '#4da3ff' : '#758696';
+                if (color !== crosshairLineColor) {
+                    crosshairLineColor = color;
+                    chart.applyOptions({ crosshair: { vertLine: { color } } });
+                }
+            }
+
             const currentTool = activeToolRef.current;
             if (currentTool && currentTool !== 'cursor' && param.point && priceSeriesRef.current) {
                 const time = param.time;
