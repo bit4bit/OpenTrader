@@ -1728,7 +1728,13 @@ const Chart = ({
             while (chartRef.current.panes().length > 1) {
                 chartRef.current.removePane(chartRef.current.panes().length - 1);
             }
-            [genericSeriesRef].forEach(ref => { ref.current = {}; });
+            // Drop every tracked series explicitly: series in pane 0 survive
+            // removePane, so forgetting refs here would orphan them.
+            Object.values(genericSeriesRef.current).forEach(entry => {
+                const list = Array.isArray(entry) ? entry : [entry];
+                list.forEach(e => { try { chartRef.current.removeSeries(e.series ?? e); } catch { /* series already gone */ } });
+            });
+            genericSeriesRef.current = {};
             for (let i = 0; i < activePaneTypes.length; i++) chartRef.current.addPane();
             lastPaneKey.current = paneKey;
         }
@@ -1779,14 +1785,25 @@ const Chart = ({
         priceSeriesRef.current.setData(priceData);
 
         // Indicator Management
-        const visibleIds = new Set(indicators.filter(ind => ind.visible).map(ind => ind.id));
+        // A tracked series is renderable only while its indicator is visible
+        // AND has a usable script result — a deleted or broken script must
+        // drop its series instead of leaving them on the chart.
+        const renderableIds = new Set(
+            indicators
+                .filter(ind => ind.visible)
+                .filter(ind => {
+                    const res = indicatorResults.resultsById[ind.id];
+                    return res && !res.error;
+                })
+                .map(ind => ind.id)
+        );
         [genericSeriesRef].forEach(ref => {
             Object.keys(ref.current).forEach(id => {
-                if (!visibleIds.has(id)) {
-                    try {
-                        if (Array.isArray(ref.current[id])) ref.current[id].forEach(s => chartRef.current.removeSeries(s));
-                        else chartRef.current.removeSeries(ref.current[id]);
-                    } catch { /* series already gone */ }
+                if (!renderableIds.has(id)) {
+                    const entry = ref.current[id];
+                    (Array.isArray(entry) ? entry : [entry]).forEach(e => {
+                        try { chartRef.current.removeSeries(e.series ?? e); } catch { /* series already gone */ }
+                    });
                     delete ref.current[id];
                 }
             });
