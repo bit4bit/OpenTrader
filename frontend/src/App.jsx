@@ -1,20 +1,15 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
 import TopBar from './components/TopBar';
-import Chart from './components/Chart';
-import IndicatorPanel from './components/IndicatorPanel';
+import ChartGrid from './components/ChartGrid';
 import IndicatorSearch from './components/IndicatorSearch';
 import SymbolSearch from './components/SymbolSearch';
 import DrawingToolbar from './components/DrawingToolbar';
-import { SMA_COLORS } from './Indicators/sma';
-import { formatADLValue } from './Indicators/adl';
-import { getActivePaneTypes } from './Indicators/panes';
+import { useCharts } from './hooks/useCharts';
+import { addIndicators } from './Indicators/actions';
 
-const STORAGE_KEY = 'opentrader_settings';
 const FIRST_VISIT_KEY = 'opentrader_first_visit';
 
 function App() {
-  // Check if first time visitor
   const [showWelcome, setShowWelcome] = useState(() => {
     const visited = localStorage.getItem(FIRST_VISIT_KEY);
     if (!visited) {
@@ -23,488 +18,53 @@ function App() {
     }
     return false;
   });
-  // Load initial settings from localStorage
-  const getSavedSettings = () => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      console.warn('Failed to load settings:', e);
-      return {};
-    }
-  };
 
-  const savedSettings = getSavedSettings();
+  const {
+    charts,
+    activeChartId,
+    locked,
+    setActiveChartId,
+    addChart,
+    closeChart,
+    closeAllCharts,
+    updateChart,
+    toggleLock,
+  } = useCharts();
 
-  const [symbol, setSymbol] = useState(savedSettings.symbol || 'AAPL');
-  const [interval, setTimeInterval] = useState(savedSettings.interval || '1d');
-  const [chartType, setChartType] = useState(savedSettings.chartType || 'candle');
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState(null);
-  const [hoveredData, setHoveredData] = useState(null);
-  const [indicators, setIndicators] = useState(savedSettings.indicators || []);
   const [showIndicatorSearch, setShowIndicatorSearch] = useState(false);
-  const [showSymbolSearch, setShowSymbolSearch] = useState(false);
+  const [symbolSearchMode, setSymbolSearchMode] = useState(null);
   const [activeTool, setActiveTool] = useState('cursor');
-  const [drawings, setDrawings] = useState(savedSettings.drawings || []);
-  const [adFullData, setAdFullData] = useState(null);
-  const adFullKey = useRef('');
-  const loadingMoreRef = useRef(false);
 
-  // Fetch full history for the Accumulation/Distribution indicator.
-  // A/D is cumulative, so its absolute values only match TradingView when
-  // accumulated over the entire available history, not just the loaded window.
+  const activeChart = charts.find(c => c.id === activeChartId) || null;
+
   useEffect(() => {
-    const adActive = indicators.some(i => i.type === 'ad' && i.visible);
-    if (!adActive) return;
-    const key = `${symbol}-${interval}`;
-    if (adFullKey.current === key) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await axios.get('/api/history/', {
-          params: { symbol, interval, range: 'max' },
-        });
-        if (cancelled) return;
-        const normalized = (response.data || [])
-          .filter(d => d.time != null)
-          .map(d => {
-            let t = Number(d.time);
-            if (t > 1e11) t = Math.floor(t / 1000);
-            else t = Math.floor(t);
-            return { ...d, time: t };
-          })
-          .sort((a, b) => a.time - b.time);
-        adFullKey.current = key;
-        setAdFullData(normalized);
-      } catch (e) {
-        if (!cancelled) console.warn('A/D full history fetch failed:', e);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [symbol, interval, indicators]);
-
-  // Persistence Hook: Save settings whenever they change
-  useEffect(() => {
-    const settings = {
-      symbol,
-      interval,
-      chartType,
-      indicators,
-      drawings
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  }, [symbol, interval, chartType, indicators, drawings]);
-
-  // Window Title Hook
-  useEffect(() => {
-    document.title = `Open trader - ${symbol}`;
-  }, [symbol]);
-
-  const fetchMoreDataRef = useRef(null);
-  const isValidNum = (v) => typeof v === 'number' && isFinite(v);
-
-  const fetchData = async (signal) => {
-    setLoading(true);
-    setError(null);
-    try {
-      let range = '1y';
-      if (['1m', '5m', '15m'].includes(interval)) range = '5d';
-      else if (['1h', '4h'].includes(interval)) range = '1mo';
-
-      const response = await axios.get('/api/history/', {
-        params: { symbol, interval, range },
-        signal
-      });
-
-      const uniqueData = Array.from(new Map(response.data
-        .filter(d => d.time != null)
-        .map(d => {
-          // Normalize timestamp: detect and convert milliseconds if needed
-          let t = Number(d.time);
-          if (t > 1e11) t = Math.floor(t / 1000); // Likely ms -> s
-          else t = Math.floor(t);
-
-          return [t, {
-            ...d,
-            time: t,
-            open: isValidNum(d.open) ? d.open : d.close,
-            high: isValidNum(d.high) ? d.high : d.close,
-            low: isValidNum(d.low) ? d.low : d.close,
-            close: isValidNum(d.close) ? d.close : d.open // Fallback
-          }];
-        })
-        .filter(d => isValidNum(d[1].close))
-        .map(d => [d[0], d[1]])).values())
-        .sort((a, b) => a.time - b.time);
-
-      setData(uniqueData);
-    } catch (err) {
-      if (axios.isCancel(err)) return;
-      console.error('Fetch error:', err);
-      setError('Failed to load data for ' + symbol);
-      setData([]);
-    } finally {
-      if (!signal.aborted) setLoading(false);
-    }
-  };
-
-  const refreshData = async () => {
-    if (loading || loadingMore || loadingMoreRef.current || data.length === 0) return;
-    try {
-      let range = '1d';
-      if (['1wk', '1mo'].includes(interval)) range = '1mo';
-      const response = await axios.get('/api/history/', {
-        params: { symbol, interval, range },
-      });
-      if (response.data && response.data.length > 0) {
-        setData(prev => {
-          const newData = response.data.map(d => {
-            let t = Number(d.time);
-            if (t > 1e11) t = Math.floor(t / 1000);
-            else t = Math.floor(t);
-            return {
-              ...d,
-              time: t,
-              open: isValidNum(d.open) ? d.open : d.close,
-              high: isValidNum(d.high) ? d.high : d.close,
-              low: isValidNum(d.low) ? d.low : d.close,
-              close: isValidNum(d.close) ? d.close : d.open
-            };
-          }).filter(d => isValidNum(d.close));
-
-          const combined = [...prev, ...newData];
-          return Array.from(new Map(combined.map(d => [d.time, d])).values())
-            .sort((a, b) => a.time - b.time);
-        });
-      }
-    } catch (err) {
-      console.warn('Real-time refresh failed:', err);
-    }
-  };
-
-  const fetchMoreData = async () => {
-    if (loading || loadingMore || loadingMoreRef.current || data.length === 0) return;
-
-    const firstTime = data[0].time;
-    // ... calculate start/end ...
-    const offset = (interval === '1m') ? 2 * 24 * 60 * 60 :
-      (['5m', '15m'].includes(interval)) ? 7 * 24 * 60 * 60 :
-        (['1h', '4h'].includes(interval)) ? 30 * 24 * 60 * 60 : 365 * 24 * 60 * 60;
-
-    const start = firstTime - offset;
-    const end = firstTime;
-
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
-    try {
-      const response = await axios.get('/api/history/', {
-        params: { symbol, interval, start, end },
-      });
-      if (response.data && response.data.length > 0) {
-        setData(prev => {
-          const newData = response.data.map(d => {
-            let t = Number(d.time);
-            if (t > 1e11) t = Math.floor(t / 1000);
-            else t = Math.floor(t);
-            return {
-              ...d,
-              time: t,
-              open: isValidNum(d.open) ? d.open : d.close,
-              high: isValidNum(d.high) ? d.high : d.close,
-              low: isValidNum(d.low) ? d.low : d.close,
-              close: isValidNum(d.close) ? d.close : d.open
-            };
-          }).filter(d => isValidNum(d.close));
-
-          const combined = [...newData, ...prev];
-          return Array.from(new Map(combined.map(d => [d.time, d])).values())
-            .sort((a, b) => a.time - b.time);
-        });
-      }
-    } catch (err) {
-      console.error('Fetch more error:', err);
-    } finally {
-      loadingMoreRef.current = false;
-      setLoadingMore(false);
-    }
-  };
-
-  fetchMoreDataRef.current = fetchMoreData;
-
-  const handleVisibleLogicalRangeChange = useCallback((range) => {
-    if (range && range.from < 50) {
-      fetchMoreDataRef.current?.();
-    }
-  }, []);
-
-  const handleCrosshairMove = useCallback((d) => {
-    setHoveredData(d);
-  }, []);
-
-  const DEFAULT_SMA_LENGTHS = [5, 10, 20, 50, 100, 200, 7, 14, 30, 150];
+    document.title = activeChart ? `Open trader - ${activeChart.symbol}` : 'Open trader';
+  }, [activeChart]);
 
   const addIndicator = (type) => {
-    if (type === 'macd' && indicators.some(i => i.type === 'macd')) return;
-    if (type === 'volume_profile' && indicators.some(i => i.type === 'volume_profile')) return;
-    if (type === 'bb' && indicators.some(i => i.type === 'bb')) return;
-    if (type === 'stoch' && indicators.some(i => i.type === 'stoch')) return;
-    if (type === 'supertrend' && indicators.some(i => i.type === 'supertrend')) return;
-    if (type === 'atr' && indicators.some(i => i.type === 'atr')) return;
-    if (type === 'ichimoku' && indicators.some(i => i.type === 'ichimoku')) return;
-    if (type === 'tsi' && indicators.some(i => i.type === 'tsi')) return;
-    if (type === 'ad' && indicators.some(i => i.type === 'ad')) return;
-    if (type === 'w52' && indicators.some(i => i.type === 'w52')) return;
-    if (type === 'vol_sma' && indicators.some(i => i.type === 'vol_sma')) return;
+    if (!activeChart) return;
+    updateChart(activeChart.id, c => ({ indicators: addIndicators(c.indicators, type) }));
+  };
 
-    if (type === 'sma') {
-      const slots = DEFAULT_SMA_LENGTHS.map((length, i) => ({
-        id: `sma-${i}`,
-        type: 'sma',
-        length,
-        source: 'close',
-        visible: i < 3,
-        color: SMA_COLORS[i],
-      }));
-      setIndicators(prev => [...prev, ...slots]);
-    }
-
-    if (type === 'rsi') {
-      setIndicators(prev => [...prev, {
-        id: 'rsi-main',
-        type: 'rsi',
-        length: 14,
-        source: 'close',
-        visible: true,
-        smoothingType: 'SMA',
-        smoothingLength: 10,
-        showBB: true,
-        color: '#2962ff',
-        smoothColor: '#ff9800',
-        bbColor: 'rgba(255, 255, 255, 0.3)'
-      }]);
-    }
-
-    if (type === 'macd') {
-      setIndicators(prev => [...prev, {
-        id: 'macd-main',
-        type: 'macd',
-        fastLength: 12,
-        slowLength: 26,
-        signalLength: 9,
-        normLookback: 100,
-        visible: true,
-        color: '#2962ff',
-        signalColor: '#ff9800',
-      }]);
-    }
-
-    if (type === 'vp') {
-      setIndicators(prev => [...prev, {
-        id: 'vp-main',
-        type: 'vp',
-        priceBins: 40,
-        visible: true,
-        color: 'rgba(38, 166, 154, 0.2)', // Same as green volume but with transparency
-      }]);
-    }
-
-    if (type === 'volume_profile') {
-      setIndicators(prev => [...prev, {
-        id: 'vp-main',
-        type: 'volume_profile',
-        priceBins: 40,
-        visible: true,
-        color: 'rgba(38, 166, 154, 0.4)',
-      }]);
-    }
-
-    if (type === 'bb') {
-      setIndicators(prev => [...prev, {
-        id: 'bb-main',
-        type: 'bb',
-        length: 20,
-        stdDev: 2,
-        source: 'Close',
-        offset: 0,
-        precision: 2,
-        showPriceLabels: true,
-        showStatusValues: true,
-        showInputInStatus: true,
-        visible: true,
-        basisColor: '#2962ff',
-        upperColor: '#ff9800',
-        lowerColor: '#ff9800',
-        fillColor: 'rgba(41, 98, 255, 0.1)',
-      }]);
-    }
-
-    if (type === 'stoch') {
-      setIndicators(prev => [...prev, {
-        id: 'stoch-main',
-        type: 'stoch',
-        length: 14,
-        dLength: 3,
-        upperLine: 80,
-        lowerLine: 20,
-        visible: true,
-        kColor: '#2962ff',
-        dColor: '#ff9800',
-        precision: 2,
-      }]);
-    }
-
-    if (type === 'supertrend') {
-      setIndicators(prev => [...prev, {
-        id: 'supertrend-main',
-        type: 'supertrend',
-        atrLength: 10,
-        factor: 3,
-        visible: true,
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-      }]);
-    }
-
-    if (type === 'ichimoku') {
-      setIndicators(prev => [...prev, {
-        id: 'ichimoku-main',
-        type: 'ichimoku',
-        conversionLength: 9,
-        baseLength: 26,
-        spanBLength: 52,
-        laggingLength: 26,
-        visible: true,
-        tenkanColor: '#2962ff',
-        kijunColor: '#ff9800',
-        spanAColor: 'rgba(38, 166, 154, 0.4)',
-        spanBColor: 'rgba(239, 83, 80, 0.4)',
-        chikouColor: '#9c27b0',
-      }]);
-    }
-
-    if (type === 'atr') {
-      setIndicators(prev => [...prev, {
-        id: 'atr-main',
-        type: 'atr',
-        length: 14,
-        visible: true,
-        color: '#ff5252',
-      }]);
-    }
-
-    if (type === 'ad') {
-      setIndicators(prev => [...prev, {
-        id: 'ad-main',
-        type: 'ad',
-        visible: true,
-        color: '#2962ff',
-      }]);
-    }
-
-    if (type === 'w52') {
-      setIndicators(prev => [...prev, {
-        id: 'w52-main',
-        type: 'w52',
-        basis: 'highlow',
-        visible: true,
-        color: '#ff9800',
-      }]);
-    }
-
-    if (type === 'vol_sma') {
-      setIndicators(prev => [...prev, {
-        id: 'vol-sma-main',
-        type: 'vol_sma',
-        length: 20,
-        visible: true,
-        color: '#ff9800',
-      }]);
-    }
-
-    if (type === 'tsi') {
-      setIndicators(prev => [...prev, {
-        id: 'tsi-main',
-        type: 'tsi',
-        longLength: 25,
-        shortLength: 13,
-        signalLength: 13,
-        visible: true,
-        color: '#2962ff',
-        signalColor: '#ff9800',
-      }]);
+  const handleSelectSymbol = (symbol) => {
+    if (symbolSearchMode === 'add') {
+      addChart(symbol);
+    } else if (activeChart) {
+      updateChart(activeChart.id, { symbol });
     }
   };
 
-  const updateIndicator = (id, updates) => {
-    setIndicators(prev => prev.map(ind => ind.id === id ? { ...ind, ...updates } : ind));
+  const handleSelectTool = (tool) => {
+    if (tool === 'eraser') {
+      if (activeChart && window.confirm('Delete all drawings?')) {
+        updateChart(activeChart.id, { drawings: [] });
+      }
+      setActiveTool('cursor');
+    } else {
+      setActiveTool(tool);
+    }
   };
 
-  const removeIndicator = (id) => {
-    setIndicators(prev => prev.filter(ind => ind.id !== id));
-  };
-
-  const removeIndicatorGroup = (type) => {
-    setIndicators(prev => prev.filter(ind => ind.type !== type));
-  };
-
-  const removeAllIndicators = () => {
-    setIndicators([]);
-  };
-
-  const toggleIndicator = (id) => {
-    setIndicators(prev => prev.map(ind => ind.id === id ? { ...ind, visible: !ind.visible } : ind));
-  };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchData(controller.signal);
-    return () => controller.abort();
-  }, [symbol, interval]);
-
-  useEffect(() => {
-    let ms = 60000;
-    if (['1m', '5m', '15m'].includes(interval)) ms = 10000;
-    else if (['1h', '4h'].includes(interval)) ms = 30000;
-
-    const intervalId = setInterval(() => {
-      refreshData();
-    }, ms);
-
-    return () => clearInterval(intervalId);
-  }, [symbol, interval, data.length]);
-
-  const formatPrice = (price) => (price != null ? price.toFixed(2) : '');
-  const formatPercent = (val) => (val != null ? (val >= 0 ? '+' : '') + val.toFixed(2) + '%' : '');
-
-  const priceData = hoveredData?.price;
-  const pnl = priceData ? ((priceData.close - priceData.open) / priceData.open * 100) : null;
-  const pnlColor = pnl >= 0 ? '#26a69a' : '#ef5350';
-
-  const activeRsi = indicators.find(i => i.type === 'rsi' && i.visible);
-
-  // Pane indicator legends: position each at the top-left of its own pane.
-  // Price pane has stretch 3, each indicator pane stretch 1, so pane i starts
-  // at (3 + i) / (3 + n) of the chart height. Offset left to clear the toolbar.
-  const activePaneTypes = getActivePaneTypes(indicators);
-  const paneLegendTop = (type) => {
-    const idx = activePaneTypes.indexOf(type);
-    if (idx === -1) return undefined;
-    const total = activePaneTypes.length + 3;
-    return `calc(${(((3 + idx) * 100) / total).toFixed(3)}% + 6px)`;
-  };
-
-  // Minimized settings buttons: pane indicators anchor to the top of their
-  // own pane; overlay indicators stack below the price pane's top area.
-  const OVERLAY_ORDER = ['sma', 'bb', 'supertrend', 'ichimoku', 'volume_profile', 'vp', 'w52', 'vol_sma'];
-  const activeOverlayTypes = OVERLAY_ORDER.filter(t => indicators.some(i => i.type === t && i.visible));
-  const minimizedTopFor = (type) => {
-    if (activePaneTypes.includes(type)) return paneLegendTop(type);
-    const idx = activeOverlayTypes.indexOf(type);
-    return `calc(36px + ${Math.max(0, idx) * 34}px)`;
-  };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       {showWelcome && (
@@ -560,261 +120,40 @@ function App() {
         </div>
       )}
       <TopBar
-        symbol={symbol} setSymbol={setSymbol}
-        interval={interval} setInterval={setTimeInterval}
-        chartType={chartType} setChartType={setChartType}
-        openIndicatorSearch={() => setShowIndicatorSearch(true)}
-        openSymbolSearch={() => setShowSymbolSearch(true)}
+        symbol={activeChart?.symbol || ''}
+        interval={activeChart?.interval || '1d'}
+        chartType={activeChart?.chartType || 'candle'}
+        hasActiveChart={!!activeChart}
+        setInterval={(interval) => activeChart && updateChart(activeChart.id, { interval })}
+        setChartType={(chartType) => activeChart && updateChart(activeChart.id, { chartType })}
+        openIndicatorSearch={() => activeChart && setShowIndicatorSearch(true)}
+        openSymbolSearch={() => setSymbolSearchMode('change')}
+        locked={locked}
+        onToggleLock={toggleLock}
+        onAddChart={() => setSymbolSearchMode('add')}
+        onCloseAll={() => {
+          if (charts.length > 0 && window.confirm('Close all charts?')) closeAllCharts();
+        }}
       />
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        <DrawingToolbar
+        {activeChart && (
+          <DrawingToolbar
+            activeTool={activeTool}
+            onSelectTool={handleSelectTool}
+          />
+        )}
+
+        <ChartGrid
+          charts={charts}
+          activeChartId={activeChartId}
+          locked={locked}
           activeTool={activeTool}
-          onSelectTool={(tool) => {
-            if (tool === 'eraser') {
-              if (window.confirm('Delete all drawings?')) setDrawings([]);
-              setActiveTool('cursor');
-            } else {
-              setActiveTool(tool);
-            }
-          }}
+          setActiveTool={setActiveTool}
+          onActivate={setActiveChartId}
+          onClose={closeChart}
+          onUpdate={updateChart}
+          onAddChart={() => setSymbolSearchMode('add')}
         />
-
-        {/* TOP LEGEND (Main OHLC) */}
-        <div className="chart-legend-main">
-          <div className="legend-symbol">{symbol}</div>
-          {priceData && (
-            <div className="legend-ohlc">
-              <span className="ohlc-item"><span className="ohlc-label">O</span><span style={{ color: pnlColor }}>{formatPrice(priceData.open)}</span></span>
-              <span className="ohlc-item"><span className="ohlc-label">H</span><span style={{ color: pnlColor }}>{formatPrice(priceData.high)}</span></span>
-              <span className="ohlc-item"><span className="ohlc-label">L</span><span style={{ color: pnlColor }}>{formatPrice(priceData.low)}</span></span>
-              <span className="ohlc-item"><span className="ohlc-label">C</span><span style={{ color: pnlColor }}>{formatPrice(priceData.close)}</span></span>
-              <span style={{ color: pnlColor, fontWeight: 'bold' }}>{formatPercent(pnl)}</span>
-            </div>
-          )}
-        </div>
-
-        {/* SMA LEGENDS (Just below OHLC) */}
-        <div className="chart-legend-indicators price-indicators">
-          {indicators.filter(i => i.type === 'sma' && i.visible).map(ind => {
-            const val = hoveredData?.smas?.[ind.id];
-            return (
-              <div key={ind.id} className="legend-item">
-                <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
-                <span className="legend-label">SMA {ind.length}{ind.source !== 'close' && <span className="legend-source">({ind.source})</span>}</span>
-                <span className="legend-value" style={{ color: ind.color }}>{val != null ? val.toFixed(2) : ''}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 52 WEEK HIGH/LOW LEGEND */}
-        <div className="chart-legend-indicators price-indicators">
-          {indicators.filter(i => i.type === 'w52' && i.visible).map(ind => (
-            <div key={ind.id} className="legend-item">
-              <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
-              <span className="legend-label">52W{ind.basis === 'close' ? ' (Close)' : ''}</span>
-              <span className="legend-value" style={{ color: ind.color }}>
-                {hoveredData?.w52s?.[ind.id]?.high?.toFixed(2) || ''}
-                <span style={{ margin: '0 4px', opacity: 0.5 }}>/</span>
-                {hoveredData?.w52s?.[ind.id]?.low?.toFixed(2) || ''}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* VOLUME SMA LEGEND */}
-        <div className="chart-legend-indicators price-indicators">
-          {indicators.filter(i => i.type === 'vol_sma' && i.visible).map(ind => (
-            <div key={ind.id} className="legend-item">
-              <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
-              <span className="legend-label">Vol SMA ({ind.length})</span>
-              <span className="legend-value" style={{ color: ind.color }}>
-                {hoveredData?.volSmas?.[ind.id]?.value != null ? formatADLValue(hoveredData.volSmas[ind.id].value) : ''}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* SUPERTREND LEGEND */}
-        <div className="chart-legend-indicators price-indicators">
-          {indicators.filter(i => i.type === 'supertrend' && i.visible).map(ind => {
-            const data = hoveredData?.supertrend?.[ind.id];
-            const color = data?.trend === 1 ? ind.upColor : ind.downColor;
-            return (
-              <div key={ind.id} className="legend-item">
-                <span className="legend-bullet" style={{ backgroundColor: color }}></span>
-                <span className="legend-label">SuperTrend ({ind.atrLength}, {ind.factor})</span>
-                <span className="legend-value" style={{ color: color }}>
-                  {data?.value?.toFixed(2) || ''}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* ICHIMOKU LEGEND */}
-        <div className="chart-legend-indicators price-indicators">
-          {indicators.filter(i => i.type === 'ichimoku' && i.visible).map(ind => {
-            const data = hoveredData?.ichimoku?.[ind.id];
-            return (
-              <div key={ind.id} className="legend-item" style={{ fontSize: '11px' }}>
-                <span className="legend-label">Ichimoku</span>
-                <span style={{ color: ind.tenkanColor, marginLeft: '4px' }}>T: {data?.tenkan?.toFixed(2) || ''}</span>
-                <span style={{ color: ind.kijunColor, marginLeft: '4px' }}>K: {data?.kijun?.toFixed(2) || ''}</span>
-                <span style={{ color: '#26a69a', marginLeft: '4px' }}>SA: {data?.spanA?.toFixed(2) || ''}</span>
-                <span style={{ color: '#ef5350', marginLeft: '4px' }}>SB: {data?.spanB?.toFixed(2) || ''}</span>
-                <span style={{ color: ind.chikouColor, marginLeft: '4px' }}>C: {data?.chikou?.toFixed(2) || ''}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* BOLLINGER BANDS LEGEND */}
-        <div className="chart-legend-indicators price-indicators">
-          {indicators.filter(i => i.type === 'bb' && i.visible).map(ind => (
-            <div key={ind.id} className="legend-item">
-              <span className="legend-bullet" style={{ backgroundColor: ind.basisColor }}></span>
-              <span className="legend-label">BB{ind.showInputInStatus ? ` (${ind.length}, ${ind.stdDev})` : ''}</span>
-              {ind.showStatusValues && (
-                <span className="legend-value">
-                  <span style={{ color: ind.basisColor }}>{hoveredData?.bbs?.[ind.id]?.basis?.toFixed(ind.precision) || ''}</span>
-                  <span style={{ margin: '0 4px', opacity: 0.5 }}>/</span>
-                  <span style={{ color: ind.upperColor }}>{hoveredData?.bbs?.[ind.id]?.upper?.toFixed(ind.precision) || ''}</span>
-                  <span style={{ margin: '0 4px', opacity: 0.5 }}>/</span>
-                  <span style={{ color: ind.lowerColor }}>{hoveredData?.bbs?.[ind.id]?.lower?.toFixed(ind.precision) || ''}</span>
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* RSI LEGEND (In the RSI pane area) */}
-        {activeRsi && (
-          <div className="chart-legend-indicators" style={{ top: paneLegendTop('rsi') }}>
-            <div className="legend-item">
-              <span className="legend-bullet" style={{ backgroundColor: activeRsi.color }}></span>
-              <span className="legend-label">RSI ({activeRsi.length}, {activeRsi.source})</span>
-              <span className="legend-value" style={{ color: activeRsi.color }}>
-                {hoveredData?.rsis?.[activeRsi.id]?.rsi?.toFixed(2) || ''}
-              </span>
-            </div>
-            {activeRsi.smoothingType === 'SMA' && (
-              <div className="legend-item">
-                <span className="legend-bullet" style={{ backgroundColor: activeRsi.smoothColor }}></span>
-                <span className="legend-label">Smooth ({activeRsi.smoothingLength})</span>
-                <span className="legend-value" style={{ color: activeRsi.smoothColor }}>
-                  {hoveredData?.rsis?.[activeRsi.id]?.smoothed?.toFixed(2) || ''}
-                </span>
-              </div>
-            )}
-            {activeRsi.showBB && (
-              <div className="legend-item">
-                <span className="legend-label" style={{ opacity: 0.5 }}>BB (2)</span>
-                <span className="legend-value" style={{ color: activeRsi.bbColor }}>
-                  {hoveredData?.rsis?.[activeRsi.id]?.bbUpper?.toFixed(2) || ''} / {hoveredData?.rsis?.[activeRsi.id]?.bbLower?.toFixed(2) || ''}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TSI LEGEND */}
-        {indicators.find(i => i.type === 'tsi' && i.visible) && (
-          <div className="chart-legend-indicators" style={{ top: paneLegendTop('tsi') }}>
-            {indicators.filter(i => i.type === 'tsi' && i.visible).map(ind => (
-              <React.Fragment key={ind.id}>
-                <div className="legend-item">
-                  <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
-                  <span className="legend-label">TSI ({ind.longLength}, {ind.shortLength})</span>
-                  <span className="legend-value" style={{ color: ind.color }}>
-                    {hoveredData?.tsi?.[ind.id]?.tsi?.toFixed(2) || ''}
-                  </span>
-                </div>
-                <div className="legend-item">
-                  <span className="legend-bullet" style={{ backgroundColor: ind.signalColor }}></span>
-                  <span className="legend-label">Signal ({ind.signalLength})</span>
-                  <span className="legend-value" style={{ color: ind.signalColor }}>
-                    {hoveredData?.tsi?.[ind.id]?.signal?.toFixed(2) || ''}
-                  </span>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
-        )}
-
-        {/* MACD LEGEND */}
-        {indicators.find(i => i.type === 'macd' && i.visible) && (
-          <div className="chart-legend-indicators" style={{ top: paneLegendTop('macd') }}>
-            <div className="legend-item">
-              <span className="legend-bullet" style={{ backgroundColor: '#2962ff' }}></span>
-              <span className="legend-label">MACD</span>
-              <span className="legend-value" style={{ color: '#2962ff' }}>
-                {hoveredData?.macds?.['macd-main']?.macd?.toFixed(3) || ''}
-              </span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-bullet" style={{ backgroundColor: '#ff9800' }}></span>
-              <span className="legend-label">Signal</span>
-              <span className="legend-value" style={{ color: '#ff9800' }}>
-                {hoveredData?.macds?.['macd-main']?.signal?.toFixed(3) || ''}
-              </span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-label">Hist</span>
-              <span className="legend-value">
-                {hoveredData?.macds?.['macd-main']?.histogram?.toFixed(3) || ''}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* STOCHASTIC LEGEND */}
-        {indicators.find(i => i.type === 'stoch' && i.visible) && (
-          <div className="chart-legend-indicators" style={{ top: paneLegendTop('stoch') }}>
-            <div className="legend-item">
-              <span className="legend-bullet" style={{ backgroundColor: '#2962ff' }}></span>
-              <span className="legend-label">Stoch %K</span>
-              <span className="legend-value" style={{ color: '#2962ff' }}>
-                {hoveredData?.stochs?.['stoch-main']?.k?.toFixed(2) || ''}
-              </span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-bullet" style={{ backgroundColor: '#ff9800' }}></span>
-              <span className="legend-label">%D</span>
-              <span className="legend-value" style={{ color: '#ff9800' }}>
-                {hoveredData?.stochs?.['stoch-main']?.d?.toFixed(2) || ''}
-              </span>
-            </div>
-          </div>
-        )}
-        {/* ATR LEGEND */}
-        {indicators.find(i => i.type === 'atr' && i.visible) && (
-          <div className="chart-legend-indicators" style={{ top: paneLegendTop('atr') }}>
-            {indicators.filter(i => i.type === 'atr' && i.visible).map(ind => (
-              <div key={ind.id} className="legend-item">
-                <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
-                <span className="legend-label">ATR ({ind.length})</span>
-                <span className="legend-value" style={{ color: ind.color }}>
-                  {hoveredData?.atrs?.[ind.id]?.value?.toFixed(2) || ''}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-        {/* ACCUMULATION/DISTRIBUTION LEGEND */}
-        {indicators.find(i => i.type === 'ad' && i.visible) && (
-          <div className="chart-legend-indicators" style={{ top: paneLegendTop('ad') }}>
-            {indicators.filter(i => i.type === 'ad' && i.visible).map(ind => (
-              <div key={ind.id} className="legend-item">
-                <span className="legend-bullet" style={{ backgroundColor: ind.color }}></span>
-                <span className="legend-label">Accum/Dist</span>
-                <span className="legend-value" style={{ color: ind.color }}>
-                  {hoveredData?.ads?.[ind.id]?.value != null ? formatADLValue(hoveredData.ads[ind.id].value) : ''}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
 
         {showIndicatorSearch && (
           <IndicatorSearch
@@ -823,188 +162,11 @@ function App() {
           />
         )}
 
-        {showSymbolSearch && (
+        {symbolSearchMode && (
           <SymbolSearch
-            onSelectSymbol={setSymbol}
-            onClose={() => setShowSymbolSearch(false)}
-          />
-        )}
-
-        <div className="indicator-panels-container">
-          {/* Moving Averages Panel */}
-          <IndicatorPanel
-            title="Moving Averages"
-            groupType="sma"
-            minimizedTop={minimizedTopFor('sma')}
-            indicators={indicators.filter(i => i.type === 'sma')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* RSI Panel */}
-          <IndicatorPanel
-            title="Relative Strength Index"
-            groupType="rsi"
-            minimizedTop={minimizedTopFor('rsi')}
-            indicators={indicators.filter(i => i.type === 'rsi')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* MACD Panel */}
-          <IndicatorPanel
-            title="Normalized MACD"
-            groupType="macd"
-            minimizedTop={minimizedTopFor('macd')}
-            indicators={indicators.filter(i => i.type === 'macd')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* Volume Profile Panel */}
-          <IndicatorPanel
-            title="Volume Profile / HD"
-            groupType="volume_profile"
-            minimizedTop={minimizedTopFor('volume_profile')}
-            indicators={indicators.filter(i => i.type === 'volume_profile')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* Bollinger Bands Panel */}
-          <IndicatorPanel
-            title="Bollinger Bands"
-            groupType="bb"
-            minimizedTop={minimizedTopFor('bb')}
-            indicators={indicators.filter(i => i.type === 'bb')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* Stochastic Oscillator Panel */}
-          <IndicatorPanel
-            title="Stochastic Oscillator"
-            groupType="stoch"
-            minimizedTop={minimizedTopFor('stoch')}
-            indicators={indicators.filter(i => i.type === 'stoch')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* SuperTrend Panel */}
-          <IndicatorPanel
-            title="SuperTrend"
-            groupType="supertrend"
-            minimizedTop={minimizedTopFor('supertrend')}
-            indicators={indicators.filter(i => i.type === 'supertrend')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* ATR Panel */}
-          <IndicatorPanel
-            title="Average True Range"
-            groupType="atr"
-            minimizedTop={minimizedTopFor('atr')}
-            indicators={indicators.filter(i => i.type === 'atr')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* Ichimoku Panel */}
-          <IndicatorPanel
-            title="Ichimoku Cloud"
-            groupType="ichimoku"
-            minimizedTop={minimizedTopFor('ichimoku')}
-            indicators={indicators.filter(i => i.type === 'ichimoku')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* TSI Panel */}
-          <IndicatorPanel
-            title="TSI"
-            groupType="tsi"
-            minimizedTop={minimizedTopFor('tsi')}
-            indicators={indicators.filter(i => i.type === 'tsi')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* Accumulation/Distribution Panel */}
-          <IndicatorPanel
-            title="Accumulation/Distribution"
-            groupType="ad"
-            minimizedTop={minimizedTopFor('ad')}
-            indicators={indicators.filter(i => i.type === 'ad')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-          />
-          {/* 52 Week High/Low Panel */}
-          <IndicatorPanel
-            title="52 Week High/Low"
-            groupType="w52"
-            indicators={indicators.filter(i => i.type === 'w52')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-            minimizedTop={minimizedTopFor('w52')}
-          />
-          {/* Volume SMA Panel */}
-          <IndicatorPanel
-            title="Volume SMA"
-            groupType="vol_sma"
-            indicators={indicators.filter(i => i.type === 'vol_sma')}
-            updateIndicator={updateIndicator}
-            removeIndicator={removeIndicator}
-            removeIndicatorGroup={removeIndicatorGroup}
-            toggleIndicator={toggleIndicator}
-            minimizedTop={minimizedTopFor('vol_sma')}
-          />
-        </div>
-
-        {loading && (
-          <div className="chart-loader initial-loader">
-            Loading {symbol}...
-          </div>
-        )}
-        {loadingMore && (
-          <div className="chart-loader more-loader">
-            Fetching historical data...
-          </div>
-        )}
-        {error && !loading && (
-          <div className="chart-error-overlay">
-            {error}
-          </div>
-        )}
-        {data.length > 0 && (
-          <Chart
-            data={data}
-            adFullData={adFullData}
-            chartType={chartType}
-            symbol={symbol}
-            interval={interval}
-            indicators={indicators}
-            drawings={drawings}
-            setDrawings={setDrawings}
-            activeTool={activeTool}
-            setActiveTool={setActiveTool}
-            onVisibleLogicalRangeChange={handleVisibleLogicalRangeChange}
-            onCrosshairMove={handleCrosshairMove}
+            onSelectSymbol={handleSelectSymbol}
+            onOpenInNewChart={addChart}
+            onClose={() => setSymbolSearchMode(null)}
           />
         )}
       </div>

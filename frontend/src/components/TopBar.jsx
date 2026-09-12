@@ -1,11 +1,15 @@
 import React from 'react';
 
 const TopBar = ({
-    symbol, setSymbol,
+    symbol,
     interval, setInterval,
     chartType, setChartType,
+    hasActiveChart,
     openIndicatorSearch,
-    openSymbolSearch
+    openSymbolSearch,
+    locked, onToggleLock,
+    onAddChart,
+    onCloseAll
 }) => {
     const intervals = [
         { label: '1m', value: '1m' },
@@ -36,9 +40,10 @@ const TopBar = ({
                 <button
                     className="symbol-search-btn"
                     onClick={openSymbolSearch}
+                    disabled={!hasActiveChart}
                 >
                     <span className="search-icon">🔍</span>
-                    <span className="current-symbol">{symbol}</span>
+                    <span className="current-symbol">{symbol || '—'}</span>
                 </button>
             </div>
 
@@ -51,6 +56,7 @@ const TopBar = ({
                             key={int.value}
                             className={`toolbar-btn ${interval === int.value ? 'active' : ''}`}
                             onClick={() => setInterval(int.value)}
+                            disabled={!hasActiveChart}
                         >
                             {int.label}
                         </button>
@@ -67,6 +73,7 @@ const TopBar = ({
                             key={type.value}
                             className={`toolbar-btn ${chartType === type.value ? 'active' : ''}`}
                             onClick={() => setChartType(type.value)}
+                            disabled={!hasActiveChart}
                         >
                             {type.label}
                         </button>
@@ -80,9 +87,38 @@ const TopBar = ({
                 <button
                     className="toolbar-btn primary"
                     onClick={openIndicatorSearch}
+                    disabled={!hasActiveChart}
                 >
                     <span style={{ fontSize: '16px', marginRight: '4px' }}>📊</span>
                     Indicators
+                </button>
+            </div>
+
+            <div className="top-bar-divider" />
+
+            <div className="top-bar-section layout-section">
+                <button
+                    className={`toolbar-btn ${locked ? 'lock-active' : ''}`}
+                    onClick={onToggleLock}
+                    title={locked ? 'Unlock charts (independent zoom/move)' : 'Lock charts (sync zoom/move/crosshair)'}
+                >
+                    <span style={{ fontSize: '14px' }}>{locked ? '🔒' : '🔓'}</span>
+                </button>
+                <button
+                    className="toolbar-btn"
+                    onClick={onAddChart}
+                    title="Add chart"
+                >
+                    <span style={{ fontSize: '14px', marginRight: '4px' }}>➕</span>
+                    Chart
+                </button>
+                <button
+                    className="toolbar-btn"
+                    onClick={onCloseAll}
+                    disabled={!hasActiveChart}
+                    title="Close all charts"
+                >
+                    <span style={{ fontSize: '14px' }}>🗑</span>
                 </button>
             </div>
         </div>

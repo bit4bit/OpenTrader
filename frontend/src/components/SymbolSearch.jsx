@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const SymbolSearch = ({ onSelectSymbol, onClose }) => {
+const SymbolSearch = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -65,8 +65,23 @@ const SymbolSearch = ({ onSelectSymbol, onClose }) => {
                             }}
                         >
                             <div className="symbol-item-main">
-                                <span className="symbol-name">{res.symbol}</span>
-                                <span className="symbol-type" style={{ fontSize: '10px', opacity: 0.6, marginLeft: '8px' }}>{res.type}</span>
+                                <div>
+                                    <span className="symbol-name">{res.symbol}</span>
+                                    <span className="symbol-type" style={{ fontSize: '10px', opacity: 0.6, marginLeft: '8px' }}>{res.type}</span>
+                                </div>
+                                {onOpenInNewChart && (
+                                    <button
+                                        className="symbol-new-chart-btn"
+                                        title="Open in new chart"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onOpenInNewChart(res.symbol);
+                                            onClose();
+                                        }}
+                                    >
+                                        ⊕ New chart
+                                    </button>
+                                )}
                             </div>
                             <div className="symbol-item-desc" style={{ fontSize: '12px', opacity: 0.7 }}>
                                 {res.name} • {res.exchange}

@@ -19,6 +19,7 @@ import { computeW52 } from '../Indicators/w52';
 import { getActivePaneTypes } from '../Indicators/panes';
 import { computeIchimoku } from '../Indicators/ichimoku';
 import { computeTSI } from '../Indicators/tsi';
+import { registerChart, broadcastRange, broadcastCrosshair, isApplyingSync } from '../sync/chartSync';
 
 // Compute Heikin-Ashi candles from OHLCV data
 function computeHeikinAshi(data) {
@@ -61,7 +62,9 @@ const Chart = ({
     drawings = [],
     setDrawings,
     activeTool,
-    setActiveTool
+    setActiveTool,
+    chartId,
+    syncEnabled = false
 }) => {
     const containerRef = useRef();
     const chartRef = useRef(null);
@@ -97,10 +100,15 @@ const Chart = ({
 
     const onRangeChangeRef = useRef(onVisibleLogicalRangeChange);
     const onCrosshairMoveRef = useRef(onCrosshairMove);
+    const syncEnabledRef = useRef(syncEnabled);
+    const syncEntryRef = useRef({ chart: null, series: null, findPrice: null });
+    const dataRef = useRef(data);
     const activeToolRef = useRef(activeTool);
     useEffect(() => { onRangeChangeRef.current = onVisibleLogicalRangeChange; }, [onVisibleLogicalRangeChange]);
     useEffect(() => { onCrosshairMoveRef.current = onCrosshairMove; }, [onCrosshairMove]);
     useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
+    useEffect(() => { syncEnabledRef.current = syncEnabled; }, [syncEnabled]);
+    useEffect(() => { dataRef.current = data; }, [data]);
 
     // Initialize Chart
     useEffect(() => {
@@ -135,8 +143,14 @@ const Chart = ({
 
         chartRef.current = chart;
 
+        syncEntryRef.current.chart = chart;
+        syncEntryRef.current.findPrice = (time) =>
+            dataRef.current.find(d => d.time === time)?.close ?? null;
+        const unregister = chartId ? registerChart(chartId, syncEntryRef.current) : null;
+
         const rangeChangeHandler = (range) => {
             if (onRangeChangeRef.current) onRangeChangeRef.current(range);
+            if (chartId && !isApplyingSync()) broadcastRange(chartId, range, syncEnabledRef.current);
         };
         chart.timeScale().subscribeVisibleLogicalRangeChange(rangeChangeHandler);
 
@@ -309,21 +323,34 @@ const Chart = ({
         };
         chart.subscribeCrosshairMove(crosshairHandler);
 
-        const handleResize = () => {
+        const crosshairSyncHandler = (param) => {
+            if (!chartId || isApplyingSync() || !syncEnabledRef.current) return;
+            const price = param.point && priceSeriesRef.current
+                ? priceSeriesRef.current.coordinateToPrice(param.point.y)
+                : null;
+            broadcastCrosshair(chartId, param.time ?? null, price, true);
+        };
+        chart.subscribeCrosshairMove(crosshairSyncHandler);
+
+        const resizeObserver = new ResizeObserver(() => {
             if (containerRef.current && chartRef.current) {
                 chartRef.current.applyOptions({
                     width: containerRef.current.clientWidth,
                     height: containerRef.current.clientHeight,
                 });
             }
-        };
-        window.addEventListener('resize', handleResize);
+        });
+        resizeObserver.observe(containerRef.current);
 
         return () => {
-            window.removeEventListener('resize', handleResize);
+            resizeObserver.disconnect();
+            if (unregister) unregister();
             chart.timeScale().unsubscribeVisibleLogicalRangeChange(rangeChangeHandler);
             chart.unsubscribeCrosshairMove(crosshairHandler);
+            chart.unsubscribeCrosshairMove(crosshairSyncHandler);
             chart.remove();
+            syncEntryRef.current.chart = null;
+            syncEntryRef.current.series = null;
             chartRef.current = null;
             priceSeriesRef.current = null;
             volumeSeriesRef.current = null;
@@ -1767,6 +1794,7 @@ const Chart = ({
                 });
             }
             lastChartType.current = chartType;
+            syncEntryRef.current.series = priceSeriesRef.current;
 
             // Perfect drawing sync: Attach primitive once per series creation
             const syncProp = new SyncPrimitive(() => {
