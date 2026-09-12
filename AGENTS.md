@@ -28,6 +28,7 @@ OpenTrader is an open-source TradingView alternative: Django + DRF backend servi
 - **The source code is the source of truth.** Avoid comments that restate the code. Comment only non-obvious intent (e.g. why A/D needs full history).
 - **Clean code / Kent Beck's rules of simple design:** passes tests, reveals intent, no duplication, fewest elements. Make the minimal change that achieves the goal; don't add speculative features.
 - **SOLID.** Single responsibility especially: fetching in hooks, indicator math in `Indicators/`, sync in `sync/`, rendering in components. Extend behavior by adding modules/props, not by growing `App.jsx` or `Chart.jsx`.
+- **No workarounds.** Always look for the most appropriate and best solution. If a bug is caused by bad data or state (e.g. a corrupted session layout), fix the data/state instead of patching the code to tolerate it.
 
 ## Commands
 
