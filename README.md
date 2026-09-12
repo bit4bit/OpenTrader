@@ -17,13 +17,14 @@ OpenTrader is an open-source alternative to TradingView: a Django + DRF backend 
 ## ✨ Features
 
 - **Multi-chart layouts** — flow layout with per-chart tiles; layouts persist to backend sessions.
-- **Chart types** — candles, lines, and more, with configurable intervals.
-- **Indicators** — SMA, RSI, MACD, Bollinger Bands, Stochastic, Super Trend, ATR, Ichimoku, TSI, A/D, 52-Week High/Low, Volume SMA, Volume Profile.
-- **Drawing tools** — trend lines, channels, shapes, patterns, Fibonacci/Gann tools, long/short positions, and risk/reward.
-- **Chart sync** — lock charts together to share zoom/pan and crosshair across symbols.
+- **Chart types** — candles, Heikin Ashi, lines, and more, with configurable intervals.
+- **Indicators** — SMA, RSI, MACD, Bollinger Bands, Stochastic, Super Trend, ATR, Ichimoku, TSI, A/D, 52-Week High/Low, Volume SMA, Volume Profile, Simple Market Index.
+- **Custom script indicators** — write your own indicators in JavaScript with the embedded script engine.
+- **Drawing tools** — trend lines, channels, shapes, patterns, Fibonacci/Gann tools, long/short positions, risk/reward, and text notes; favorites bar and per-drawing eraser.
+- **Chart sync** — lock charts together to share zoom/pan and crosshair across symbols; magnet mode snaps the crosshair to bars.
 - **Ticker search** — symbol lookup with auto-refreshing market data.
 - **Token auth + sessions** — username login with per-user session seeding.
-- **Configurable data providers** — runtime-selectable market data backends.
+- **Configurable data providers** — runtime-selectable market data backends (Yahoo Finance, Kraken).
 
 ## 🚀 Quick Start (Docker Compose)
 
