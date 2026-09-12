@@ -3,10 +3,6 @@
  * Ported from the provided Python implementation.
  */
 
-function isValid(val) {
-    return typeof val === 'number' && isFinite(val) && val !== null;
-}
-
 function getRollingHL2(data, length, index) {
     if (index < length - 1) return null;
     let max = -Infinity;

@@ -27,7 +27,6 @@ export function computeATR(data, settings) {
     for (let i = 0; i < n; i++) {
         const high = data[i].high;
         const low = data[i].low;
-        const prevClose = i > 0 ? data[i - 1].close : data[0].close; // Use first close for first bar if needed
 
         if (!isValid(high) || !isValid(low) || !isValid(data[i].close)) continue;
 

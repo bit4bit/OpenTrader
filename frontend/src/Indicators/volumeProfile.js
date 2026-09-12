@@ -4,10 +4,6 @@
  * Range: Entire visible/selected period
  */
 
-function isValid(val) {
-    return typeof val === 'number' && isFinite(val);
-}
-
 /**
  * Computes Volume Profile bins
  * @param {Array} data - OHLCV data
