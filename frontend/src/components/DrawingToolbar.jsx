@@ -1,7 +1,9 @@
 import React from 'react';
+import { useFavoriteTools } from '../hooks/useFavoriteTools';
 
 const DrawingToolbar = ({ activeTool, onSelectTool }) => {
     const [openCategory, setOpenCategory] = React.useState(null);
+    const { favorites, toggleFavorite } = useFavoriteTools();
 
     const categories = [
         {
@@ -154,13 +156,58 @@ const DrawingToolbar = ({ activeTool, onSelectTool }) => {
         }
     ];
 
-    const handleToolSelect = (toolId, categoryId) => {
+    const handleToolSelect = (toolId) => {
         onSelectTool(toolId);
         setOpenCategory(null);
     };
 
+    const allTools = categories.flatMap(cat => cat.type === 'single' ? [cat.tool] : cat.tools);
+    const favoriteTools = favorites
+        .map(id => allTools.find(t => t.id === id))
+        .filter(Boolean);
+
     return (
         <div className="drawing-toolbar">
+            <div className="toolbar-category-container">
+                <button
+                    className={`drawing-tool-btn group-btn favorites-toggle ${favoriteTools.some(t => t.id === activeTool) ? 'active' : ''}`}
+                    onClick={() => setOpenCategory(openCategory === 'favorites_cat' ? null : 'favorites_cat')}
+                    title="Favorites"
+                >
+                    <span className="tool-icon">★</span>
+                    <span className="category-arrow">›</span>
+                </button>
+
+                {openCategory === 'favorites_cat' && (
+                    <div className="tool-flyout">
+                        <div className="flyout-header">Favorites</div>
+                        <div className="flyout-grid">
+                            {favoriteTools.length === 0 && (
+                                <div className="flyout-empty">No favorites yet. Star a tool in any category.</div>
+                            )}
+                            {favoriteTools.map(tool => (
+                                <button
+                                    key={tool.id}
+                                    className={`flyout-tool-btn ${activeTool === tool.id ? 'active' : ''}`}
+                                    onClick={() => handleToolSelect(tool.id)}
+                                    title={tool.label}
+                                >
+                                    <span className="tool-icon">{tool.icon}</span>
+                                    <span className="tool-label">{tool.label}</span>
+                                    <span
+                                        className="flyout-star starred"
+                                        onClick={(e) => { e.stopPropagation(); toggleFavorite(tool.id); }}
+                                        title="Remove from favorites"
+                                    >
+                                        ★
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+            <div className="toolbar-divider" />
             {categories.map((cat) => (
                 <div key={cat.id} className="toolbar-category-container">
                     {cat.type === 'single' ? (
@@ -190,11 +237,18 @@ const DrawingToolbar = ({ activeTool, onSelectTool }) => {
                                             <button
                                                 key={tool.id}
                                                 className={`flyout-tool-btn ${activeTool === tool.id ? 'active' : ''}`}
-                                                onClick={() => handleToolSelect(tool.id, cat.id)}
+                                                onClick={() => handleToolSelect(tool.id)}
                                                 title={tool.label}
                                             >
                                                 <span className="tool-icon">{tool.icon}</span>
                                                 <span className="tool-label">{tool.label}</span>
+                                                <span
+                                                    className={`flyout-star ${favorites.includes(tool.id) ? 'starred' : ''}`}
+                                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(tool.id); }}
+                                                    title={favorites.includes(tool.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                                >
+                                                    {favorites.includes(tool.id) ? '★' : '☆'}
+                                                </span>
                                             </button>
                                         ))}
                                     </div>

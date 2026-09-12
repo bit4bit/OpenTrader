@@ -777,6 +777,33 @@ div[class*="tradingview"] {
 
 .tool-label {
   font-size: 13px;
+  flex: 1;
+}
+
+.flyout-star {
+  color: var(--text-dim);
+  font-size: 14px;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.2s;
+}
+
+.flyout-star:hover {
+  color: #f5c542;
+}
+
+.flyout-star.starred {
+  color: #f5c542;
+}
+
+.favorites-toggle .tool-icon {
+  color: #f5c542;
+}
+
+.flyout-empty {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 8px 12px;
 }
 /* Multi-chart grid */
 .chart-grid {
