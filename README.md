@@ -1,148 +1,64 @@
 # OpenTrader
 
-OpenTrader is a powerful, early-stage open-source alternative to TradingView. It aims to provide a clean, smooth, and highly customizable trading interface with features like unlimited indicators and backtracking support.
+OpenTrader is an open-source alternative to TradingView: a Django + DRF backend serving market data (Yahoo Finance by default, plus configurable providers such as Kraken) and a React 19 + Vite frontend built on TradingView's Lightweight Charts.
 
-[NOTE]
-OpenTrader is currently in early stage. Suggestions and issue raising are highly welcome!
+> **Note:** OpenTrader is in an early stage — suggestions and issue reports are welcome!
 
 ## 📸 Screenshots
 
 ![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot2.png)
 ![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot3.png)
-![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot4.png)
-![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot5.png)
-![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot6.png)
-![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot7.png)
-![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot8.png)
-![open trader trading view opensource alternative](https://raw.githubusercontent.com/nodminger/OpenTrader/refs/heads/master/Screenshots/screenshot9.png)
 
-## 🚀 Goals
+## ✨ Features
 
-- **Unlimited Indicators:** Break free from indicator limits and build complex charting setups.
-- **Backtracking:** Equivalent features to TradingView's backtracking/backtesting capabilities.
-- **Visual Excellence:** A modern, glassmorphic UI that feels premium and responsive.
-- **Seamless Performance:** Built with modern technologies for a smooth charting experience.
+- **Multi-chart layouts** — flow layout with per-chart tiles; layouts persist to backend sessions.
+- **Chart types** — candles, lines, and more, with configurable intervals.
+- **Indicators** — SMA, RSI, MACD, Bollinger Bands, Stochastic, Super Trend, ATR, Ichimoku, TSI, A/D, 52-Week High/Low, Volume SMA, Volume Profile.
+- **Drawing tools** — trend lines, channels, shapes, patterns, Fibonacci/Gann tools, long/short positions, and risk/reward.
+- **Chart sync** — lock charts together to share zoom/pan and crosshair across symbols.
+- **Ticker search** — symbol lookup with auto-refreshing market data.
+- **Token auth + sessions** — username login with per-user session seeding.
+- **Configurable data providers** — runtime-selectable market data backends.
 
-## 🛠️ Tech Stack
-
-### Backend
-- **Framework:** [Django](https://www.djangoproject.com/) & [Django REST Framework](https://www.django-rest-framework.org/)
-- **Data Source:** [Yfinance](https://github.com/ranar-w/yfinance) (Yahoo Finance API)
-- **Data Processing:** [Pandas](https://pandas.pydata.org/)
-
-### Frontend
-- **Framework:** [React 19](https://react.dev/)
-- **Build Tool:** [Vite](https://vitejs.dev/)
-- **Charting Library:** [Lightweight Charts](https://www.tradingview.com/lightweight-charts/) (by TradingView)
-- **Communication:** Axios
-
-## 📦 Getting Started
-
-### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- npm or yarn
-
-### Backend Setup
-1. Clone the repository and navigate to the root directory.
-2. Create and activate a virtual environment (optional but recommended):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\\Scripts\\activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Run migrations:
-   ```bash
-   python manage.py migrate
-   ```
-5. Start the Django server:
-   ```bash
-   python manage.py runserver
-   ```
-
-### Working Directory
-
-Application state (the SQLite database) is stored in a working directory, by default `~/.opentrader`. Override it with the `OPENTRADER_WORKING_DIR` environment variable:
+## 🚀 Quick Start (Docker Compose)
 
 ```bash
-OPENTRADER_WORKING_DIR=/path/to/data python manage.py runserver
+docker compose up --build -d
 ```
 
-In Docker, the backend stores state in the `opentrader_data` named volume (mounted at `/data`), which persists across rebuilds and `docker compose down`. It is only removed by `docker compose down -v`.
+Then open [http://localhost](http://localhost) in your browser.
 
-### Frontend Setup
-1. Navigate to the `frontend` directory:
-   ```bash
-   cd frontend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
+Application state (SQLite database) persists in the `opentrader_data` volume. After changing frontend code, rebuild the frontend image — the container copies `dist/` into the shared volume and then exits (`Exited (0)` is normal):
 
-## 📊 Indicators
+```bash
+docker compose build frontend && docker compose up -d frontend
+```
 
-OpenTrader supports the following technical indicators:
+## 🛠️ Manual Setup
 
-- **Simple Moving Average (SMA)**
-- **Relative Strength Index (RSI)**
-- **Normalized MACD**
-- **Volume Profile / HD**
-- **Bollinger Bands (BB)**
-- **Stochastic Oscillator**
-- **Super Trend**
-- **Average True Range (ATR)**
-- **Ichimoku Cloud**
-- **True Strength Index (TSI)**
-- **Accumulation/Distribution (A/D)**
-- **52 Week High/Low**
-- **Volume SMA**
+**Backend** (Python 3.10+):
 
-## 🎨 Drawing Tools
+```bash
+python3 -m venv venv && venv/bin/pip install -r requirements.txt
+venv/bin/python manage.py migrate && venv/bin/python manage.py runserver
+```
 
-OpenTrader includes a comprehensive set of drawing tools organized by category:
+State is stored in a working directory (default `~/.opentrader`); override with `OPENTRADER_WORKING_DIR`.
 
-### Trend Line Tools
-- Trend Line, Arrow, Ray, Extended Line, Info Line, Trend Angle
-- Horizontal Line, Horizontal Ray, Vertical Line, Cross Line
+**Frontend** (Node.js 18+):
 
-### Channels
-- Parallel Channel, Regression Trend, Flat Top / Bottom, Disjoint Channel
-
-### Shapes
-- Rectangle, Rotated Rectangle, Circle, Ellipse, Triangle, Polyline, Curve, Double Curve, Arc
-
-### Annotations
-- Buy Label, Sell Label, Arrow Mark
-
-### Prediction & Risk
-- Long Position, Short Position, Risk/Reward Tool, Forecast, Price Range, Date Range, Ghost Feed
-
-### Patterns
-- XABCD Pattern, Cypher Pattern, ABCD Pattern, Three Drives Pattern, Shark Pattern, 5-0 Pattern
-- Elliott Impulse Wave, Elliott Correction, Elliott Triangle, Elliott Double Combo, Elliott Triple Combo
-- Head & Shoulders, Triangle Pattern, Wedge Pattern, Rectangle Pattern, Channel Pattern, Double Top, Double Bottom
-
-### Pitchfork & Advanced
-- Pitchfork, Schiff Pitchfork, Modified Schiff Pitchfork, Inside Pitchfork, Regression Channel
-
-### Gann & Fibonacci
-- Fib Retracement, Trend-Based Fib Extension, Fib Speed Resistance Arcs, Fib Fan, Fib Time Zone
-- Fib Channel, Fib Wedge, Fib Spiral, Fib Circles, Gann Fan, Gann Square, Gann Box
+```bash
+cd frontend && npm install && npm run dev
+```
 
 ## 🤝 Contributing
 
-We welcome contributions of all kinds! If you have suggestions for new features or encounter any issues, please feel free to:
-- Open an issue to report bugs or suggest enhancements.
-- Submit a Pull Request with your improvements.
+Open an issue to report bugs or suggest enhancements, or submit a Pull Request with your improvements.
 
 ## ⚖️ License
 
 Distributed under the GNU General Public License v3.0 (GPL-3.0). See `LICENSE` for more information.
+
+---
+
+This project has been edited by an LLM assistant.
