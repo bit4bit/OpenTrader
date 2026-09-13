@@ -74,11 +74,13 @@ const paddedBounds = ({ min, max }) => {
     return { min: min - pad, max: max + pad };
 };
 
+export const WEBGPU_NO_ADAPTER = 'WEBGPU_NO_ADAPTER';
+
 export function createChartGpuEngine(container, { timeFormatter } = {}) {
     return (async () => {
         if (!navigator.gpu) throw new Error(WEBGPU_UNSUPPORTED);
         const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-        if (!adapter) throw new Error(WEBGPU_UNSUPPORTED);
+        if (!adapter) throw new Error(WEBGPU_NO_ADAPTER);
         const device = await adapter.requestDevice();
         const shared = { adapter, device, pipelineCache: createPipelineCache(device) };
 
@@ -297,8 +299,10 @@ export function createChartGpuEngine(container, { timeFormatter } = {}) {
 
         try {
             chart = await ChartGPU.create(container, baseOptions(), shared);
-        } catch {
-            throw new Error(WEBGPU_UNSUPPORTED);
+        } catch (err) {
+            // Not a WebGPU-availability problem — surface the real cause.
+            console.error('ChartGPU.create failed:', err);
+            throw err;
         }
 
         chart.on('zoomRangeChange', (payload) => {

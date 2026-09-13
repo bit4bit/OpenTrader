@@ -60,7 +60,7 @@ const Chart = ({
     const [noteDrag, setNoteDrag] = useState(null);
     const [notePositions, setNotePositions] = useState({});
     const [engineReady, setEngineReady] = useState(false);
-    const [engineError, setEngineError] = useState(false);
+    const [engineError, setEngineError] = useState(null);
     const currentCrosshairColor = useRef('#758696');
 
     const updateNote = React.useCallback((id, updater) => {
@@ -189,8 +189,9 @@ const Chart = ({
                 engine.onRedraw(() => setChartTick(t => t + 1)),
                 () => { if (unregister) unregister(); }
             );
-        }).catch(() => {
-            if (!cancelled) setEngineError(true);
+        }).catch((err) => {
+            console.error('Chart engine failed to initialize:', err);
+            if (!cancelled) setEngineError(err?.message);
         });
 
         return () => {
@@ -569,12 +570,17 @@ const Chart = ({
     };
 
     if (engineError) {
+        const message = engineError === 'WEBGPU_NO_ADAPTER'
+            ? 'WebGPU is present but no GPU adapter was found (Vulkan driver issue on Linux). For Chrome, try launching with --enable-features=Vulkan or update GPU drivers.'
+            : engineError === 'WEBGPU_UNSUPPORTED'
+                ? 'WebGPU is not available in this browser. Use Chrome 113+, Edge 113+ or Safari 18+.'
+                : 'Chart engine failed to start. See the browser console for details.';
         return (
             <div className="chart-engine-unavailable" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: '100%', height: '100%', color: '#787b86', fontSize: 13,
+                width: '100%', height: '100%', color: '#787b86', fontSize: 13, padding: 24,
             }}>
-                WebGPU is not available in this browser. Use Chrome 113+, Edge 113+ or Safari 18+.
+                {message}
             </div>
         );
     }
