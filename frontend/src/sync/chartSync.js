@@ -10,9 +10,12 @@ export function isApplyingSync() {
     return applyingSync;
 }
 
+// Sync peers are engine-agnostic entries: { setVisibleRange(range),
+// showCrosshair(time | null) } — the registering chart owns the
+// nearest-bar snapping and engine calls.
 function forEachPeer(sourceId, fn) {
     charts.forEach((entry, id) => {
-        if (id === sourceId || !entry.chart) return;
+        if (id === sourceId) return;
         applyingSync = true;
         try {
             fn(entry);
@@ -24,23 +27,14 @@ function forEachPeer(sourceId, fn) {
 
 export function broadcastRange(sourceId, range, enabled) {
     if (!enabled || applyingSync || !range) return;
-    forEachPeer(sourceId, ({ chart }) => {
-        chart.timeScale().setVisibleLogicalRange(range);
+    forEachPeer(sourceId, (entry) => {
+        entry.setVisibleRange(range);
     });
 }
 
 export function broadcastCrosshair(sourceId, time, price, enabled) {
     if (!enabled || applyingSync) return;
-    forEachPeer(sourceId, ({ chart, series, findNearestBar }) => {
-        if (time == null || !series || !findNearestBar) {
-            chart.clearCrosshairPosition?.();
-            return;
-        }
-        const bar = findNearestBar(time);
-        if (bar) {
-            chart.setCrosshairPosition(bar.price, bar.time, series);
-        } else {
-            chart.clearCrosshairPosition?.();
-        }
+    forEachPeer(sourceId, (entry) => {
+        entry.showCrosshair(time ?? null);
     });
 }

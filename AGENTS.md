@@ -12,14 +12,16 @@ OpenTrader is an open-source TradingView alternative: Django + DRF backend servi
 - `opentrader/` — Django project settings. Serves `frontend/dist` as the SPA; `/api/*` is proxied to the app. Auth is DRF `TokenAuthentication` (username-only login, no password).
 - `frontend/src/`
   - `App.jsx` — root: auth gate (login screen), session wiring, layout state, global toolbars (TopBar, DrawingToolbar, search modals). Keep it thin; logic belongs in hooks/modules.
-  - `components/Chart.jsx` — one `lightweight-charts` instance: series, indicator rendering, drawing engine (SVG overlay), sync registration.
+  - `components/Chart.jsx` — orchestration only: interaction state, layout, and wiring between the chart engine, overlay renderers, and hooks. No chart-library imports.
   - `components/ChartGrid.jsx` / `ChartPanel.jsx` — multi-chart flow layout and per-chart tile (header, legends, indicator panels, loaders).
   - `hooks/useAuth.js` — token+username in `localStorage` (`opentrader_auth`), axios `Authorization: Token ...` header, `login`/`logout`.
   - `hooks/useSessions.js` — sessions list, active session, CRUD against `/api/sessions/`, debounced (~1s) layout auto-save (PATCH).
   - `hooks/useCharts.js` — charts collection state: CRUD, active chart, lock flag. No persistence of its own; reports changes via `onLayoutChange`.
   - `hooks/useChartData.js` — per-chart market data: initial fetch, refresh polling, left-scroll pagination, `useAdFullData`.
-  - `sync/chartSync.js` — registry of live chart APIs; broadcasts visible range and crosshair to peers when locked, with a re-entrancy guard.
-  - `chart/` — pure, unit-tested presentation logic extracted from `Chart.jsx` (Humble Object pattern): `timeFormat.js` (crosshair labels, weekend color), `heikinAshi.js`, `barSearch.js` (nearest-bar binary search), `drawingTools.js` + `drawingInteraction.js` (tool point requirements, click state machine, Home/End ranges), `crosshairLegend.js`, `paneLayout.js` (pane ordering/stretch, renderable ids, full-data slicing), `regression.js` (OLS, std error, time windows), `noteGeometry.js` (text-note coordinates and array transforms). Tests live in `chart/__tests__/` (vitest, `npm test`).
+  - `engine/` — pluggable **ChartEngine** (chart stack: series, panes, axes, zoom, crosshair, coordinate conversion). `engine.js` documents the contract; `lwcEngine.js` is the lightweight-charts implementation; `index.js` selects at build time via `VITE_CHART_ENGINE` (default `lwc`; `chartgpu`/WebGPU planned).
+  - `render/` — pluggable **DrawingRenderer** overlay for user tools. `svgRenderer.js` draws engine-neutral `Shape[]` (line/polyline/polygon/rect/circle/ellipse/path/text in px) and groups committed drawings under `<g data-drawing-id>` for eraser hit-testing.
+  - `sync/chartSync.js` — registry of engine-agnostic sync entries (`{ setVisibleRange, showCrosshair }`); broadcasts visible range and crosshair to peers when locked, with a re-entrancy guard.
+  - `chart/` — pure, unit-tested presentation logic (Humble Object pattern): `timeFormat.js` (crosshair labels, weekend color), `heikinAshi.js`, `barSearch.js` (nearest-bar binary search), `drawingTools.js` + `drawingInteraction.js` (tool point requirements, click state machine, Home/End ranges), `drawingGeometry.js` (drawings/fills/volume-profile → engine-neutral `Shape[]`; ctx = `{ timeToX, priceToY, width, height, data }`), `crosshairLegend.js`, `paneLayout.js` (pane ordering/stretch, renderable ids, full-data slicing), `regression.js` (OLS, std error, time windows), `noteGeometry.js` (text-note coordinates and array transforms). Tests live in `chart/__tests__/` (vitest, `npm test`).
   - `Indicators/` — pure indicator math (`sma.js`, `rsi.js`, ...) plus `actions.js` (pure indicator config factories/operations) and `panes.js` (pane ordering).
 
 ## Coding Guidelines
