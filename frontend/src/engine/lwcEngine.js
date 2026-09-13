@@ -70,6 +70,7 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
     let priceChartType = null;
     let volumeSeries = null;
     let redrawCallback = null;
+    const handles = []; // engine series handles, for crosshair value lookups
 
     const attachRedraw = () => {
         if (priceSeries && redrawCallback) {
@@ -146,11 +147,19 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
         setPaneStretchFactors: (factors) =>
             chart.panes().forEach((p, i) => p.setStretchFactor(factors[i])),
 
-        addLineSeries: (options, paneIndex) =>
-            wrapSeries(chart.addSeries(LineSeries, options, paneIndex)),
-        addHistogramSeries: (options, paneIndex) =>
-            wrapSeries(chart.addSeries(HistogramSeries, options, paneIndex)),
+        addLineSeries: (options, paneIndex) => {
+            const handle = wrapSeries(chart.addSeries(LineSeries, options, paneIndex));
+            handles.push(handle);
+            return handle;
+        },
+        addHistogramSeries: (options, paneIndex) => {
+            const handle = wrapSeries(chart.addSeries(HistogramSeries, options, paneIndex));
+            handles.push(handle);
+            return handle;
+        },
         removeSeries(handle) {
+            const idx = handles.indexOf(handle);
+            if (idx !== -1) handles.splice(idx, 1);
             try { chart.removeSeries(handle.native ?? handle); } catch { /* series already gone */ }
         },
 
@@ -173,14 +182,17 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
                     cb(null);
                     return;
                 }
+                // Values keyed by engine handle so call sites stay engine-neutral.
                 const seriesValues = new Map();
-                param.seriesData.forEach((value, series) => seriesValues.set(series, value));
+                handles.forEach(h => {
+                    const value = param.seriesData.get(h.native);
+                    if (value !== undefined) seriesValues.set(h, value);
+                });
                 cb({
                     time: param.time,
                     point: param.point,
                     price: priceSeries.coordinateToPrice(param.point.y),
                     priceBar: param.seriesData.get(priceSeries),
-                    // Callers key this map by handle.native (the raw series).
                     seriesValues,
                 });
             };

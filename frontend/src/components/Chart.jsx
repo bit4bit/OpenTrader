@@ -59,6 +59,9 @@ const Chart = ({
     const [chartTick, setChartTick] = useState(0);
     const [noteDrag, setNoteDrag] = useState(null);
     const [notePositions, setNotePositions] = useState({});
+    const [engineReady, setEngineReady] = useState(false);
+    const [engineError, setEngineError] = useState(false);
+    const currentCrosshairColor = useRef('#758696');
 
     const updateNote = React.useCallback((id, updater) => {
         setDrawings(prev => updateTextNote(prev, id, updater));
@@ -117,72 +120,83 @@ const Chart = ({
 
     // Initialize Chart
     useEffect(() => {
-        const engine = createChartEngine(containerRef.current, {
+        let cancelled = false;
+        const unsubscribers = [];
+
+        createChartEngine(containerRef.current, {
             timeFormatter: (time) => formatCrosshairTime(time, intervalRef.current),
-        });
-        engineRef.current = engine;
-
-        // Sync peers see an engine-agnostic entry: logical range for
-        // zoom/pan, nearest-bar snapping for the crosshair.
-        const syncEntry = {
-            setVisibleRange: (range) => engine.setVisibleRange(range),
-            showCrosshair: (time) => {
-                const bar = time == null ? null : findNearestBar(dataRef.current, time);
-                if (bar) engine.setCrosshairPosition(bar.price, bar.time);
-                else engine.clearCrosshair();
-            },
-        };
-        const unregister = chartId ? registerChart(chartId, syncEntry) : null;
-
-        const offRangeChange = engine.onVisibleRangeChange((range) => {
-            if (onRangeChangeRef.current) onRangeChangeRef.current(range);
-            if (chartId && !isApplyingSync()) broadcastRange(chartId, range, syncEnabledRef.current);
-        });
-
-        let currentCrosshairColor = '#758696';
-        const offCrosshair = engine.onCrosshairMove((evt) => {
-            // Highlight the vertical crosshair line on weekend bars
-            if (evt?.time) {
-                const color = crosshairLineColor(evt.time);
-                if (color !== currentCrosshairColor) {
-                    currentCrosshairColor = color;
-                    engine.setCrosshairColor(color);
-                }
-            }
-
-            const currentTool = activeToolRef.current;
-            if (evt && isDrawingTool(currentTool) && drawingPointsRef.current.length > 0) {
-                setPreviewDrawing(buildPreviewDrawing(currentTool, drawingPointsRef.current, { time: evt.time, price: evt.price }));
-            }
-
-            if (chartId && !isApplyingSync() && syncEnabledRef.current) {
-                broadcastCrosshair(chartId, evt?.time ?? null, evt?.price ?? null, true);
-            }
-
-            if (!onCrosshairMoveRef.current) return;
-            if (!evt) {
-                onCrosshairMoveRef.current(null);
+        }).then(engine => {
+            if (cancelled) {
+                engine.dispose();
                 return;
             }
+            engineRef.current = engine;
+            setEngineReady(true);
 
-            // Script-based indicators (built-ins + custom): one entry per
-            // plot, in plot declaration order.
-            const results = buildLegendResults(
-                evt.priceBar,
-                genericSeriesRef.current,
-                series => evt.seriesValues.get(series.native)
+            // Sync peers see an engine-agnostic entry: logical range for
+            // zoom/pan, nearest-bar snapping for the crosshair.
+            const syncEntry = {
+                setVisibleRange: (range) => engine.setVisibleRange(range),
+                showCrosshair: (time) => {
+                    const bar = time == null ? null : findNearestBar(dataRef.current, time);
+                    if (bar) engine.setCrosshairPosition(bar.price, bar.time);
+                    else engine.clearCrosshair();
+                },
+            };
+            const unregister = chartId ? registerChart(chartId, syncEntry) : null;
+
+            unsubscribers.push(
+                engine.onVisibleRangeChange((range) => {
+                    if (onRangeChangeRef.current) onRangeChangeRef.current(range);
+                    if (chartId && !isApplyingSync()) broadcastRange(chartId, range, syncEnabledRef.current);
+                }),
+                engine.onCrosshairMove((evt) => {
+                    // Highlight the vertical crosshair line on weekend bars
+                    if (evt?.time) {
+                        const color = crosshairLineColor(evt.time);
+                        if (color !== currentCrosshairColor.current) {
+                            currentCrosshairColor.current = color;
+                            engine.setCrosshairColor(color);
+                        }
+                    }
+
+                    const currentTool = activeToolRef.current;
+                    if (evt && isDrawingTool(currentTool) && drawingPointsRef.current.length > 0) {
+                        setPreviewDrawing(buildPreviewDrawing(currentTool, drawingPointsRef.current, { time: evt.time, price: evt.price }));
+                    }
+
+                    if (chartId && !isApplyingSync() && syncEnabledRef.current) {
+                        broadcastCrosshair(chartId, evt?.time ?? null, evt?.price ?? null, true);
+                    }
+
+                    if (!onCrosshairMoveRef.current) return;
+                    if (!evt) {
+                        onCrosshairMoveRef.current(null);
+                        return;
+                    }
+
+                    // Script-based indicators (built-ins + custom): one entry
+                    // per plot, in plot declaration order. Values are keyed by
+                    // engine handle, so reads stay engine-neutral.
+                    const results = buildLegendResults(
+                        evt.priceBar,
+                        genericSeriesRef.current,
+                        series => evt.seriesValues.get(series)
+                    );
+
+                    onCrosshairMoveRef.current(results);
+                }),
+                engine.onRedraw(() => setChartTick(t => t + 1)),
+                () => { if (unregister) unregister(); }
             );
-
-            onCrosshairMoveRef.current(results);
+        }).catch(() => {
+            if (!cancelled) setEngineError(true);
         });
 
-        engine.onRedraw(() => setChartTick(t => t + 1));
-
         return () => {
-            if (unregister) unregister();
-            offRangeChange();
-            offCrosshair();
-            engine.dispose();
+            cancelled = true;
+            unsubscribers.forEach(off => off());
+            engineRef.current?.dispose();
             engineRef.current = null;
             lastPaneKey.current = '';
             genericSeriesRef.current = {};
@@ -256,21 +270,21 @@ const Chart = ({
 
     // Script indicator fills (BB band shade, Ichimoku cloud, ...).
     useEffect(() => {
-        if (!engineRef.current) return;
+        if (!engineReady) return;
         layerRenderer('fills')?.drawShapes(buildFillShapes(fillsData, geometryCtx()));
-    }, [fillsData, indicators, data]); // Redraw on data change as well to sync with timeScale
+    }, [engineReady, fillsData, indicators, data]); // Redraw on data change as well to sync with timeScale
 
     // Script histogram overlays (Volume Profile-style price-by-volume)
     useEffect(() => {
-        if (!engineRef.current) return;
+        if (!engineReady) return;
         layerRenderer('volumeProfile')?.drawShapes(buildVolumeProfileShapes(histogramsData, geometryCtx()));
-    }, [histogramsData, indicators]);
+    }, [engineReady, histogramsData, indicators]);
 
     // Render Drawings and Annotations
     useEffect(() => {
-        if (!engineRef.current) return;
+        if (!engineReady) return;
         layerRenderer('drawings')?.drawScene(buildDrawingScene(drawings, previewDrawing, geometryCtx()));
-    }, [drawings, previewDrawing, data, chartTick]);
+    }, [engineReady, drawings, previewDrawing, data, chartTick]);
 
     // Erase single drawing: click a <g data-drawing-id> to remove it
     useEffect(() => {
@@ -306,7 +320,7 @@ const Chart = ({
     // MAIN UPDATE LOOP: Price, Volume, and Indicators
     useEffect(() => {
         const engine = engineRef.current;
-        if (!engine || !data || data.length === 0) return;
+        if (!engineReady || !engine || !data || data.length === 0) return;
 
         // Pane indicators (oscillators) each get their own dedicated pane,
         // TradingView-style, stacked in canonical order. When the active set
@@ -437,7 +451,7 @@ const Chart = ({
             }
             pendingScrollRef.current = null;
         }
-    }, [data, chartType, indicators, symbol, interval, indicatorResults]);
+    }, [data, chartType, indicators, symbol, interval, indicatorResults, engineReady]);
 
     const updateNoteRef = useRef(updateNote);
     useEffect(() => { updateNoteRef.current = updateNote; }, [updateNote]);
@@ -494,7 +508,7 @@ const Chart = ({
             positions[d.id] = getNoteCoordinates(d, t => engine.timeToX(t), p => engine.priceToY(p));
         });
         setNotePositions(positions);
-    }, [drawings, chartTick]);
+    }, [engineReady, drawings, chartTick]);
 
     const startNoteBoxDrag = (note, e) => {
         if (note.editing) return;
@@ -553,6 +567,17 @@ const Chart = ({
             );
         });
     };
+
+    if (engineError) {
+        return (
+            <div className="chart-engine-unavailable" style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: '100%', height: '100%', color: '#787b86', fontSize: 13,
+            }}>
+                WebGPU is not available in this browser. Use Chrome 113+, Edge 113+ or Safari 18+.
+            </div>
+        );
+    }
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }} className={`${activeTool !== 'cursor' ? 'drawing-active' : ''} ${activeTool === 'eraserOne' ? 'erase-mode' : ''}`}>
