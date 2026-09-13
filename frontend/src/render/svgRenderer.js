@@ -122,3 +122,15 @@ export function drawDrawingScene(svg, scene) {
         if (el) svg.appendChild(el);
     });
 }
+
+// DrawingRenderer entity bound to one layer surface. Owns the surface's
+// lifecycle: every draw clears the layer first, so a layer never shows
+// stale shapes from a previous frame.
+export function createSvgRenderer(svg) {
+    return {
+        element: svg,
+        clear: () => clearSvg(svg),
+        drawShapes: (shapes) => drawShapes(svg, shapes),
+        drawScene: (scene) => drawDrawingScene(svg, scene),
+    };
+}

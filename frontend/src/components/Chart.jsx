@@ -24,7 +24,8 @@ import {
     buildFillShapes,
     buildVolumeProfileShapes,
 } from '../chart/drawingGeometry';
-import { drawShapes, drawDrawingScene } from '../render/svgRenderer';
+import { createSvgRenderer } from '../render/svgRenderer';
+import { LAYERS, SVG_LAYER_NAMES } from '../render/layers';
 
 const Chart = ({
     data,
@@ -47,13 +48,12 @@ const Chart = ({
 }) => {
     const containerRef = useRef();
     const engineRef = useRef(null);
-    const drawingRef = useRef(null);
+    const layerSurfacesRef = useRef({});
+    const layerRenderersRef = useRef({});
     const [previewDrawing, setPreviewDrawing] = useState(null);
     const drawingPointsRef = useRef([]);
     const genericSeriesRef = useRef({});
     const lastPaneKey = useRef('');
-    const vpRef = useRef(null);
-    const fillsRef = useRef(null);
     const [histogramsData, setHistogramsData] = useState([]);
     const [fillsData, setFillsData] = useState([]);
     const [chartTick, setChartTick] = useState(0);
@@ -102,6 +102,17 @@ const Chart = ({
             height,
             data: dataRef.current,
         };
+    };
+
+    // Renderer entity for a named overlay layer (see render/layers.js).
+    // Each renderer owns its surface: every draw clears the layer first.
+    const layerRenderer = (name) => {
+        const el = layerSurfacesRef.current[name];
+        if (!el) return null;
+        if (!layerRenderersRef.current[name]) {
+            layerRenderersRef.current[name] = createSvgRenderer(el);
+        }
+        return layerRenderersRef.current[name];
     };
 
     // Initialize Chart
@@ -245,41 +256,41 @@ const Chart = ({
 
     // Script indicator fills (BB band shade, Ichimoku cloud, ...).
     useEffect(() => {
-        if (!engineRef.current || !fillsRef.current) return;
-        drawShapes(fillsRef.current, buildFillShapes(fillsData, geometryCtx()));
+        if (!engineRef.current) return;
+        layerRenderer('fills')?.drawShapes(buildFillShapes(fillsData, geometryCtx()));
     }, [fillsData, indicators, data]); // Redraw on data change as well to sync with timeScale
 
     // Script histogram overlays (Volume Profile-style price-by-volume)
     useEffect(() => {
-        if (!engineRef.current || !vpRef.current) return;
-        drawShapes(vpRef.current, buildVolumeProfileShapes(histogramsData, geometryCtx()));
+        if (!engineRef.current) return;
+        layerRenderer('volumeProfile')?.drawShapes(buildVolumeProfileShapes(histogramsData, geometryCtx()));
     }, [histogramsData, indicators]);
 
     // Render Drawings and Annotations
     useEffect(() => {
-        if (!engineRef.current || !drawingRef.current) return;
-        drawDrawingScene(drawingRef.current, buildDrawingScene(drawings, previewDrawing, geometryCtx()));
+        if (!engineRef.current) return;
+        layerRenderer('drawings')?.drawScene(buildDrawingScene(drawings, previewDrawing, geometryCtx()));
     }, [drawings, previewDrawing, data, chartTick]);
 
     // Erase single drawing: click a <g data-drawing-id> to remove it
     useEffect(() => {
-        const svg = drawingRef.current;
-        if (!svg) return;
+        const surface = layerSurfacesRef.current.drawings;
+        if (!surface) return;
         if (activeTool !== 'eraserOne') {
-            svg.style.pointerEvents = 'none';
+            surface.style.pointerEvents = 'none';
             return;
         }
-        svg.style.pointerEvents = 'auto';
+        surface.style.pointerEvents = 'auto';
         const handleErase = (e) => {
             const g = e.target.closest?.('[data-drawing-id]');
             if (!g) return;
             const id = g.getAttribute('data-drawing-id');
             setDrawings(prev => deleteDrawing(prev, id));
         };
-        svg.addEventListener('click', handleErase);
+        surface.addEventListener('click', handleErase);
         return () => {
-            svg.style.pointerEvents = 'none';
-            svg.removeEventListener('click', handleErase);
+            surface.style.pointerEvents = 'none';
+            surface.removeEventListener('click', handleErase);
         };
     }, [activeTool, setDrawings]);
 
@@ -546,11 +557,21 @@ const Chart = ({
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }} className={`${activeTool !== 'cursor' ? 'drawing-active' : ''} ${activeTool === 'eraserOne' ? 'erase-mode' : ''}`}>
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-            {/* Overlay SVGs for Background Shades and Volume Profiles */}
-            <svg ref={fillsRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.8 }} />
-            <svg ref={vpRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }} />
-            <svg ref={drawingRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 100 }} />
-            <div className="chart-notes-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 200 }}>
+            {/* Overlay layers (see render/layers.js): fills, volume profile,
+                drawings as SVG surfaces; notes as interactive DOM on top. */}
+            {SVG_LAYER_NAMES.map(name => (
+                <svg
+                    key={name}
+                    ref={el => { if (el) layerSurfacesRef.current[name] = el; }}
+                    style={{
+                        position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                        pointerEvents: 'none',
+                        zIndex: LAYERS[name].zIndex,
+                        opacity: LAYERS[name].opacity ?? 1,
+                    }}
+                />
+            ))}
+            <div className="chart-notes-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: LAYERS.notes.zIndex }}>
                 {renderNotes()}
             </div>
         </div>
