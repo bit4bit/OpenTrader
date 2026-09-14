@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 import math
-from .models import Session, CustomIndicator
+from .models import Session, CustomIndicator, Folder, UserPreference
 from .providers import registry
 
 
@@ -15,9 +15,27 @@ def serialize_session(session):
         'id': session.id,
         'name': session.name,
         'layout': session.layout,
+        'folder': session.folder_id,
         'created_at': session.created_at.isoformat(),
         'updated_at': session.updated_at.isoformat(),
     }
+
+
+def serialize_folder(folder):
+    return {
+        'id': folder.id,
+        'name': folder.name,
+        'created_at': folder.created_at.isoformat(),
+    }
+
+
+def validate_folder_id(request, folder_id):
+    if folder_id is None:
+        return None, None
+    folder = Folder.objects.filter(pk=folder_id, user=request.user).first()
+    if folder is None:
+        return None, Response({'error': 'Invalid folder'}, status=status.HTTP_400_BAD_REQUEST)
+    return folder, None
 
 
 class LoginView(APIView):
@@ -43,7 +61,13 @@ class SessionListCreate(APIView):
         name = (request.data.get('name') or '').strip()
         if not name:
             return Response({'error': 'Name is required'}, status=status.HTTP_400_BAD_REQUEST)
-        session = Session.objects.create(user=request.user, name=name, layout=request.data.get('layout') or {})
+        session = Session(user=request.user, name=name, layout=request.data.get('layout') or {})
+        if 'folder' in request.data:
+            folder, error = validate_folder_id(request, request.data.get('folder'))
+            if error:
+                return error
+            session.folder = folder
+        session.save()
         return Response(serialize_session(session), status=status.HTTP_201_CREATED)
 
 
@@ -65,12 +89,68 @@ class SessionDetail(APIView):
             session.name = name
         if 'layout' in request.data:
             session.layout = request.data['layout']
+        if 'folder' in request.data:
+            folder, error = validate_folder_id(request, request.data.get('folder'))
+            if error:
+                return error
+            session.folder = folder
         session.save()
         return Response(serialize_session(session))
 
     def delete(self, request, pk):
         self.get_session(request, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FolderListCreate(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response([serialize_folder(f) for f in request.user.folders.all()])
+
+    def post(self, request):
+        name = (request.data.get('name') or '').strip()
+        if not name:
+            return Response({'error': 'Name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        folder = Folder.objects.create(user=request.user, name=name)
+        return Response(serialize_folder(folder), status=status.HTTP_201_CREATED)
+
+
+class FolderDetail(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_folder(self, request, pk):
+        return get_object_or_404(Folder, pk=pk, user=request.user)
+
+    def patch(self, request, pk):
+        folder = self.get_folder(request, pk)
+        name = (request.data.get('name') or '').strip()
+        if not name:
+            return Response({'error': 'Name cannot be empty'}, status=status.HTTP_400_BAD_REQUEST)
+        folder.name = name
+        folder.save()
+        return Response(serialize_folder(folder))
+
+    def delete(self, request, pk):
+        self.get_folder(request, pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PreferenceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        preference, _ = UserPreference.objects.get_or_create(user=request.user)
+        return Response({'active_folder': preference.active_folder_id})
+
+    def patch(self, request):
+        preference, _ = UserPreference.objects.get_or_create(user=request.user)
+        folder, error = validate_folder_id(request, request.data.get('active_folder'))
+        if error:
+            return error
+        preference.active_folder = folder
+        preference.save()
+        return Response({'active_folder': preference.active_folder_id})
 
 
 def serialize_indicator(indicator):

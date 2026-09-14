@@ -168,12 +168,19 @@ function App() {
   const { token, username, login, logout } = useAuth();
   const {
     sessions,
+    folders,
     activeSession,
+    activeFolderId,
     createSession,
     renameSession,
     deleteSession,
     switchSession,
     saveLayout,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    moveSession,
+    setActiveFolder,
     loaded,
   } = useSessions(!!token);
 
@@ -194,22 +201,34 @@ function App() {
 
   const sessionProps = {
     sessions,
+    folders,
     activeSession,
+    activeFolderId,
     onSwitchSession: switchSession,
     onCreateSession: () => {
       const name = window.prompt('Session name:');
-      if (name?.trim()) createSession(name.trim());
+      if (name?.trim()) createSession(name.trim(), activeFolderId);
     },
-    onRenameSession: () => {
-      if (!activeSession) return;
-      const name = window.prompt('Rename session:', activeSession.name);
-      if (name?.trim()) renameSession(activeSession.id, name.trim());
-    },
-    onDeleteSession: () => {
-      if (activeSession && window.confirm(`Delete session "${activeSession.name}"?`)) {
-        deleteSession(activeSession.id);
+    onRenameSession: (id, name) => renameSession(id, name),
+    onDeleteSession: (id) => {
+      const session = sessions.find(s => s.id === id);
+      if (session && window.confirm(`Delete session "${session.name}"?`)) {
+        deleteSession(id);
       }
     },
+    onCreateFolder: () => {
+      const name = window.prompt('Folder name:');
+      if (name?.trim()) createFolder(name.trim());
+    },
+    onRenameFolder: (id, name) => renameFolder(id, name),
+    onDeleteFolder: (id) => {
+      const folder = folders.find(f => f.id === id);
+      if (folder && window.confirm(`Delete folder "${folder.name}"? Sessions inside are kept.`)) {
+        deleteFolder(id);
+      }
+    },
+    onMoveSession: moveSession,
+    onSetActiveFolder: setActiveFolder,
     username,
     onLogout: logout,
   };

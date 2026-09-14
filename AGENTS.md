@@ -8,14 +8,15 @@ OpenTrader is an open-source TradingView alternative: Django + DRF backend servi
 
 ## Structure
 
-- `market/` — Django app: `views.py` (`TickerSearch`, `TickerHistory` public REST endpoints; `LoginView`, `SessionListCreate`, `SessionDetail` token-authenticated session endpoints), `models.py` (`Session` model), `urls.py` mounted at `/api/`.
+- `market/` — Django app: `views.py` (`TickerSearch`, `TickerHistory` public REST endpoints; `LoginView`, `SessionListCreate`, `SessionDetail`, `FolderListCreate`, `FolderDetail`, `PreferenceView` token-authenticated endpoints), `models.py` (`Session` with optional `folder` FK, `Folder`, `UserPreference` models), `urls.py` mounted at `/api/`.
 - `opentrader/` — Django project settings. Serves `frontend/dist` as the SPA; `/api/*` is proxied to the app. Auth is DRF `TokenAuthentication` (username-only login, no password).
 - `frontend/src/`
   - `App.jsx` — root: auth gate (login screen), session wiring, layout state, global toolbars (TopBar, DrawingToolbar, search modals). Keep it thin; logic belongs in hooks/modules.
   - `components/Chart.jsx` — orchestration only: interaction state, layout, and wiring between the chart engine, overlay renderers, and hooks. No chart-library imports.
   - `components/ChartGrid.jsx` / `ChartPanel.jsx` — multi-chart flow layout and per-chart tile (header, legends, indicator panels, loaders).
   - `hooks/useAuth.js` — token+username in `localStorage` (`opentrader_auth`), axios `Authorization: Token ...` header, `login`/`logout`.
-  - `hooks/useSessions.js` — sessions list, active session, CRUD against `/api/sessions/`, debounced (~1s) layout auto-save (PATCH).
+  - `hooks/useSessions.js` — sessions list, folders list, active session/folder, CRUD against `/api/sessions/`, `/api/folders/`, `/api/preferences/`, debounced (~1s) layout auto-save (PATCH).
+  - `components/SessionMenu.jsx` — session dropdown in the TopBar: folders with expand/collapse (localStorage), drag & drop sessions between folders, inline rename, per-item delete.
   - `hooks/useCharts.js` — charts collection state: CRUD, active chart, lock flag. No persistence of its own; reports changes via `onLayoutChange`.
   - `hooks/useChartData.js` — per-chart market data: initial fetch, refresh polling, left-scroll pagination, `useAdFullData`.
   - `engine/` — pluggable **ChartEngine** (chart stack: series, panes, axes, zoom, crosshair, coordinate conversion). `engine.js` documents the contract; `lwcEngine.js` is the lightweight-charts implementation and the default; `chartGpuEngine.js` is an **unstable** WebGPU adapter; `index.js` selects at build time via `VITE_CHART_ENGINE` (default `lwc`).

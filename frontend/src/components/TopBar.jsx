@@ -1,78 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import LayoutPicker from './LayoutPicker';
-
-const SessionMenu = ({ sessions, activeSession, onSwitchSession, onCreateSession, onRenameSession, onDeleteSession }) => {
-    const [open, setOpen] = useState(false);
-    const [menuPos, setMenuPos] = useState(null);
-    const menuRef = useRef(null);
-    const buttonRef = useRef(null);
-
-    useEffect(() => {
-        if (!open) return;
-        const close = (e) => {
-            if (!menuRef.current?.contains(e.target) && !buttonRef.current?.contains(e.target)) setOpen(false);
-        };
-        document.addEventListener('mousedown', close);
-        return () => document.removeEventListener('mousedown', close);
-    }, [open]);
-
-    const toggle = () => {
-        if (!open && buttonRef.current) {
-            const rect = buttonRef.current.getBoundingClientRect();
-            setMenuPos({ top: rect.bottom + 4, left: rect.left });
-        }
-        setOpen(o => !o);
-    };
-
-    const itemStyle = {
-        display: 'block',
-        width: '100%',
-        textAlign: 'left',
-        padding: '8px 12px',
-        background: 'none',
-        border: 'none',
-        color: '#ddd',
-        fontSize: '13px',
-        cursor: 'pointer',
-    };
-
-    return (
-        <div style={{ position: 'relative' }}>
-            <button ref={buttonRef} className="toolbar-btn" onClick={toggle} title="Sessions">
-                <span style={{ fontSize: '13px', marginRight: '4px' }}>📁</span>
-                {activeSession?.name || 'No session'}
-                <span style={{ fontSize: '10px', marginLeft: '4px' }}>▾</span>
-            </button>
-            {open && menuPos && (
-                <div ref={menuRef} style={{
-                    position: 'fixed',
-                    top: menuPos.top,
-                    left: menuPos.left,
-                    minWidth: '180px',
-                    backgroundColor: '#1a1a2e',
-                    border: '1px solid #333',
-                    borderRadius: '6px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-                    zIndex: 3000,
-                }}>
-                    {sessions.map(s => (
-                        <button
-                            key={s.id}
-                            style={{ ...itemStyle, fontWeight: s.id === activeSession?.id ? 'bold' : 'normal', color: s.id === activeSession?.id ? '#4fc3f7' : '#ddd' }}
-                            onClick={() => { setOpen(false); onSwitchSession(s.id); }}
-                        >
-                            {s.name}
-                        </button>
-                    ))}
-                    <div style={{ borderTop: '1px solid #333' }} />
-                    <button style={itemStyle} onClick={() => { setOpen(false); onCreateSession(); }}>➕ New session</button>
-                    <button style={itemStyle} disabled={!activeSession} onClick={() => { setOpen(false); onRenameSession(); }}>✏️ Rename</button>
-                    <button style={{ ...itemStyle, color: '#ff6b6b' }} disabled={!activeSession} onClick={() => { setOpen(false); onDeleteSession(); }}>🗑 Delete</button>
-                </div>
-            )}
-        </div>
-    );
-};
+import SessionMenu from './SessionMenu';
 
 const TopBar = ({
     symbol,
@@ -89,11 +17,18 @@ const TopBar = ({
     onAddChart,
     onCloseAll,
     sessions = [],
+    folders = [],
     activeSession,
+    activeFolderId,
     onSwitchSession,
     onCreateSession,
     onRenameSession,
     onDeleteSession,
+    onCreateFolder,
+    onRenameFolder,
+    onDeleteFolder,
+    onMoveSession,
+    onSetActiveFolder,
     username,
     onLogout,
 }) => {
@@ -125,11 +60,18 @@ const TopBar = ({
             <div className="top-bar-section session-section">
                 <SessionMenu
                     sessions={sessions}
+                    folders={folders}
                     activeSession={activeSession}
+                    activeFolderId={activeFolderId}
                     onSwitchSession={onSwitchSession}
                     onCreateSession={onCreateSession}
                     onRenameSession={onRenameSession}
                     onDeleteSession={onDeleteSession}
+                    onCreateFolder={onCreateFolder}
+                    onRenameFolder={onRenameFolder}
+                    onDeleteFolder={onDeleteFolder}
+                    onMoveSession={onMoveSession}
+                    onSetActiveFolder={onSetActiveFolder}
                 />
             </div>
 
