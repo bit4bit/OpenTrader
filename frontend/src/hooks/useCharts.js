@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createIndicator } from '../Indicators/scripts';
 
 const normalizeSymbol = (symbol) =>
     typeof symbol === 'string' ? { symbol, provider: null } : symbol;
@@ -8,7 +9,7 @@ const createChartConfig = (symbol, interval = '1d') => ({
     symbol: normalizeSymbol(symbol),
     interval,
     chartType: 'candle',
-    indicators: [],
+    indicators: [createIndicator('volume')],
     drawings: [],
     minimizedPanels: [],
 });
