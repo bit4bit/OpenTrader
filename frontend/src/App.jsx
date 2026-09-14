@@ -20,6 +20,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
     charts,
     activeChartId,
     locked,
+    gridLayout,
+    setGridLayout,
     setActiveChartId,
     addChart,
     closeChart,
@@ -90,6 +92,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         openSymbolCatalog={() => setShowSymbolCatalog(true)}
         locked={locked}
         onToggleLock={toggleLock}
+        gridLayout={gridLayout}
+        onSetGridLayout={setGridLayout}
         onAddChart={() => setSymbolSearchMode('add')}
         onCloseAll={() => {
           if (charts.length > 0 && window.confirm('Close all charts?')) closeAllCharts();
@@ -110,6 +114,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
           charts={charts}
           activeChartId={activeChartId}
           locked={locked}
+          gridLayout={gridLayout}
+          onSetGridLayout={setGridLayout}
           activeTool={activeTool}
           setActiveTool={setActiveTool}
           magnetEnabled={magnetEnabled}

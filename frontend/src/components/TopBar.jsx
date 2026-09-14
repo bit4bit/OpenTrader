@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import LayoutPicker from './LayoutPicker';
 
 const SessionMenu = ({ sessions, activeSession, onSwitchSession, onCreateSession, onRenameSession, onDeleteSession }) => {
     const [open, setOpen] = useState(false);
@@ -84,6 +85,7 @@ const TopBar = ({
     openSymbolSearch,
     openSymbolCatalog,
     locked, onToggleLock,
+    gridLayout, onSetGridLayout,
     onAddChart,
     onCloseAll,
     sessions = [],
@@ -210,6 +212,9 @@ const TopBar = ({
             <div className="top-bar-divider" />
 
             <div className="top-bar-section layout-section">
+                {gridLayout && onSetGridLayout && (
+                    <LayoutPicker gridLayout={gridLayout} onSetGridLayout={onSetGridLayout} />
+                )}
                 <button
                     className={`toolbar-btn ${locked ? 'lock-active' : ''}`}
                     onClick={onToggleLock}

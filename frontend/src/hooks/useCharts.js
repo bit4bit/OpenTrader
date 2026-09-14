@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createIndicator } from '../Indicators/scripts';
+import { normalizeGridLayoutId } from '../chart/gridLayout';
 
 const normalizeSymbol = (symbol) =>
     typeof symbol === 'string' ? { symbol, provider: null } : symbol;
@@ -16,11 +17,12 @@ const createChartConfig = (symbol, interval = '1d') => ({
 
 const defaultLayout = () => {
     const chart = createChartConfig('AAPL');
-    return { charts: [chart], activeChartId: chart.id, locked: false };
+    return { charts: [chart], activeChartId: chart.id, locked: false, gridLayout: 'auto' };
 };
 
 const normalizeLayout = (layout) => ({
     ...layout,
+    gridLayout: normalizeGridLayoutId(layout.gridLayout),
     charts: (layout.charts || []).map(c => ({ ...c, symbol: normalizeSymbol(c.symbol) })),
 });
 
@@ -32,6 +34,7 @@ export function useCharts(initialLayout, onLayoutChange) {
     const [charts, setCharts] = useState(layout.charts);
     const [activeChartId, setActiveChartId] = useState(layout.activeChartId);
     const [locked, setLocked] = useState(layout.locked ?? false);
+    const [gridLayout, setGridLayout] = useState(layout.gridLayout);
 
     const mounted = useRef(false);
 
@@ -40,8 +43,8 @@ export function useCharts(initialLayout, onLayoutChange) {
             mounted.current = true;
             return;
         }
-        onLayoutChange?.({ charts, activeChartId, locked });
-    }, [charts, activeChartId, locked, onLayoutChange]);
+        onLayoutChange?.({ charts, activeChartId, locked, gridLayout });
+    }, [charts, activeChartId, locked, gridLayout, onLayoutChange]);
 
     const addChart = useCallback((symbol) => {
         const chart = createChartConfig(symbol);
@@ -79,6 +82,8 @@ export function useCharts(initialLayout, onLayoutChange) {
         charts,
         activeChartId,
         locked,
+        gridLayout,
+        setGridLayout,
         setActiveChartId,
         addChart,
         closeChart,

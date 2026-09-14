@@ -1,10 +1,14 @@
 import React from 'react';
 import ChartPanel from './ChartPanel';
+import { LayoutOptions } from './LayoutPicker';
+import { gridTemplateFor } from '../chart/gridLayout';
 
 const ChartGrid = ({
     charts,
     activeChartId,
     locked,
+    gridLayout,
+    onSetGridLayout,
     activeTool,
     setActiveTool,
     magnetEnabled,
@@ -20,13 +24,16 @@ const ChartGrid = ({
                 <div className="chart-grid-empty-tile">
                     <span className="chart-grid-empty-plus">+</span>
                     <span>Add chart</span>
+                    <div className="chart-grid-empty-layouts" onClick={e => e.stopPropagation()}>
+                        <LayoutOptions gridLayout={gridLayout} onSelect={onSetGridLayout} />
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="chart-grid">
+        <div className="chart-grid" style={gridTemplateFor(gridLayout)}>
             {charts.map(chart => (
                 <ChartPanel
                     key={chart.id}
