@@ -163,6 +163,7 @@ const IndicatorGroupPanel = ({
                                                                                 groupType === 'ad' ? 'Accum/Dist' :
                                                                                     groupType === 'smi' ? `SMI (${(ind.constituents || []).length} symbols)` :
                                                                                 groupType === 'w52' ? `52W High/Low (${ind.basis === 'close' ? 'Close' : 'Highs/Lows'})` :
+                                                                                    groupType === 'volume' ? 'Volume' :
                                                                                     groupType === 'vol_sma' ? `Vol SMA (${ind.length})` : 'Indicator'}
                                 </label>
                             </div>

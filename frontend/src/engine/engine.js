@@ -27,10 +27,9 @@
 //     setVisibleRange(range)
 //     fitContent()
 //
-//   Price / volume
+//   Price
 //     setPriceSeries(chartType, rows)   // 'candles' | 'line'; rows already
 //                                       // presentation-mapped (heikin-ashi)
-//     setVolumeData(bars)
 //     applyPriceScaleMargins({ top, bottom })
 //
 //   Panes (indicator subplots below the price pane)

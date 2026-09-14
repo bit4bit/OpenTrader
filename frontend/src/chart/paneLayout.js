@@ -1,9 +1,10 @@
 import { getActivePaneTypes } from '../Indicators/panes';
-import { SCRIPT_TYPES, needsFullData } from '../Indicators/scripts';
+import { SCRIPT_TYPES, needsFullData, scriptPaneType } from '../Indicators/scripts';
 
 // Ordered pane keys for every active pane indicator (built-in + custom).
+// Built-in pane types appear in both sources; dedupe keeps one pane each.
 export function computeActivePaneTypes(indicators, paneIds) {
-    return [...getActivePaneTypes(indicators), ...paneIds];
+    return [...new Set([...getActivePaneTypes(indicators), ...paneIds])];
 }
 
 export function paneIndexOf(activePaneTypes, type) {
@@ -35,7 +36,7 @@ export function isScriptIndicator(ind) {
 }
 
 export function scriptPaneKey(ind) {
-    return ind.type === 'custom' ? `custom-${ind.id}` : ind.type;
+    return ind.type === 'custom' ? `custom-${ind.id}` : scriptPaneType(ind.type);
 }
 
 // Cumulative indicators run over full history; slice plots back to the

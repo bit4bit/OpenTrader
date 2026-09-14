@@ -47,7 +47,6 @@ const RIGHT_BARS = 20;
 const UP_COLOR = '#26a69a';
 const DOWN_COLOR = '#ef5350';
 const LINE_COLOR = '#2962ff';
-const VOLUME_COLOR = 'rgba(38,166,154,0.5)';
 
 const valueAt = (points, x) => {
     let best = null, bestDist = Infinity;
@@ -90,7 +89,6 @@ export function createChartGpuEngine(container, { timeFormatter } = {}) {
         let chart = null;
         let priceChartType = null;
         let priceBars = []; // contract rows (time in seconds)
-        let volumeBars = null;
         let handleSeq = 0;
         const handles = []; // { yAxis, data: [[ms, value]...], line, style }
         let zoom = { start: 0, end: 100 };
@@ -217,15 +215,6 @@ export function createChartGpuEngine(container, { timeFormatter } = {}) {
                     yAxis: 'price',
                     lineStyle: { color: LINE_COLOR, width: 2 },
                     data: visible.map(b => [b.time * 1000, b.close]),
-                });
-            }
-
-            if (volumeBars && volumeBars.length > 0) {
-                series.push({
-                    type: 'bar',
-                    yAxis: 'vol',
-                    itemStyle: { color: VOLUME_COLOR },
-                    data: visibleSlice(volumeBars).map(b => [b.time * 1000, b.volume || 0]),
                 });
             }
 
@@ -388,11 +377,6 @@ export function createChartGpuEngine(container, { timeFormatter } = {}) {
             setPriceSeries(type, rowsData) {
                 priceChartType = type;
                 updateDataDomain(rowsData);
-                rebuild();
-            },
-
-            setVolumeData(bars) {
-                volumeBars = bars;
                 rebuild();
             },
 

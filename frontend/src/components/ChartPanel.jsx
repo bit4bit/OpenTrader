@@ -9,16 +9,24 @@ import {
     toggleIndicator as toggleIndicatorIn,
 } from '../Indicators/actions';
 import { formatADLValue } from '../Indicators/adl';
-import { getActivePaneTypes } from '../Indicators/panes';
-import { SCRIPT_TYPES, isScriptPane, INDICATOR_TYPES, indicatorTitle } from '../Indicators/scripts';
+import { computeActivePaneTypes } from '../chart/paneLayout';
+import { SCRIPT_TYPES, isScriptPane, scriptPaneType, INDICATOR_TYPES, indicatorTitle } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
 
 const formatPrice = (price) => (price != null ? price.toFixed(2) : '');
 const formatPercent = (val) => (val != null ? (val >= 0 ? '+' : '') + val.toFixed(2) + '%' : '');
+const formatVolumeValue = (val) => {
+    if (val >= 1e9) return (val / 1e9).toFixed(2) + 'B';
+    if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M';
+    if (val >= 1e3) return (val / 1e3).toFixed(2) + 'K';
+    return val.toFixed(0);
+};
 const formatLegendValue = (val, type) =>
-    type === 'ad' ? formatADLValue(val) : val.toFixed(2);
+    type === 'ad' ? formatADLValue(val)
+        : (type === 'volume' || type === 'vol_sma') ? formatVolumeValue(val)
+            : val.toFixed(2);
 
-const OVERLAY_ORDER = ['sma', 'bb', 'supertrend', 'ichimoku', 'volume_profile', 'vp', 'w52', 'vol_sma'];
+const OVERLAY_ORDER = ['sma', 'bb', 'supertrend', 'ichimoku', 'volume_profile', 'vp', 'w52'];
 
 const PANEL_DEFS = [...INDICATOR_TYPES.map(t => ({ title: indicatorTitle(t), groupType: t })),
     { title: 'Custom Script', groupType: 'custom' }];
@@ -77,7 +85,7 @@ const ChartPanel = ({
         if (ind) customErrors[id] = err;
     });
 
-    const activePaneTypes = [...getActivePaneTypes(indicators), ...indicatorResults.paneIds];
+    const activePaneTypes = computeActivePaneTypes(indicators, indicatorResults.paneIds);
     const isPaneType = (type) => type === 'custom' || isScriptPane(type);
     const scriptLegendIndicators = [...SCRIPT_TYPES, 'custom'];
     const paneLegendTop = (type) => {
@@ -89,7 +97,7 @@ const ChartPanel = ({
 
     const activeOverlayTypes = OVERLAY_ORDER.filter(t => indicators.some(i => i.type === t && i.visible));
     const minimizedTopFor = (type) => {
-        if (activePaneTypes.includes(type)) return paneLegendTop(type);
+        if (activePaneTypes.includes(scriptPaneType(type))) return paneLegendTop(scriptPaneType(type));
         const idx = activeOverlayTypes.indexOf(type);
         return `calc(36px + ${Math.max(0, idx) * 34}px)`;
     };
@@ -146,7 +154,7 @@ const ChartPanel = ({
                 })}
                 {activePaneTypes.filter(t => !t.startsWith('custom-')).map(type => (
                     <div key={type} className="chart-legend-indicators" style={{ top: paneLegendTop(type) }}>
-                        {indicators.filter(i => i.type === type && i.visible).map(ind =>
+                        {indicators.filter(i => scriptPaneType(i.type) === type && i.visible).map(ind =>
                             (hoveredData?.generic?.[ind.id] ?? []).map((p, pi) => (
                                 <div key={`${ind.id}-${pi}`} className="legend-item">
                                     <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>

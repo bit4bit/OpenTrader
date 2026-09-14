@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { runScript } from '../Indicators/dsl/runtime';
-import { scriptCode, scriptValues, SCRIPT_TYPES, needsFullData } from '../Indicators/scripts';
+import { scriptCode, scriptValues, scriptPaneType, SCRIPT_TYPES, needsFullData } from '../Indicators/scripts';
 
 /**
  * Runs all script-based indicators for a chart: built-in types defined in
@@ -37,7 +37,7 @@ export function useIndicatorResults(data, adFullData, indicators, scriptsById, b
                 );
                 resultsById[ind.id] = result;
                 if (result.error) errorsById[ind.id] = result.error;
-                if (result.plots.some(p => !p.overlay)) paneIds.push(ind.type);
+                if (result.plots.some(p => !p.overlay)) paneIds.push(scriptPaneType(ind.type));
             }
         });
 

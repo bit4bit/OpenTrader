@@ -37,15 +37,25 @@ const SCRIPTS = {
         })),
         body: "plot(ta.sma(source, length), { title: 'SMA ' + length, color })",
     },
+    volume: {
+        title: 'Volume',
+        id: 'volume-main',
+        pane: true,
+        fields: [
+            { key: 'upColor', label: 'Up Color', type: 'color', default: '#26a69a' },
+            { key: 'downColor', label: 'Down Color', type: 'color', default: '#ef5350' },
+        ],
+        body: "plot(volume.map(v => v ?? 0), { title: 'Volume', color: upColor, style: 'histogram', overlay: false, colors: close.map((c, i) => c >= open[i] ? upColor : downColor), lastValueVisible: false })",
+    },
     vol_sma: {
         title: 'Volume SMA',
         id: 'vol-sma-main',
-        priceScale: 'volume',
+        paneType: 'volume',
         fields: [
             { key: 'length', label: 'Length', type: 'int', default: 20, min: 1, max: 500 },
             { key: 'color', label: 'Color', type: 'color', default: '#ff9800' },
         ],
-        body: "plot(ta.sma(volume, length), { title: 'Vol SMA ' + length, color, lastValueVisible: false })",
+        body: "plot(ta.sma(volume, length), { title: 'Vol SMA ' + length, color, overlay: false, lastValueVisible: false })",
     },
     rsi: {
         title: 'Relative Strength Index',
@@ -304,15 +314,16 @@ export function scriptFields(type) {
 }
 
 export function isScriptPane(type) {
-    return !!SCRIPTS[type]?.pane;
+    return !!SCRIPTS[type]?.pane || !!SCRIPTS[type]?.paneType;
+}
+
+/** Pane a script renders into: its own type unless it shares one (paneType). */
+export function scriptPaneType(type) {
+    return SCRIPTS[type]?.paneType ?? type;
 }
 
 export function needsFullData(type) {
     return !!SCRIPTS[type]?.fullData;
-}
-
-export function scriptPriceScale(type) {
-    return SCRIPTS[type]?.priceScale ?? null;
 }
 
 /** Default creation config for an indicator type (field defaults applied). */

@@ -68,7 +68,6 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
 
     let priceSeries = null;
     let priceChartType = null;
-    let volumeSeries = null;
     let redrawCallback = null;
     const handles = []; // engine series handles, for crosshair value lookups
 
@@ -91,7 +90,6 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
             resizeObserver.disconnect();
             chart.remove();
             priceSeries = null;
-            volumeSeries = null;
         },
 
         size: () => ({ width: container.clientWidth, height: container.clientHeight }),
@@ -120,22 +118,6 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
                 attachRedraw();
             }
             priceSeries.setData(rows);
-        },
-
-        setVolumeData(bars) {
-            if (!volumeSeries) {
-                volumeSeries = chart.addSeries(HistogramSeries, {
-                    color: '#26a69a',
-                    priceFormat: { type: 'volume' },
-                    priceScaleId: 'volume',
-                });
-            }
-            volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.88, bottom: 0 } });
-            volumeSeries.setData(bars.map(d => ({
-                time: d.time,
-                value: d.volume || 0,
-                color: d.close >= d.open ? 'rgba(38,166,154,0.5)' : 'rgba(239,83,80,0.5)',
-            })));
         },
 
         applyPriceScaleMargins: (margins) =>

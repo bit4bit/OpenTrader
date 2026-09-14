@@ -21,6 +21,11 @@ describe('computeActivePaneTypes', () => {
         const types = computeActivePaneTypes([ind('rsi', { visible: false }), ind('macd')], ['custom-1']);
         expect(types).toEqual(['macd', 'custom-1']);
     });
+
+    it('dedupes built-in pane types present in both sources', () => {
+        const types = computeActivePaneTypes([ind('volume'), ind('rsi')], ['volume', 'rsi']);
+        expect(types).toEqual(['volume', 'rsi']);
+    });
 });
 
 describe('pane layout math', () => {
@@ -62,6 +67,12 @@ describe('script indicators', () => {
     it('keys custom panes by indicator id', () => {
         expect(scriptPaneKey(ind('custom', { id: 'custom-7' }))).toBe('custom-custom-7');
         expect(scriptPaneKey(ind('rsi'))).toBe('rsi');
+    });
+
+    it('shares the volume pane with vol_sma', () => {
+        expect(scriptPaneKey(ind('vol_sma'))).toBe('volume');
+        expect(scriptPaneKey(ind('volume'))).toBe('volume');
+        expect(computeActivePaneTypes([ind('vol_sma')], ['volume'])).toEqual(['volume']);
     });
 });
 

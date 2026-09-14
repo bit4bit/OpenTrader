@@ -12,7 +12,8 @@
  *
  * plot(series, opts) returns a handle usable in fill(a, b, opts) to shade
  * the area between two plots. opts: { title, color, overlay=true,
- * lineWidth, style='line'|'histogram', lineStyle='solid'|'dashed' }.
+ * lineWidth, style='line'|'histogram', lineStyle='solid'|'dashed',
+ * colors (parallel per-bar color array for histograms) }.
  * histogram(bins, { color }) draws a horizontal price-by-volume profile on
  * the price pane (bins: [{low, high, normalizedVolume}] from
  * ta.volumeProfile). barsBySymbol feeds multi-symbol helpers like
@@ -113,13 +114,15 @@ function isValid(v) {
     return typeof v === 'number' && isFinite(v);
 }
 
-function toBars(series, times) {
+function toBars(series, times, colors) {
     if (!Array.isArray(series)) return [];
     const bars = [];
     let lastTime = -Infinity;
     for (let i = 0; i < Math.min(series.length, times.length); i++) {
         if (isValid(series[i]) && times[i] != null && times[i] > lastTime) {
-            bars.push({ time: times[i], value: series[i] });
+            const bar = { time: times[i], value: series[i] };
+            if (Array.isArray(colors) && typeof colors[i] === 'string') bar.color = colors[i];
+            bars.push(bar);
             lastTime = times[i];
         }
     }
@@ -159,7 +162,7 @@ export function runScript(code, data, values = {}, barsBySymbol = {}) {
             overlay: p.overlay !== false,
             lastValueVisible: p.lastValueVisible,
             priceLineVisible: p.priceLineVisible,
-            series: toBars(p.series, times),
+            series: toBars(p.series, times, p.colors),
         }));
         const validFills = fills
             .filter(f => rendered[f.a]?.overlay && rendered[f.b]?.overlay)

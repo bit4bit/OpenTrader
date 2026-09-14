@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChartEngine } from '../engine';
 import { formatADLValue } from '../Indicators/adl';
-import { scriptPriceScale } from '../Indicators/scripts';
 import { registerChart, broadcastRange, broadcastCrosshair, isApplyingSync } from '../sync/chartSync';
 import { formatCrosshairTime, crosshairLineColor } from '../chart/timeFormat';
 import { priceSeriesData } from '../chart/heikinAshi';
@@ -346,8 +345,7 @@ const Chart = ({
         engine.setPaneStretchFactors(paneStretchFactors(engine.paneCount()));
         const paneIndexOf = (type) => paneIndexOfType(activePaneTypes, type);
 
-        engine.applyPriceScaleMargins({ top: 0.02, bottom: 0.12 });
-        engine.setVolumeData(data);
+        engine.applyPriceScaleMargins({ top: 0.02, bottom: 0.02 });
         engine.setPriceSeries(chartType, priceSeriesData(data, chartType));
 
         // Indicator Management
@@ -374,7 +372,6 @@ const Chart = ({
                 const paneKey = scriptPaneKey(ind);
                 const hasPanes = res.plots.some(p => !p.overlay);
                 const paneIndex = hasPanes ? paneIndexOf(paneKey) : 0;
-                const priceScaleId = scriptPriceScale(ind.type);
                 // Cumulative indicators run over full history; slice plots
                 // back to the currently loaded window (like the old A/D path).
                 const firstTime = data.length > 0 ? data[0].time : null;
@@ -394,7 +391,6 @@ const Chart = ({
                             title: p.title,
                             ...(p.lastValueVisible != null ? { lastValueVisible: p.lastValueVisible } : {}),
                             ...(p.priceLineVisible != null ? { priceLineVisible: p.priceLineVisible } : {}),
-                            ...(priceScaleId ? { priceScaleId, lastValueVisible: false } : {}),
                             ...(ind.type === 'ad' ? {
                                 priceFormat: { type: 'custom', minMove: 1, formatter: formatADLValue },
                             } : {}),

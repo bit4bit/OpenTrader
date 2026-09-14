@@ -161,6 +161,17 @@ describe('script equivalence', () => {
         expect(vp.histograms[0].bins).toEqual(computeVolumeProfile(DATA, { priceBins: 40 }));
     });
 
+    it('volume', () => {
+        const result = run('volume', { upColor: '#0f0', downColor: '#f00' });
+        const plot = plotOf(result, 'Volume');
+        expect(result.plots[0].style).toBe('histogram');
+        expect(plot).toHaveLength(DATA.length);
+        plot.forEach((bar, i) => {
+            expect(bar.value).toBe(DATA[i].volume ?? 0);
+            expect(bar.color).toBe(DATA[i].close >= DATA[i].open ? '#0f0' : '#f00');
+        });
+    });
+
     it('smi', () => {
         const half = Math.floor(DATA.length / 2);
         const barsBySymbol = {
