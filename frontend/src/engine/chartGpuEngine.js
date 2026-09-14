@@ -1,5 +1,7 @@
-// ChartGPU (WebGPU) implementation of the ChartEngine contract — public
-// API only (chartgpu.io/docs). How the contract maps:
+// UNSTABLE/EXPERIMENTAL — ChartGPU (WebGPU) implementation of the
+// ChartEngine contract, public API only (chartgpu.io/docs). Not the
+// default engine yet (see engine/index.js); integration testing is
+// ongoing. How the contract maps:
 //
 // - One ChartGPU instance per engine. Indicator "panes" become independent
 //   multi-Y axes (`axes.y[]` with explicit min/max) on the same plot —
