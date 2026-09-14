@@ -1,6 +1,9 @@
 services:
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_CHART_ENGINE: ${VITE_CHART_ENGINE:-lwc}
     volumes:
       - dist:/dist
 

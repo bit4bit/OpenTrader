@@ -1,5 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
+ARG VITE_CHART_ENGINE
+ENV VITE_CHART_ENGINE=$VITE_CHART_ENGINE
 COPY package*.json ./
 RUN npm install
 COPY . .

@@ -215,6 +215,7 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
         onRedraw(cb) {
             redrawCallback = cb;
             attachRedraw();
+            return () => { if (redrawCallback === cb) redrawCallback = null; };
         },
     };
 }
