@@ -582,7 +582,7 @@ const Chart = ({
     }
 
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%' }} className={`${activeTool !== 'cursor' ? 'drawing-active' : ''} ${activeTool === 'eraserOne' ? 'erase-mode' : ''}`}>
+        <div style={{ position: 'relative', zIndex: 0, width: '100%', height: '100%' }} className={`${activeTool !== 'cursor' ? 'drawing-active' : ''} ${activeTool === 'eraserOne' ? 'erase-mode' : ''}`}>
             <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
             {/* Overlay layers (see render/layers.js): fills, volume profile,
                 drawings as SVG surfaces; notes as interactive DOM on top. */}
