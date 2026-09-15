@@ -62,13 +62,32 @@ function stdev(src, length) {
 export function buildTa(data, barsBySymbol = {}) {
     const times = data.map(d => d.time);
 
+    // Tolerance for aligning foreign-timestamped series (e.g. Milan dailies
+    // at 22:00 UTC vs US dailies at 04:00 UTC): half the median bar spacing.
+    const diffs = times.slice(1).map((t, i) => t - times[i]).sort((a, b) => a - b);
+    const maxDistance = diffs.length ? diffs[diffs.length >> 1] / 2 : 0;
+
+    function nearestIndexByTime(time) {
+        let lo = 0, hi = times.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (times[mid] < time) lo = mid + 1; else hi = mid;
+        }
+        let best;
+        for (const i of [lo - 1, lo]) {
+            if (i < 0 || i >= times.length) continue;
+            if (best === undefined || Math.abs(times[i] - time) < Math.abs(times[best] - time)) best = i;
+        }
+        return best !== undefined && Math.abs(times[best] - time) <= maxDistance ? best : undefined;
+    }
+
     // Adapter: built-in compute fns take OHLCV objects and return
     // {time, value}[]; convert back to aligned arrays.
     function align(bars) {
         const out = new Array(data.length).fill(null);
         const indexByTime = new Map(times.map((t, i) => [t, i]));
         for (const p of bars) {
-            const i = indexByTime.get(p.time);
+            const i = indexByTime.get(p.time) ?? (maxDistance > 0 ? nearestIndexByTime(p.time) : undefined);
             if (i !== undefined) out[i] = p.value;
         }
         return out;

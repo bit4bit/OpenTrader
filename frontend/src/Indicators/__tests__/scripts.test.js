@@ -191,4 +191,22 @@ describe('script equivalence', () => {
         const expected = computeMarketIndex(barsBySymbol, constituents, 100);
         expectSameBars(plotOf(result, 'SMI'), expected);
     });
+
+    it('smi aligns constituents whose bar times use another exchange convention', () => {
+        // Milan dailies at 22:00 UTC vs chart bars at 00:00 UTC: same
+        // trading day, different timestamps — must still align.
+        const offset = 22 * 3600;
+        const barsBySymbol = {
+            'R2US.MI': DATA.map(d => ({ ...d, time: d.time + offset })),
+        };
+        const constituents = [{ symbol: 'R2US.MI', weight: 1, enabled: true }];
+        const result = runScript(
+            scriptCode('smi'), DATA,
+            scriptValues('smi', { baseValue: 100, color: '#4fc3f7', constituents }),
+            barsBySymbol,
+        );
+        expect(result.error).toBeNull();
+        const plot = plotOf(result, 'SMI');
+        expect(plot.filter(b => b.value !== null).length).toBeGreaterThan(DATA.length / 2);
+    });
 });
