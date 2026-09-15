@@ -29,6 +29,9 @@ export function useIndicatorResults(data, adFullData, indicators, scriptsById, b
                 if (result.error) errorsById[ind.id] = result.error;
                 if (result.plots.some(p => !p.overlay)) paneIds.push(`custom-${ind.id}`);
             } else if (SCRIPT_TYPES.includes(ind.type)) {
+                // Full-history indicators (A/D) render nothing until the
+                // full-range fetch resolves, instead of an error result.
+                if (needsFullData(ind.type) && !adFullData) return;
                 const result = runScript(
                     scriptCode(ind.type),
                     needsFullData(ind.type) ? adFullData : data,

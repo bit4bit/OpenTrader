@@ -23,7 +23,7 @@ function getSourceValue(d, source) {
 }
 
 export function computeBollingerBands(data, settings) {
-    const { length, stdDev, source, offset = 0, precision = 2 } = settings;
+    const { length, stdDev, source, offset = 0 } = settings;
     if (!data || data.length < length) return { basis: [], upper: [], lower: [] };
 
     const sourceValues = data.map(d => getSourceValue(d, source));
@@ -57,9 +57,9 @@ export function computeBollingerBands(data, settings) {
             const targetIndex = i + offset;
             if (targetIndex >= 0 && targetIndex < data.length) {
                 const time = data[targetIndex].time;
-                results.basis.push({ time, value: Number(basisVal.toFixed(precision)) });
-                results.upper.push({ time, value: Number(upperVal.toFixed(precision)) });
-                results.lower.push({ time, value: Number(lowerVal.toFixed(precision)) });
+                results.basis.push({ time, value: basisVal });
+                results.upper.push({ time, value: upperVal });
+                results.lower.push({ time, value: lowerVal });
             }
         }
     }

@@ -28,7 +28,12 @@ export function computeSuperTrend(data, settings) {
     const atrValues = new Array(n).fill(null);
     const tr = new Array(n).fill(null);
 
-    // 1. ATR Calculation (Simple Rolling Mean of True Range as per Python code)
+    // 1. ATR Calculation (Wilder's RMA, matching computeATR / TradingView)
+    // Invalid bars are skipped without breaking the smoothing chain.
+    let trSum = 0;
+    let trCount = 0;
+    let seeded = false;
+    let prevAtr = null;
     for (let i = 0; i < n; i++) {
         const high = data[i].high;
         const low = data[i].low;
@@ -42,12 +47,17 @@ export function computeSuperTrend(data, settings) {
             Math.abs(low - prevClose)
         );
 
-        if (i >= atrLength - 1) {
-            let sum = 0;
-            for (let j = 0; j < atrLength; j++) {
-                sum += tr[i - j];
+        if (!seeded) {
+            trSum += tr[i];
+            trCount++;
+            if (trCount === atrLength) {
+                prevAtr = trSum / atrLength;
+                atrValues[i] = prevAtr;
+                seeded = true;
             }
-            atrValues[i] = sum / atrLength;
+        } else {
+            prevAtr = (prevAtr * (atrLength - 1) + tr[i]) / atrLength;
+            atrValues[i] = prevAtr;
         }
     }
 

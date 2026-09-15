@@ -93,16 +93,21 @@ export function computeRSI(data, options) {
         const gain = gains[i];
         const loss = losses[i];
 
+        // Seed at index `length`: SMA of the first `length` real changes
+        // (changes live at indices 1..length; gains[0] is a placeholder).
         if (i < length) {
-            avgGain += gain;
-            avgLoss += loss;
-            if (i === length - 1) {
-                avgGain /= length;
-                avgLoss /= length;
-            } else {
-                rsiValues.push({ time: data[i].time, value: null });
-                continue;
+            rsiValues.push({ time: data[i].time, value: null });
+            continue;
+        }
+        if (i === length) {
+            let sumGain = 0;
+            let sumLoss = 0;
+            for (let j = 1; j <= length; j++) {
+                sumGain += gains[j];
+                sumLoss += losses[j];
             }
+            avgGain = sumGain / length;
+            avgLoss = sumLoss / length;
         } else {
             // Wilder's: NewAvg = (OldAvg * (L-1) + NewVal) / L
             avgGain = (avgGain * (length - 1) + gain) / length;

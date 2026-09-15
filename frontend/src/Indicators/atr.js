@@ -27,13 +27,14 @@ export function computeATR(data, settings) {
     for (let i = 0; i < n; i++) {
         const high = data[i].high;
         const low = data[i].low;
+        const prevClose = i > 0 ? data[i - 1].close : high;
 
-        if (!isValid(high) || !isValid(low) || !isValid(data[i].close)) continue;
+        if (!isValid(high) || !isValid(low) || !isValid(data[i].close) || !isValid(prevClose)) continue;
 
         tr[i] = Math.max(
             high - low,
-            Math.abs(high - (i > 0 ? data[i - 1].close : high)),
-            Math.abs(low - (i > 0 ? data[i - 1].close : low))
+            Math.abs(high - prevClose),
+            Math.abs(low - prevClose)
         );
     }
 
@@ -62,11 +63,13 @@ export function computeATR(data, settings) {
     }
 
     if (lastAtrIdx !== -1) {
+        let prevAtr = atr[lastAtrIdx];
         for (let i = lastAtrIdx + 1; i < n; i++) {
-            if (tr[i] !== null && atr[i - 1] !== null) {
-                atr[i] = (atr[i - 1] * (length - 1) + tr[i]) / length;
-                results.push({ time: data[i].time, value: atr[i] });
-            }
+            // Skip invalid bars without breaking the smoothing chain.
+            if (tr[i] === null) continue;
+            prevAtr = (prevAtr * (length - 1) + tr[i]) / length;
+            atr[i] = prevAtr;
+            results.push({ time: data[i].time, value: atr[i] });
         }
     }
 
