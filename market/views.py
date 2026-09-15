@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 import math
+from datetime import datetime, timezone
 from .models import Session, CustomIndicator, Folder, UserPreference
 from .providers import registry
 
@@ -283,9 +284,19 @@ class TickerHistory(APIView):
                     time = df.iloc[_]['index'] if 'index' in df.columns else None
                 
                 if time is None: continue
-                
-                # Convert to unix timestamp (seconds)
-                timestamp = int(time.timestamp())
+
+                # Convert to unix timestamp (seconds). For daily-and-longer
+                # bars, yfinance stamps midnight in the exchange timezone
+                # (e.g. Milan = 22:00 UTC the prior day), which renders as a
+                # weekend bar. Use the exchange-local trading DATE at UTC
+                # midnight instead — the business-day convention charting
+                # libraries expect, and it aligns sessions across exchanges.
+                if interval in ('1d', '5d', '1wk', '1mo', '3mo'):
+                    timestamp = int(datetime.combine(
+                        time.date(), datetime.min.time(), tzinfo=timezone.utc
+                    ).timestamp())
+                else:
+                    timestamp = int(time.timestamp())
                 
                 row_data = {
                     'time': timestamp,
