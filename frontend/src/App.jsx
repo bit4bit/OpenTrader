@@ -11,7 +11,7 @@ import { useAuth } from './hooks/useAuth';
 import { useSessions } from './hooks/useSessions';
 import { useCharts } from './hooks/useCharts';
 import { useCustomIndicators } from './hooks/useCustomIndicators';
-import { addIndicators, addCustomIndicator } from './Indicators/actions';
+import { addIndicators, addCustomIndicator, updateIndicator as updateIndicatorIn, removeIndicator as removeIndicatorIn, toggleIndicator as toggleIndicatorIn } from './Indicators/actions';
 
 const FIRST_VISIT_KEY = 'opentrader_first_visit';
 
@@ -54,6 +54,11 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
   const addCustomToChart = (script) => {
     if (!activeChart) return;
     updateChart(activeChart.id, c => ({ indicators: addCustomIndicator(c.indicators, script) }));
+  };
+
+  const patchActiveIndicators = (fn) => {
+    if (!activeChart) return;
+    updateChart(activeChart.id, c => ({ indicators: fn(c.indicators) }));
   };
 
   const handleSelectSymbol = (selection) => {
@@ -139,7 +144,12 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
 
         {showIndicatorSearch && (
           <IndicatorSearch
+            indicators={activeChart?.indicators || []}
             onAddIndicator={addIndicator}
+            onUpdateIndicator={(id, updates) => patchActiveIndicators(list => updateIndicatorIn(list, id, updates))}
+            onRemoveIndicator={(id) => patchActiveIndicators(list => removeIndicatorIn(list, id))}
+            onToggleIndicator={(id) => patchActiveIndicators(list => toggleIndicatorIn(list, id))}
+            scriptsById={customIndicators.scriptsById}
             onClose={() => setShowIndicatorSearch(false)}
           />
         )}

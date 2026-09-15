@@ -1,16 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import Chart from './Chart';
-import IndicatorPanel from './IndicatorPanel';
 import { useChartData, useAdFullData, useMarketIndexData } from '../hooks/useChartData';
-import {
-    updateIndicator as updateIndicatorIn,
-    removeIndicator as removeIndicatorIn,
-    removeIndicatorGroup as removeIndicatorGroupIn,
-    toggleIndicator as toggleIndicatorIn,
-} from '../Indicators/actions';
 import { formatADLValue } from '../Indicators/adl';
 import { computeActivePaneTypes } from '../chart/paneLayout';
-import { SCRIPT_TYPES, isScriptPane, scriptPaneType, INDICATOR_TYPES, indicatorTitle } from '../Indicators/scripts';
+import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
 
 const formatPrice = (price) => (price != null ? price.toFixed(2) : '');
@@ -26,11 +19,6 @@ const formatLegendValue = (val, type) =>
         : (type === 'volume' || type === 'vol_sma') ? formatVolumeValue(val)
             : val.toFixed(2);
 
-const OVERLAY_ORDER = ['sma', 'bb', 'supertrend', 'ichimoku', 'volume_profile', 'vp', 'w52'];
-
-const PANEL_DEFS = [...INDICATOR_TYPES.map(t => ({ title: indicatorTitle(t), groupType: t })),
-    { title: 'Custom Script', groupType: 'custom' }];
-
 const ChartPanel = ({
     chart,
     isActive,
@@ -43,34 +31,17 @@ const ChartPanel = ({
     onUpdate,
     scriptsById,
 }) => {
-    const { symbol: chartSymbol, interval, chartType, indicators, drawings, minimizedPanels = [] } = chart;
+    const { symbol: chartSymbol, interval, chartType, indicators, drawings } = chart;
     const symbol = chartSymbol?.symbol || '';
     const provider = chartSymbol?.provider || null;
     const { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange } = useChartData(symbol, provider, interval);
     const adFullData = useAdFullData(symbol, provider, interval, indicators);
-    const { data: smiData, invalidSymbols: smiInvalidSymbols } = useMarketIndexData(indicators, interval);
+    const { data: smiData } = useMarketIndexData(indicators, interval);
     const [hoveredData, setHoveredData] = useState(null);
-
-    const patchIndicators = useCallback((fn) => {
-        onUpdate(chart.id, c => ({ indicators: fn(c.indicators) }));
-    }, [chart.id, onUpdate]);
 
     const setDrawings = useCallback((updater) => {
         onUpdate(chart.id, c => ({
             drawings: typeof updater === 'function' ? updater(c.drawings) : updater,
-        }));
-    }, [chart.id, onUpdate]);
-
-    const updateIndicator = useCallback((id, updates) => patchIndicators(list => updateIndicatorIn(list, id, updates)), [patchIndicators]);
-    const removeIndicator = useCallback((id) => patchIndicators(list => removeIndicatorIn(list, id)), [patchIndicators]);
-    const removeIndicatorGroup = useCallback((type) => patchIndicators(list => removeIndicatorGroupIn(list, type)), [patchIndicators]);
-    const toggleIndicator = useCallback((id) => patchIndicators(list => toggleIndicatorIn(list, id)), [patchIndicators]);
-
-    const setPanelMinimized = useCallback((groupType, minimized) => {
-        onUpdate(chart.id, c => ({
-            minimizedPanels: minimized
-                ? [...new Set([...(c.minimizedPanels || []), groupType])]
-                : (c.minimizedPanels || []).filter(t => t !== groupType),
         }));
     }, [chart.id, onUpdate]);
 
@@ -79,11 +50,6 @@ const ChartPanel = ({
     const pnlColor = pnl >= 0 ? '#26a69a' : '#ef5350';
 
     const indicatorResults = useIndicatorResults(data, adFullData, indicators, scriptsById, smiData);
-    const customErrors = {};
-    Object.entries(indicatorResults.errorsById).forEach(([id, err]) => {
-        const ind = indicators.find(i => i.id === id);
-        if (ind) customErrors[id] = err;
-    });
 
     const activePaneTypes = computeActivePaneTypes(indicators, indicatorResults.paneIds);
     const isPaneType = (type) => type === 'custom' || isScriptPane(type);
@@ -93,13 +59,6 @@ const ChartPanel = ({
         if (idx === -1) return undefined;
         const total = activePaneTypes.length + 3;
         return `calc(${(((3 + idx) * 100) / total).toFixed(3)}% + 6px)`;
-    };
-
-    const activeOverlayTypes = OVERLAY_ORDER.filter(t => indicators.some(i => i.type === t && i.visible));
-    const minimizedTopFor = (type) => {
-        if (activePaneTypes.includes(scriptPaneType(type))) return paneLegendTop(scriptPaneType(type));
-        const idx = activeOverlayTypes.indexOf(type);
-        return `calc(36px + ${Math.max(0, idx) * 34}px)`;
     };
 
     return (
@@ -184,27 +143,6 @@ const ChartPanel = ({
                         </div>
                     );
                 })}
-
-                <div className="indicator-panels-container">
-                    {PANEL_DEFS.map(def => (
-                        <IndicatorPanel
-                            key={def.groupType}
-                            title={def.title}
-                            groupType={def.groupType}
-                            minimizedTop={minimizedTopFor(def.groupType)}
-                            isMinimized={minimizedPanels.includes(def.groupType)}
-                            onMinimizeChange={(minimized) => setPanelMinimized(def.groupType, minimized)}
-                            indicators={indicators.filter(i => i.type === def.groupType)}
-                            invalidSymbols={def.groupType === 'smi' ? smiInvalidSymbols : []}
-                            scriptsById={scriptsById}
-                            scriptErrors={customErrors}
-                            updateIndicator={updateIndicator}
-                            removeIndicator={removeIndicator}
-                            removeIndicatorGroup={removeIndicatorGroup}
-                            toggleIndicator={toggleIndicator}
-                        />
-                    ))}
-                </div>
 
                 {loading && (
                     <div className="chart-loader initial-loader">

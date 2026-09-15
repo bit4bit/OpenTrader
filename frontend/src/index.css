@@ -437,89 +437,81 @@ body {
   color: #fff;
 }
 
-/* Indicator Panels Container (Right Side) */
-.indicator-panels-container {
-  position: absolute;
-  top: 12px;
-  right: 76px; /* clear the right-side price ruler */
-  bottom: 0; /* full height so per-pane % offsets resolve */
+/* Indicator Panels Container (Right Side) — removed; settings live in the
+   Indicators modal's Active tab now. */
+
+/* Indicators panel tabs */
+.indicator-panel-tabs {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  z-index: 20;
-  max-height: calc(100vh - 80px);
-  pointer-events: none;
-  /* Let clicks pass through gaps */
-}
-
-/* Individual Indicator Panel */
-.indicator-panel {
-  width: 200px;
-  background-color: rgba(30, 34, 45, 0.9);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  pointer-events: auto;
-  /* Re-enable for the panel itself */
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.indicator-panel.wide {
-  width: 300px;
-}
-
-/* Compact minimized button (top-right of the panels container) */
-.indicator-panel-minimized-btn {
-  width: 28px;
-  height: 28px;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(30, 34, 45, 0.9);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 0;
-  pointer-events: auto;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  transition: filter 0.15s ease, border-color 0.15s ease;
-}
-
-.indicator-panel-minimized-btn:hover {
-  filter: brightness(1.4);
-  border-color: var(--accent);
-}
-
-.indicator-panel-header {
-  padding: 8px 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   border-bottom: 1px solid var(--border-color);
   background-color: rgba(255, 255, 255, 0.03);
 }
 
-.panel-title {
+.indicator-panel-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 8px 0;
   font-size: 11px;
   font-weight: bold;
-  color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: color 0.15s ease;
 }
 
-.panel-controls {
+.indicator-panel-tab:hover {
+  color: var(--text-main);
+}
+
+.indicator-panel-tab.active {
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* Active indicators list */
+.indicator-active-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.indicator-active-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.indicator-active-item:last-child {
+  border-bottom: none;
+}
+
+.indicator-active-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
+
+.indicator-active-row .indicator-name {
+  flex: 1;
+}
+
+.indicator-active-item.row-hidden .indicator-name {
+  opacity: 0.4;
+}
+
+.indicator-active-item .indicator-settings {
+  margin-top: 8px;
+}
+
+.action-btn.settings-open {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* Individual Indicator Panel — removed with the side panels. */
 
 .header-action-btn {
   background: none;
@@ -546,61 +538,6 @@ body {
   color: var(--down-color);
 }
 
-.indicator-row {
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.indicator-section {
-  border-bottom: 2px solid var(--border-color);
-}
-
-.indicator-section:last-child {
-  border-bottom: none;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px 4px;
-}
-
-.section-title {
-  font-size: 10px;
-  font-weight: 800;
-  color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.section-close-btn {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  padding: 2px 6px;
-  font-size: 12px;
-  opacity: 0.5;
-  transition: all 0.2s;
-  border-radius: 4px;
-}
-
-.section-close-btn:hover {
-  opacity: 1;
-  color: var(--down-color);
-  background: rgba(239, 83, 80, 0.1);
-}
-
-.action-btn.remove-single {
-  opacity: 0.3;
-}
-
-.action-btn.remove-single:hover {
-  opacity: 1;
-  color: var(--down-color);
-}
-
 .rsi-grid {
   display: grid !important;
   grid-template-columns: repeat(2, 1fr);
@@ -617,29 +554,6 @@ body {
 .setting-item label input[type="checkbox"] {
   margin: 0;
   cursor: pointer;
-}
-
-.indicator-row:last-child {
-  border-bottom: none;
-}
-
-.indicator-row.row-hidden {
-  opacity: 0.4;
-  background-color: rgba(0, 0, 0, 0.1);
-}
-
-.indicator-row-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.indicator-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
 }
 
 .color-swatch {
@@ -1007,13 +921,6 @@ div[class*="tradingview"] {
 
 .chart-tile-body .chart-legend-indicators {
   left: 8px;
-}
-
-.chart-tile-body .indicator-panels-container {
-  right: 64px;
-  top: 8px;
-  bottom: 0;
-  max-height: none;
 }
 
 /* Empty state */
