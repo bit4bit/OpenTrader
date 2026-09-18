@@ -74,6 +74,16 @@ const Chart = ({
         updateNote(id, d => ({ ...d, text, editing: false }));
     };
 
+    // Text label: commit the inline editor; an empty label is cancelled.
+    const commitLabelText = (id, text) => {
+        const trimmed = text.trim();
+        if (!trimmed) {
+            deleteNote(id);
+            return;
+        }
+        updateNote(id, d => ({ ...d, text: trimmed, editing: false }));
+    };
+
     const isFirstLoad = useRef(true);
     const pendingScrollRef = useRef(null);
     const lastSymbolInterval = useRef(`${symbol}-${provider}-${interval}`);
@@ -501,8 +511,13 @@ const Chart = ({
         if (!engine) return;
         const positions = {};
         drawings.forEach(d => {
-            if (d.type !== 'textNote') return;
-            positions[d.id] = getNoteCoordinates(d, t => engine.timeToX(t), p => engine.priceToY(p));
+            if (d.type === 'textNote') {
+                positions[d.id] = getNoteCoordinates(d, t => engine.timeToX(t), p => engine.priceToY(p));
+            } else if (d.type === 'textLabel' && d.editing) {
+                const x = engine.timeToX(d.p1.time);
+                const y = engine.priceToY(d.p1.price);
+                positions[d.id] = x === null || y === null ? null : { x, y };
+            }
         });
         setNotePositions(positions);
     }, [engineReady, drawings, chartTick]);
@@ -517,7 +532,26 @@ const Chart = ({
     };
 
     const renderNotes = () => {
-        return drawings.filter(d => d.type === 'textNote').map(d => {
+        return drawings.filter(d => d.type === 'textNote' || d.type === 'textLabel').map(d => {
+            if (d.type === 'textLabel') {
+                const pos = notePositions[d.id];
+                if (!d.editing || !pos) return null;
+                return (
+                    <input
+                        key={d.id}
+                        autoFocus
+                        className="chart-label-input"
+                        defaultValue={d.text}
+                        placeholder="Label"
+                        style={{ left: pos.x, top: pos.y + 10 }}
+                        onBlur={(e) => commitLabelText(d.id, e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === 'Escape') e.target.blur();
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                    />
+                );
+            }
             const coords = notePositions[d.id];
             if (!coords) return null;
             const { anchorX, anchorY, boxX, boxY } = coords;

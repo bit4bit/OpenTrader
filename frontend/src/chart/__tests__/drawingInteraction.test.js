@@ -30,6 +30,20 @@ describe('applyDrawingClick', () => {
         });
     });
 
+    it('commits a text label in editing mode', () => {
+        const r = applyDrawingClick('textLabel', p(10, 100), [], 'id5');
+        expect(r.finished).toBe(true);
+        expect(r.drawing).toMatchObject({
+            id: 'id5',
+            type: 'textLabel',
+            points: [p(10, 100)],
+            p1: p(10, 100),
+            text: '',
+            editing: true,
+        });
+        expect(r.pendingPoints).toEqual([]);
+    });
+
     it('accumulates points until the tool requirement is met', () => {
         const first = applyDrawingClick('trend', p(10, 100), [], 'id3');
         expect(first.finished).toBe(false);

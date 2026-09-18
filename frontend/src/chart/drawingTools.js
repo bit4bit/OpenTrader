@@ -111,6 +111,19 @@ export function createTextNote(point, id) {
     };
 }
 
+export function createTextLabel(point, id) {
+    return {
+        id,
+        type: 'textLabel',
+        points: [point],
+        p1: point,
+        p2: point,
+        color: DEFAULT_DRAWING_COLOR,
+        text: '',
+        editing: true,
+    };
+}
+
 // Preview shape shown while a multi-point tool tracks the mouse.
 export function buildPreviewDrawing(tool, pendingPoints, mousePoint) {
     return {

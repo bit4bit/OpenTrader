@@ -625,6 +625,12 @@ export function buildDrawingShapes(d, ctx) {
     else if (d.type === 'ghostFeed' && hasBoth) shapes = [line(x1, y1, x2, y2, strokeOf(d, { dash: '2,4', opacity: '0.5' }))];
     else if (d.type === 'buyLabel') shapes = badgeShapes(x1, y1, 'BUY', '#089981', { rectX: -20, rectY: 10, rectW: 40, textY: 24 });
     else if (d.type === 'sellLabel') shapes = badgeShapes(x1, y1, 'SELL', '#f23645', { rectX: -22, rectY: -30, rectW: 44, textY: -16 });
+    else if (d.type === 'textLabel') {
+        // While the inline editor is open the badge itself is hidden; the DOM
+        // input sits at the anchor and commits the text.
+        const rectW = Math.max(40, (d.text || '').length * 7 + 16);
+        shapes = d.editing ? [] : badgeShapes(x1, y1, d.text, d.color || DEFAULT_STROKE, { rectX: -rectW / 2, rectY: 10, rectW, textY: 24 });
+    }
     else if (d.type === 'arrowMark') shapes = [text(x1, y1, '➚', { fill: d.color || DEFAULT_STROKE, fontSize: '24px', anchor: 'middle' })];
     else if (d.type === 'riskReward' && hasBoth) {
         const stopDist = 40, targetDist = 80;

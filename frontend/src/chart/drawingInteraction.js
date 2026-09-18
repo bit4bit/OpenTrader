@@ -4,6 +4,7 @@ import {
     createLineDrawing,
     createMultiPointDrawing,
     createTextNote,
+    createTextLabel,
 } from './drawingTools';
 
 // Drawing click state machine: given the active tool, the clicked point and
@@ -16,6 +17,9 @@ export function applyDrawingClick(tool, point, pendingPoints, id) {
     }
     if (tool === 'textNote') {
         return { drawing: createTextNote(point, id), pendingPoints: [], finished: true };
+    }
+    if (tool === 'textLabel') {
+        return { drawing: createTextLabel(point, id), pendingPoints: [], finished: true };
     }
     const nextPoints = [...pendingPoints, point];
     if (nextPoints.length >= (REQUIRED_POINTS[tool] ?? Infinity)) {

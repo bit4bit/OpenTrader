@@ -66,6 +66,7 @@ const DrawingToolbar = ({ activeTool, onSelectTool, magnetEnabled = true, onTogg
             tools: [
                 { id: 'buyLabel', icon: '🏷️⬆️', label: 'Buy Label' },
                 { id: 'sellLabel', icon: '🏷️⬇️', label: 'Sell Label' },
+                { id: 'textLabel', icon: '🏷️✏️', label: 'Text Label' },
                 { id: 'arrowMark', icon: '➚', label: 'Arrow Mark' },
                 { id: 'textNote', icon: '📝', label: 'Text Note' },
             ]

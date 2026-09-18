@@ -1141,6 +1141,23 @@ div[class*="tradingview"] {
   padding: 0;
 }
 
+.chart-label-input {
+  position: absolute;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  background: rgba(30, 34, 45, 0.95);
+  border: 1px solid var(--accent, #2962ff);
+  border-radius: 4px;
+  padding: 3px 8px;
+  width: 140px;
+  box-sizing: border-box;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text-main, #d1d4dc);
+  outline: none;
+  z-index: 1;
+}
+
 .chart-note-anchor {
   position: absolute;
   width: 10px;

@@ -233,6 +233,19 @@ describe('positions and ranges', () => {
         expect(shapes.find(s => s.kind === 'text').text).toBe('BUY');
         expect(shapes.find(s => s.kind === 'rect').style.fill).toBe('#089981');
     });
+
+    it('textLabel renders the badge with the custom text', () => {
+        const d = makeDrawing('textLabel', P1, null, { text: 'TP1', editing: false });
+        const shapes = buildDrawingShapes(d, makeCtx());
+        expect(shapes.find(s => s.kind === 'text')).toMatchObject({ text: 'TP1', x: 10, y: 124 });
+        expect(shapes.find(s => s.kind === 'rect').style.fill).toBe('#ff0000');
+    });
+
+    it('textLabel hides the badge while the inline editor is open', () => {
+        const d = makeDrawing('textLabel', P1, null, { text: '', editing: true });
+        const shapes = buildDrawingShapes(d, makeCtx());
+        expect(shapes.some(s => s.kind === 'rect' || s.kind === 'text')).toBe(false);
+    });
 });
 
 describe('textNote', () => {

@@ -15,7 +15,7 @@ export function noteBoxOffset(anchorX, anchorY, pointerX, pointerY) {
 
 // Array transforms for note CRUD (shared with the drawings collection).
 export function updateTextNote(drawings, id, updater) {
-    return drawings.map(d => (d.type === 'textNote' && d.id === id ? updater(d) : d));
+    return drawings.map(d => ((d.type === 'textNote' || d.type === 'textLabel') && d.id === id ? updater(d) : d));
 }
 
 export function deleteDrawing(drawings, id) {
