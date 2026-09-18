@@ -193,6 +193,26 @@ const SCRIPTS = {
             "plot(r.low, { title: '52 Week Low', color })",
         ].join('\n'),
     },
+    price_level: {
+        title: 'Price Level',
+        singleton: false,
+        fields: [
+            { key: 'length', label: 'Length', type: 'int', default: 52, min: 1, max: 500 },
+            { key: 'unit', label: 'Unit', type: 'string', default: 'week', options: ['day', 'week', 'month'] },
+            { key: 'source', label: 'Source', type: 'string', default: 'high', options: ['open', 'close', 'high', 'low'] },
+            { key: 'aggregation', label: 'Aggregation', type: 'string', default: 'max', options: ['max', 'min'] },
+            { key: 'color', label: 'Color', type: 'color', default: '#ff9800' },
+        ],
+        body: [
+            // A string input (not input.source) so the title can name the source.
+            "const src = source === 'open' ? open : source === 'low' ? low : source === 'high' ? high : close",
+            "const lvl = ta.priceLevel(unit, length, src, aggregation)",
+            "const last = lvl.filter(v => v != null).pop()",
+            "const suffix = unit === 'week' ? 'W' : unit === 'month' ? 'M' : 'D'",
+            "const title = length + suffix + ' ' + source.charAt(0).toUpperCase() + source.slice(1)",
+            "plot(time.map(() => last), { title, color, lineWidth: 1.5, priceLineVisible: false })",
+        ].join('\n'),
+    },
     tsi: {
         title: 'True Strength Index',
         id: 'tsi-main',
@@ -269,6 +289,21 @@ const SCRIPTS = {
             ] },
         ],
         body: "plot(ta.marketIndex(constituents, baseValue), { title: 'SMI', color, overlay: false, lineWidth: 2 })",
+    },
+    benchmark: {
+        title: 'Benchmark Index',
+        id: 'benchmark-main',
+        pane: true,
+        fields: [
+            { key: 'baseValue', label: 'Base', type: 'int', default: 100, min: 1 },
+            { key: 'indexes', label: 'Indexes', type: 'symbols', default: [] },
+        ],
+        body: [
+            "const PALETTE = ['#4fc3f7', '#f4c542', '#9c27b0', '#26a69a', '#ef5350', '#ff9800', '#2962ff']",
+            "indexes.filter(ix => ix.enabled !== false && ix.symbol).forEach((ix, i) => {",
+            "    plot(ta.benchmark(ix.symbol, baseValue), { title: ix.name || ix.symbol, color: ix.color || PALETTE[i % PALETTE.length], overlay: false, lineWidth: 2 })",
+            '})',
+        ].join('\n'),
     },
 };
 

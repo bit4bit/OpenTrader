@@ -8,7 +8,8 @@ OpenTrader is an open-source TradingView alternative: Django + DRF backend servi
 
 ## Structure
 
-- `market/` — Django app: `views.py` (`TickerSearch`, `TickerHistory` public REST endpoints; `LoginView`, `SessionListCreate`, `SessionDetail`, `FolderListCreate`, `FolderDetail`, `PreferenceView` token-authenticated endpoints), `models.py` (`Session` with optional `folder` FK, `Folder`, `UserPreference` models), `urls.py` mounted at `/api/`.
+- `market/` — Django app: `views.py` (`TickerSearch`, `TickerHistory`, `IndexMembership` public REST endpoints; `LoginView`, `SessionListCreate`, `SessionDetail`, `FolderListCreate`, `FolderDetail`, `PreferenceView` token-authenticated endpoints), `models.py` (`Session` with optional `folder` FK, `Folder`, `UserPreference` models), `urls.py` mounted at `/api/`.
+- `market/providers/` — market data providers (`yahoo.py`, `kraken.py`) routed by `registry.py`, plus `index_membership.py`: the benchmark-membership abstraction (`IndexMembershipProvider` base + `GitHubIndexConstituentsProvider` for the yfiua/index-constituents dataset). It inverts index→constituents into stock→indexes behind `memberships_for()`, disk-cached 24 h; swap sources by adding a provider class and setting `index_membership_provider` in `config.json`.
 - `opentrader/` — Django project settings. Serves `frontend/dist` as the SPA; `/api/*` is proxied to the app. Auth is DRF `TokenAuthentication` (username-only login, no password).
 - `frontend/src/`
   - `App.jsx` — root: auth gate (login screen), session wiring, layout state, global toolbars (TopBar, DrawingToolbar, search modals). Keep it thin; logic belongs in hooks/modules.
@@ -18,12 +19,13 @@ OpenTrader is an open-source TradingView alternative: Django + DRF backend servi
   - `hooks/useSessions.js` — sessions list, folders list, active session/folder, CRUD against `/api/sessions/`, `/api/folders/`, `/api/preferences/`, debounced (~1s) layout auto-save (PATCH).
   - `components/SessionMenu.jsx` — session dropdown in the TopBar: folders with expand/collapse (localStorage), drag & drop sessions between folders, inline rename, per-item delete.
   - `hooks/useCharts.js` — charts collection state: CRUD, active chart, lock flag. No persistence of its own; reports changes via `onLayoutChange`.
-  - `hooks/useChartData.js` — per-chart market data: initial fetch, refresh polling, left-scroll pagination, `useAdFullData`.
+  - `hooks/useChartData.js` — per-chart market data: initial fetch, refresh polling, left-scroll pagination, `useAdFullData`; `useMarketIndexData` fetches full history for the extra symbols pane indicators need (SMI constituents, Benchmark Index indexes).
+  - `hooks/useIndexMembership.js` — fetches `/api/index-membership/` (which benchmark indexes a stock belongs to) for the Benchmark Index settings UI.
   - `engine/` — pluggable **ChartEngine** (chart stack: series, panes, axes, zoom, crosshair, coordinate conversion). `engine.js` documents the contract; `lwcEngine.js` is the lightweight-charts implementation and the default; `chartGpuEngine.js` is an **unstable** WebGPU adapter; `index.js` selects at build time via `VITE_CHART_ENGINE` (default `lwc`).
   - `render/` — pluggable **DrawingRenderer** overlay stack. `layers.js` declares the named layers and stacking order (`fills` → `volumeProfile` → `drawings` → `notes` DOM); `svgRenderer.js` creates per-layer renderer entities (`createSvgRenderer(surface)` → `{ clear, drawShapes, drawScene }` — every draw clears its layer first) drawing engine-neutral `Shape[]` (line/polyline/polygon/rect/circle/ellipse/path/text in px), grouping committed drawings under `<g data-drawing-id>` for eraser hit-testing.
   - `sync/chartSync.js` — registry of engine-agnostic sync entries (`{ setVisibleRange, showCrosshair }`); broadcasts visible range and crosshair to peers when locked, with a re-entrancy guard.
   - `chart/` — pure, unit-tested presentation logic (Humble Object pattern): `timeFormat.js` (crosshair labels, weekend color), `heikinAshi.js`, `barSearch.js` (nearest-bar binary search), `drawingTools.js` + `drawingInteraction.js` (tool point requirements, click state machine, Home/End ranges), `drawingGeometry.js` (drawings/fills/volume-profile → engine-neutral `Shape[]`; ctx = `{ timeToX, priceToY, width, height, data }`), `crosshairLegend.js`, `paneLayout.js` (pane ordering/stretch, renderable ids, full-data slicing), `regression.js` (OLS, std error, time windows), `noteGeometry.js` (text-note coordinates and array transforms). Tests live in `chart/__tests__/` (vitest, `npm test`).
-  - `Indicators/` — pure indicator math (`sma.js`, `rsi.js`, ...) plus `actions.js` (pure indicator config factories/operations) and `panes.js` (pane ordering).
+  - `Indicators/` — pure indicator math (`sma.js`, `rsi.js`, `marketIndex.js`, `benchmarkIndex.js`, ...) plus `actions.js` (pure indicator config factories/operations) and `panes.js` (pane ordering).
 
 ## Coding Guidelines
 

@@ -15,10 +15,12 @@ import { computeSuperTrend } from '../supertrend';
 import { computeATR } from '../atr';
 import { computeADL } from '../adl';
 import { computeW52 } from '../w52';
+import { computePriceLevel } from '../priceLevel';
 import { computeTSI } from '../tsi';
 import { computeIchimoku } from '../ichimoku';
 import { computeVolumeProfile } from '../volumeProfile';
 import { computeMarketIndex } from '../marketIndex';
+import { computeBenchmarkLine } from '../benchmarkIndex';
 import { DATA } from './golden.test';
 
 const closeTolerance = 1e-9;
@@ -126,6 +128,21 @@ describe('script equivalence', () => {
         expectSameBars(plotOf(closeBasis, '52 Week Low'), expectedC.low);
     });
 
+    it('price_level', () => {
+        const config = { length: 10, unit: 'day', source: 'high', aggregation: 'max', color: '#123456' };
+        const result = run('price_level', config);
+        // The plot is a flat line at the trailing level of the latest bar.
+        const expected = computePriceLevel(DATA, config);
+        const level = expected[expected.length - 1].value;
+        const plot = plotOf(result, '10D High');
+        expect(plot).toHaveLength(DATA.length);
+        plot.forEach(bar => expect(bar.value).toBe(level));
+        expect(result.plots[0].priceLineVisible).toBe(false);
+        // Title reflects unit and source.
+        const weekly = run('price_level', { length: 52, unit: 'week', source: 'close', aggregation: 'min' });
+        expect(weekly.plots[0].title).toBe('52W Close');
+    });
+
     it('tsi', () => {
         const config = { longLength: 25, shortLength: 13, signalLength: 13 };
         const result = run('tsi', config);
@@ -208,5 +225,36 @@ describe('script equivalence', () => {
         expect(result.error).toBeNull();
         const plot = plotOf(result, 'SMI');
         expect(plot.filter(b => b.value !== null).length).toBeGreaterThan(DATA.length / 2);
+    });
+
+    it('benchmark', () => {
+        const times = DATA.map(d => d.time);
+        const diffs = times.slice(1).map((t, i) => t - times[i]).sort((a, b) => a - b);
+        const tolerance = diffs[diffs.length >> 1] / 2;
+        const barsBySymbol = {
+            '^GSPC': DATA.map((d, i) => ({ time: d.time, close: 100 + i })),
+            '^NDX': DATA.map((d, i) => ({ time: d.time, close: 200 - i })),
+        };
+        const indexes = [
+            { symbol: '^GSPC', name: 'S&P 500', enabled: true },
+            { symbol: '^NDX', name: 'NASDAQ 100', enabled: true },
+            { symbol: '^DJI', name: 'Dow Jones', enabled: false },
+        ];
+        const result = runScript(
+            scriptCode('benchmark'), DATA,
+            scriptValues('benchmark', { baseValue: 100, indexes }),
+            barsBySymbol,
+        );
+        expect(result.error).toBeNull();
+        // Disabled index produces no plot; palette assigns colors by position.
+        expect(result.plots.length).toBe(2);
+        expect(result.plots[0].color).toBe('#4fc3f7');
+        expect(result.plots[1].color).toBe('#f4c542');
+        // toBars() drops null-valued points, so expected bars must too.
+        const expectedBars = (bars) => computeBenchmarkLine(bars, times, tolerance, 100)
+            .map((value, i) => ({ time: times[i], value }))
+            .filter(b => b.value !== null);
+        expectSameBars(plotOf(result, 'S&P 500'), expectedBars(barsBySymbol['^GSPC']));
+        expectSameBars(plotOf(result, 'NASDAQ 100'), expectedBars(barsBySymbol['^NDX']));
     });
 });

@@ -2,6 +2,7 @@ import React from 'react';
 import { SMA_SOURCES } from '../Indicators/sma';
 import { discoverInputs } from '../Indicators/dsl/runtime';
 import { SCRIPT_TYPES, scriptFields } from '../Indicators/scripts';
+import { useIndexMembership } from '../hooks/useIndexMembership';
 
 /**
  * Schema-driven settings form for script-based indicators. `fields` is the
@@ -73,10 +74,84 @@ const ScriptSettings = ({ fields, values = {}, disabled = false, onChange, scrip
 );
 
 /**
+ * Benchmark Index settings (base value handled by the generic script
+ * settings above): one row per index, plus a membership picker listing the
+ * benchmark indexes the chart symbol belongs to.
+ */
+const BenchmarkSettings = ({ ind, chartSymbol, updateIndicator }) => {
+    const { membership, error } = useIndexMembership(chartSymbol);
+    const indexes = ind.indexes || [];
+    const added = new Set(indexes.map(ix => ix.symbol));
+    const available = membership.filter(m => !added.has(m.yahoo));
+
+    const addIndex = (entry) => updateIndicator(ind.id, {
+        indexes: [...indexes, { symbol: entry.yahoo, name: entry.name, enabled: true }],
+    });
+
+    return (
+        <div className="indicator-settings smi-grid">
+            {indexes.map((ix, i) => (
+                <React.Fragment key={i}>
+                    <div className="setting-item">
+                        <label>Index {i + 1}</label>
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <input
+                                type="checkbox"
+                                checked={ix.enabled !== false}
+                                title={ix.enabled !== false ? 'Disable index' : 'Enable index'}
+                                onChange={(e) => updateIndicator(ind.id, {
+                                    indexes: indexes.map((x, xi) => xi === i ? { ...x, enabled: e.target.checked } : x),
+                                })}
+                            />
+                            <span style={{ ...(ix.enabled === false ? { opacity: 0.4 } : {}) }}>
+                                {ix.name ? `${ix.name} (${ix.symbol})` : ix.symbol}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="setting-item" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <button
+                            className="action-btn remove-single"
+                            title="Remove index"
+                            onClick={() => updateIndicator(ind.id, { indexes: indexes.filter((_, xi) => xi !== i) })}
+                        >
+                            ✕
+                        </button>
+                    </div>
+                </React.Fragment>
+            ))}
+            {membership.length > 0 && (
+                <div className="setting-item" style={{ gridColumn: 'span 2' }}>
+                    <label>{chartSymbol} belongs to</label>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                        <select
+                            style={{ flex: 1 }}
+                            value=""
+                            onChange={(e) => {
+                                const entry = available.find(m => m.yahoo === e.target.value);
+                                if (entry) addIndex(entry);
+                            }}
+                        >
+                            <option value="" disabled>Add index...</option>
+                            {available.map(m => <option key={m.yahoo} value={m.yahoo}>{m.name}</option>)}
+                        </select>
+                        {available.length > 1 && (
+                            <button className="action-btn" title="Add all membership indexes" onClick={() => available.forEach(addIndex)}>
+                                All
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+            {error && <div className="custom-script-error" style={{ gridColumn: '1 / -1' }}>{error}</div>}
+        </div>
+    );
+};
+
+/**
  * Settings controls for a single indicator instance: schema-driven script
  * fields, the SMI constituents grid, or custom-script inputs.
  */
-const IndicatorSettings = ({ ind, groupType, invalidSymbols = [], scriptsById, scriptErrors, updateIndicator }) => (
+const IndicatorSettings = ({ ind, groupType, chartSymbol, invalidSymbols = [], scriptsById, scriptErrors, updateIndicator }) => (
     <>
         {/* Script-based indicator settings: schema-driven from
             the field registry (built-ins) or input
@@ -153,6 +228,10 @@ const IndicatorSettings = ({ ind, groupType, invalidSymbols = [], scriptsById, s
                     </button>
                 </div>
             </div>
+        )}
+        {/* Benchmark Index: membership-driven index rows */}
+        {groupType === 'benchmark' && (
+            <BenchmarkSettings ind={ind} chartSymbol={chartSymbol} updateIndicator={updateIndicator} />
         )}
         {/* Custom Script Settings */}
         {groupType === 'custom' && (() => {

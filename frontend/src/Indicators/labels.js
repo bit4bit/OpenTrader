@@ -15,7 +15,9 @@ export function indicatorLabel(groupType, ind, idx) {
         case 'tsi': return `TSI (${ind.longLength}, ${ind.shortLength}, ${ind.signalLength})`;
         case 'ad': return 'Accum/Dist';
         case 'smi': return `SMI (${(ind.constituents || []).length} symbols)`;
+        case 'benchmark': return `Benchmark (${(ind.indexes || []).filter(ix => ix.enabled !== false).length} indexes)`;
         case 'w52': return `52W High/Low (${ind.basis === 'close' ? 'Close' : 'Highs/Lows'})`;
+        case 'price_level': return `Price Level (${ind.length} ${ind.unit})`;
         case 'volume': return 'Volume';
         case 'vol_sma': return `Vol SMA (${ind.length})`;
         default: return 'Indicator';

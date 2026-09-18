@@ -9,6 +9,7 @@ import math
 from datetime import datetime, timezone
 from .models import Session, CustomIndicator, Folder, UserPreference
 from .providers import registry
+from .providers import index_membership
 
 
 def serialize_session(session):
@@ -204,6 +205,19 @@ class IndicatorDetail(APIView):
     def delete(self, request, pk):
         self.get_indicator(request, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class IndexMembership(APIView):
+    """Benchmark indexes containing a stock, for the Benchmark Index indicator."""
+    def get(self, request):
+        symbol = request.query_params.get('symbol')
+        if not symbol:
+            return Response({'error': 'Symbol is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            indexes = index_membership.memberships_for(symbol)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'symbol': symbol, 'indexes': indexes})
 
 
 class TickerSearch(APIView):

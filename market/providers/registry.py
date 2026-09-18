@@ -65,6 +65,10 @@ def _invalidate_caches(config):
     _provider_cache.clear()
 
 
+def get_config():
+    return _load_config()
+
+
 def get_configured_provider_names():
     config = _load_config()
     configured = config.get('providers', {})

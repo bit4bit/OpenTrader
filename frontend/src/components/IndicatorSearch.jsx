@@ -5,6 +5,7 @@ import IndicatorSettings from './IndicatorSettings';
 
 const IndicatorSearch = ({
     indicators = [],
+    chartSymbol = '',
     onAddIndicator,
     onUpdateIndicator,
     onRemoveIndicator,
@@ -123,6 +124,7 @@ const IndicatorSearch = ({
                                     <IndicatorSettings
                                         ind={ind}
                                         groupType={ind.type}
+                                        chartSymbol={chartSymbol}
                                         scriptsById={scriptsById}
                                         updateIndicator={onUpdateIndicator}
                                     />

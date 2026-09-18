@@ -14,10 +14,12 @@ import { computeStochastic } from '../stoch';
 import { computeSuperTrend } from '../supertrend';
 import { computeADL } from '../adl';
 import { computeW52 } from '../w52';
+import { computePriceLevel } from '../priceLevel';
 import { computeTSI } from '../tsi';
 import { computeIchimoku } from '../ichimoku';
 import { computeVolumeProfile } from '../volumeProfile';
 import { computeMarketIndex } from '../marketIndex';
+import { computeBenchmarkLine } from '../benchmarkIndex';
 
 function isValid(v) {
     return typeof v === 'number' && isFinite(v);
@@ -148,6 +150,11 @@ export function buildTa(data, barsBySymbol = {}) {
             const res = computeW52(data, { basis });
             return { high: align(res.high), low: align(res.low) };
         },
+        // Calendar-window trailing level (day/week/month periods, not bar
+        // count). fromSource maps every OHLC field to the resolved source
+        // array, so computePriceLevel can read any of them.
+        priceLevel: (unit = 'week', length = 52, src, aggregation = 'max') =>
+            align(computePriceLevel(fromSource(src), { unit, length, source: 'close', aggregation })),
         supertrend: (atrLength = 10, factor = 3) => {
             const res = computeSuperTrend(data, { atrLength, factor });
             const up = new Array(data.length).fill(null);
@@ -178,5 +185,10 @@ export function buildTa(data, barsBySymbol = {}) {
         // Multi-symbol weighted index, aligned to the chart's bar times.
         marketIndex: (constituents, baseValue = 100) =>
             align(computeMarketIndex(barsBySymbol, constituents, baseValue)),
+
+        // Foreign symbol rebased to the chart's first bar (benchmark compare).
+        // As-of alignment keeps daily indexes continuous on intraday charts.
+        benchmark: (symbol, baseValue = 100) =>
+            computeBenchmarkLine(barsBySymbol[symbol], times, maxDistance, baseValue),
     };
 }

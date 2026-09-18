@@ -140,17 +140,24 @@ export function useChartData(symbol, provider, interval) {
     return { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange };
 }
 
+const MULTI_SYMBOL_TYPES = ['smi', 'benchmark'];
+
+// Symbols whose history pane indicators need beyond the chart's own data:
+// SMI constituents and benchmark indexes. Keyed into one fetch pass.
+const multiSymbolKey = (indicators) => indicators
+    .filter(i => i.visible && MULTI_SYMBOL_TYPES.includes(i.type))
+    .flatMap(i => (i.type === 'smi' ? i.constituents : i.indexes) || [])
+    .filter(e => e.enabled !== false && e.symbol)
+    .map(e => e.symbol)
+    .join(',');
+
 export function useMarketIndexData(indicators, interval) {
-    const smiActive = indicators.some(i => i.type === 'smi' && i.visible);
-    const symbolsKey = (indicators.find(i => i.type === 'smi' && i.visible)?.constituents || [])
-        .filter(c => c.enabled !== false)
-        .map(c => c.symbol)
-        .join(',');
+    const symbolsKey = multiSymbolKey(indicators);
     const [barsBySymbol, setBarsBySymbol] = useState({});
     const [invalidSymbols, setInvalidSymbols] = useState([]);
 
     useEffect(() => {
-        if (!smiActive || !symbolsKey) return;
+        if (!symbolsKey) return;
         let cancelled = false;
         const timer = setTimeout(() => {
             if (cancelled) return;
@@ -159,7 +166,7 @@ export function useMarketIndexData(indicators, interval) {
             Promise.all(symbolsKey.split(',').filter(Boolean).map(sym =>
                 axios.get('/api/history/', { params: { symbol: sym, interval, range: 'max' } })
                     .then(response => [sym, mergeBars(response.data || [])])
-                    .catch(err => { console.warn('SMI fetch failed for ' + sym, err); return [sym, []]; })
+                    .catch(err => { console.warn('Extra-symbol fetch failed for ' + sym, err); return [sym, []]; })
             )).then(entries => {
                 if (cancelled) return;
                 setBarsBySymbol(Object.fromEntries(entries));
@@ -167,12 +174,11 @@ export function useMarketIndexData(indicators, interval) {
             });
         }, 300);
         return () => { cancelled = true; clearTimeout(timer); };
-    }, [symbolsKey, interval, smiActive]);
+    }, [symbolsKey, interval]);
 
-    const active = smiActive && symbolsKey;
     return {
-        data: active ? barsBySymbol : {},
-        invalidSymbols: active ? invalidSymbols : [],
+        data: symbolsKey ? barsBySymbol : {},
+        invalidSymbols: symbolsKey ? invalidSymbols : [],
     };
 }
 

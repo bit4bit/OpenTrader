@@ -13,6 +13,7 @@ from unittest import mock
 from django.test import TestCase
 
 from market.providers import registry
+from market.providers import index_membership
 from market.providers.kraken import KrakenMarketProvider
 from market.providers.yahoo import YahooMarketProvider
 
@@ -391,3 +392,80 @@ class SymbolsApiBehavior(ProviderScenarioTestCase):
     def test_symbols_endpoint_for_unknown_provider_errors(self):
         response = self.client.get('/api/symbols/', {'provider': 'bogus'})
         self.assertEqual(response.status_code, 500)
+
+class IndexMembershipBehavior(TestCase):
+    """Constituents HTTP stubbed; inversion, caching and the API endpoint real."""
+
+    CSV = {
+        'constituents-sp500.csv': 'Symbol,Name\nAAPL,Apple\nBRK.B,Berkshire\nMSFT,Microsoft\n',
+        'constituents-nasdaq100.csv': 'Symbol,Name\nAAPL,Apple\nMSFT,Microsoft\n',
+        'constituents-dowjones.csv': 'Symbol,Name\nMSFT,Microsoft\n',
+    }
+
+    def setUp(self):
+        self._orig_cache_path = index_membership.CACHE_PATH
+        index_membership.CACHE_PATH = self._orig_cache_path.parent / f'index-membership-test-{self.id()}.json'
+        self._reset()
+
+    def tearDown(self):
+        self._reset()
+        index_membership.CACHE_PATH.unlink(missing_ok=True)
+        index_membership.CACHE_PATH = self._orig_cache_path
+
+    def _reset(self):
+        index_membership._cache.update({'fetched_at': None, 'map': None})
+
+    def github_http(self):
+        def fake_get(url, timeout=None, headers=None):
+            name = url.rsplit('/', 1)[-1]
+            response = mock.Mock()
+            response.text = self.CSV.get(name, 'Symbol,Name\n')
+            response.raise_for_status = lambda: None
+            return response
+        return mock.patch('market.providers.index_membership.requests.get', side_effect=fake_get)
+
+    def test_memberships_are_inverted_and_normalized(self):
+        with self.github_http():
+            result = index_membership.memberships_for('aapl')
+        self.assertEqual(result, [
+            {'code': 'sp500', 'name': 'S&P 500', 'yahoo': '^GSPC'},
+            {'code': 'nasdaq100', 'name': 'NASDAQ 100', 'yahoo': '^NDX'},
+        ])
+
+    def test_dot_symbols_match_dashed_yahoo_symbols(self):
+        with self.github_http():
+            self.assertEqual([i['code'] for i in index_membership.memberships_for('BRK-B')], ['sp500'])
+            self.assertEqual([i['code'] for i in index_membership.memberships_for('MSFT')],
+                             ['sp500', 'nasdaq100', 'dowjones'])
+
+    def test_unknown_symbol_returns_empty(self):
+        with self.github_http():
+            self.assertEqual(index_membership.memberships_for('NOPE'), [])
+
+    def test_map_is_cached_on_disk_and_not_refetched(self):
+        with self.github_http() as api:
+            index_membership.memberships_for('AAPL')
+            self._reset()
+            index_membership.memberships_for('AAPL')
+        self.assertEqual(api.call_count, len(index_membership.GitHubIndexConstituentsProvider.INDEXES))
+        self.assertTrue(index_membership.CACHE_PATH.exists())
+
+    def test_fetch_failure_serves_stale_cache(self):
+        with self.github_http():
+            fresh = index_membership.memberships_for('AAPL')
+        self._reset()
+        with mock.patch('market.providers.index_membership.requests.get', side_effect=RuntimeError('down')):
+            self.assertEqual(index_membership.memberships_for('AAPL'), fresh)
+
+    def test_endpoint_returns_memberships(self):
+        with self.github_http():
+            response = self.client.get('/api/index-membership/', {'symbol': 'AAPL'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'symbol': 'AAPL', 'indexes': [
+            {'code': 'sp500', 'name': 'S&P 500', 'yahoo': '^GSPC'},
+            {'code': 'nasdaq100', 'name': 'NASDAQ 100', 'yahoo': '^NDX'},
+        ]})
+
+    def test_endpoint_requires_symbol(self):
+        response = self.client.get('/api/index-membership/')
+        self.assertEqual(response.status_code, 400)

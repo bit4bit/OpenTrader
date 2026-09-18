@@ -145,6 +145,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         {showIndicatorSearch && (
           <IndicatorSearch
             indicators={activeChart?.indicators || []}
+            chartSymbol={activeChart?.symbol?.symbol || ''}
             onAddIndicator={addIndicator}
             onUpdateIndicator={(id, updates) => patchActiveIndicators(list => updateIndicatorIn(list, id, updates))}
             onRemoveIndicator={(id) => patchActiveIndicators(list => removeIndicatorIn(list, id))}
@@ -192,7 +193,7 @@ function App() {
     moveSession,
     setActiveFolder,
     loaded,
-  } = useSessions(!!token);
+  } = useSessions(!!token, logout);
 
   const [showWelcome, setShowWelcome] = useState(() => {
     const visited = localStorage.getItem(FIRST_VISIT_KEY);
