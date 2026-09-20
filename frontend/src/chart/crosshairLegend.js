@@ -1,8 +1,8 @@
 // Build the crosshair legend payload: the price bar plus one entry per
 // indicator plot, in plot declaration order. `readSeriesValue` abstracts the
 // library's param.seriesData.get(series) lookup.
-export function buildLegendResults(priceBar, genericSeries, readSeriesValue, volumeChange = null) {
-    const results = { price: priceBar ?? null, generic: {}, volumeChange };
+export function buildLegendResults(priceBar, genericSeries, readSeriesValue, volumeChange = null, volumeSplit = null, volumeSplitTotal = null) {
+    const results = { price: priceBar ?? null, generic: {}, volumeChange, volumeSplit, volumeSplitTotal };
     Object.entries(genericSeries).forEach(([id, seriesArr]) => {
         results.generic[id] = seriesArr.map(entry => ({
             title: entry.title,

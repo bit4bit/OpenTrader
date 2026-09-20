@@ -117,23 +117,56 @@ const ChartPanel = ({
                     <div key={type} className="chart-legend-indicators" style={{ top: paneLegendTop(type) }}>
                         {indicators.filter(i => scriptPaneType(i.type) === type && i.visible).map(ind =>
                             (hoveredData?.generic?.[ind.id] ?? []).map((p, pi) => {
-                                const volumeChange = ind.type === 'volume' && pi === 0 ? hoveredData?.volumeChange : null;
+                                const isVolume = ind.type === 'volume' && pi === 0;
+                                const volumeChange = isVolume ? hoveredData?.volumeChange : null;
+                                const volumeSplit = isVolume ? hoveredData?.volumeSplit : null;
+                                const splitTotal = isVolume ? hoveredData?.volumeSplitTotal : null;
                                 return (
-                                    <div key={`${ind.id}-${pi}`} className="legend-item">
-                                        <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>
-                                        <span className="legend-label">{p.title}</span>
-                                        <span className="legend-value" style={{ color: p.color }}>
-                                            {p.value != null ? formatLegendValue(p.value, ind.type) : ''}
-                                        </span>
-                                        {volumeChange && p.value != null && (
-                                            <span
-                                                className="legend-volume-change"
-                                                style={{ color: volumeChange.delta >= 0 ? '#26a69a' : '#ef5350' }}
-                                            >
-                                                {formatVolumeChange(volumeChange)}
+                                    <React.Fragment key={`${ind.id}-${pi}`}>
+                                        <div className="legend-item">
+                                            <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>
+                                            <span className="legend-label">{p.title}</span>
+                                            <span className="legend-value" style={{ color: p.color }}>
+                                                {p.value != null ? formatLegendValue(p.value, ind.type) : ''}
                                             </span>
+                                            {volumeChange && p.value != null && (
+                                                <span
+                                                    className="legend-volume-change"
+                                                    style={{ color: volumeChange.delta >= 0 ? '#26a69a' : '#ef5350' }}
+                                                >
+                                                    {formatVolumeChange(volumeChange)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {volumeSplit && p.value != null && (
+                                            <div className="legend-item">
+                                                <span className="legend-label">
+                                                    Buy {formatVolumeValue(volumeSplit.bought)}
+                                                    {' · '}Sell {formatVolumeValue(volumeSplit.sold)}
+                                                </span>
+                                                <span
+                                                    className="legend-volume-change"
+                                                    style={{ color: volumeSplit.percent >= 0 ? '#26a69a' : '#ef5350' }}
+                                                >
+                                                    Δ {formatPercent(volumeSplit.percent)}
+                                                </span>
+                                            </div>
                                         )}
-                                    </div>
+                                        {splitTotal && p.value != null && (
+                                            <div className="legend-item">
+                                                <span className="legend-label">
+                                                    Total Buy {formatVolumeValue(splitTotal.bought)}
+                                                    {' · '}Sell {formatVolumeValue(splitTotal.sold)}
+                                                </span>
+                                                <span
+                                                    className="legend-volume-change"
+                                                    style={{ color: splitTotal.percent >= 0 ? '#26a69a' : '#ef5350' }}
+                                                >
+                                                    Δ {formatPercent(splitTotal.percent)}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </React.Fragment>
                                 );
                             })
                         )}

@@ -23,12 +23,20 @@ describe('buildLegendResults', () => {
 
     it('tolerates a missing price bar', () => {
         const results = buildLegendResults(undefined, {}, () => undefined);
-        expect(results).toEqual({ price: null, generic: {}, volumeChange: null });
+        expect(results).toEqual({ price: null, generic: {}, volumeChange: null, volumeSplit: null, volumeSplitTotal: null });
     });
 
     it('carries the volume change through the payload', () => {
         const change = { delta: 1500, percent: 12.5 };
         const results = buildLegendResults({ close: 100 }, {}, () => undefined, change);
         expect(results.volumeChange).toEqual(change);
+    });
+
+    it('carries the volume split and split total through the payload', () => {
+        const split = { bought: 800, sold: 450, percent: 28 };
+        const total = { bought: 9000, sold: 7000, percent: 12.5 };
+        const results = buildLegendResults({ close: 100 }, {}, () => undefined, null, split, total);
+        expect(results.volumeSplit).toEqual(split);
+        expect(results.volumeSplitTotal).toEqual(total);
     });
 });
