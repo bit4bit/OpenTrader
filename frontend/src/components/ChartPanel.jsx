@@ -18,6 +18,8 @@ const formatLegendValue = (val, type) =>
     type === 'ad' ? formatADLValue(val)
         : (type === 'volume' || type === 'vol_sma') ? formatVolumeValue(val)
             : val.toFixed(2);
+const formatVolumeChange = ({ delta, percent }) =>
+    `${formatPercent(percent)} ${delta >= 0 ? '+' : '−'}${formatVolumeValue(Math.abs(delta))}`;
 
 const ChartPanel = ({
     chart,
@@ -114,15 +116,26 @@ const ChartPanel = ({
                 {activePaneTypes.filter(t => !t.startsWith('custom-')).map(type => (
                     <div key={type} className="chart-legend-indicators" style={{ top: paneLegendTop(type) }}>
                         {indicators.filter(i => scriptPaneType(i.type) === type && i.visible).map(ind =>
-                            (hoveredData?.generic?.[ind.id] ?? []).map((p, pi) => (
-                                <div key={`${ind.id}-${pi}`} className="legend-item">
-                                    <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>
-                                    <span className="legend-label">{p.title}</span>
-                                    <span className="legend-value" style={{ color: p.color }}>
-                                        {p.value != null ? formatLegendValue(p.value, ind.type) : ''}
-                                    </span>
-                                </div>
-                            ))
+                            (hoveredData?.generic?.[ind.id] ?? []).map((p, pi) => {
+                                const volumeChange = ind.type === 'volume' && pi === 0 ? hoveredData?.volumeChange : null;
+                                return (
+                                    <div key={`${ind.id}-${pi}`} className="legend-item">
+                                        <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>
+                                        <span className="legend-label">{p.title}</span>
+                                        <span className="legend-value" style={{ color: p.color }}>
+                                            {p.value != null ? formatLegendValue(p.value, ind.type) : ''}
+                                        </span>
+                                        {volumeChange && p.value != null && (
+                                            <span
+                                                className="legend-volume-change"
+                                                style={{ color: volumeChange.delta >= 0 ? '#26a69a' : '#ef5350' }}
+                                            >
+                                                {formatVolumeChange(volumeChange)}
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })
                         )}
                     </div>
                 ))}

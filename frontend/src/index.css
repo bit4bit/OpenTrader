@@ -209,6 +209,11 @@ body {
   font-weight: 600;
 }
 
+.legend-volume-change {
+  font-weight: 600;
+  opacity: 0.85;
+}
+
 .chart-loader {
   position: absolute;
   z-index: 50;

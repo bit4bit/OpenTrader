@@ -8,6 +8,7 @@ import { findNearestBar } from '../chart/barSearch';
 import { isDrawingTool, buildPreviewDrawing } from '../chart/drawingTools';
 import { applyDrawingClick, edgeRange } from '../chart/drawingInteraction';
 import { buildLegendResults } from '../chart/crosshairLegend';
+import { volumeChangeAt } from '../chart/volumeChange';
 import {
     computeActivePaneTypes,
     paneIndexOf as paneIndexOfType,
@@ -190,7 +191,8 @@ const Chart = ({
                     const results = buildLegendResults(
                         evt.priceBar,
                         genericSeriesRef.current,
-                        series => evt.seriesValues.get(series)
+                        series => evt.seriesValues.get(series),
+                        volumeChangeAt(dataRef.current, evt.time)
                     );
 
                     onCrosshairMoveRef.current(results);

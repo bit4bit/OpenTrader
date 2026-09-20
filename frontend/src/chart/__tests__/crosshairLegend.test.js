@@ -23,6 +23,12 @@ describe('buildLegendResults', () => {
 
     it('tolerates a missing price bar', () => {
         const results = buildLegendResults(undefined, {}, () => undefined);
-        expect(results).toEqual({ price: null, generic: {} });
+        expect(results).toEqual({ price: null, generic: {}, volumeChange: null });
+    });
+
+    it('carries the volume change through the payload', () => {
+        const change = { delta: 1500, percent: 12.5 };
+        const results = buildLegendResults({ close: 100 }, {}, () => undefined, change);
+        expect(results.volumeChange).toEqual(change);
     });
 });
