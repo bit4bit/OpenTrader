@@ -71,6 +71,73 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
     let redrawCallback = null;
     const handles = []; // engine series handles, for crosshair value lookups
 
+    // Reference bar times at each edge of the data. The library's
+    // coordinateToTime/timeToCoordinate return null outside the data range;
+    // these refs let us extrapolate into the whitespace beyond the
+    // first/last bar so drawings can extend into the future.
+    const EDGE_REF_COUNT = 6;
+    let edgeTimes = { first: [], last: [] };
+
+    // Regular bar step from a sorted reference list: the smallest gap
+    // between consecutive bars (weekend/holiday gaps are wider).
+    const barStep = (refs) => {
+        let step = Infinity;
+        for (let i = 1; i < refs.length; i++) step = Math.min(step, refs[i] - refs[i - 1]);
+        return Number.isFinite(step) ? step : null;
+    };
+
+    const extrapolateTime = (x) => {
+        const direct = chart.timeScale().coordinateToTime(x);
+        if (direct != null) return direct;
+        const { first, last } = edgeTimes;
+        const tLast = last[last.length - 1];
+        const xLast = tLast !== undefined ? chart.timeScale().timeToCoordinate(tLast) : null;
+        if (xLast !== null && x >= xLast && last.length >= 2) {
+            const step = barStep(last);
+            const xPrev = chart.timeScale().timeToCoordinate(last[last.length - 2]);
+            if (step !== null && xPrev !== null && xPrev !== xLast) {
+                const bars = Math.round((x - xLast) / (xLast - xPrev));
+                if (bars > 0) return tLast + bars * step;
+            }
+        }
+        const tFirst = first[0];
+        const xFirst = tFirst !== undefined ? chart.timeScale().timeToCoordinate(tFirst) : null;
+        if (xFirst !== null && x <= xFirst && first.length >= 2) {
+            const step = barStep(first);
+            const xNext = chart.timeScale().timeToCoordinate(first[1]);
+            if (step !== null && xNext !== null && xNext !== xFirst) {
+                const bars = Math.round((xFirst - x) / (xNext - xFirst));
+                if (bars > 0) return tFirst - bars * step;
+            }
+        }
+        return null;
+    };
+
+    const extrapolateCoordinate = (time) => {
+        const direct = chart.timeScale().timeToCoordinate(time);
+        if (direct != null) return direct;
+        const { first, last } = edgeTimes;
+        const tLast = last[last.length - 1];
+        const xLast = tLast !== undefined ? chart.timeScale().timeToCoordinate(tLast) : null;
+        if (xLast !== null && time > tLast && last.length >= 2) {
+            const step = barStep(last);
+            const xPrev = chart.timeScale().timeToCoordinate(last[last.length - 2]);
+            if (step !== null && xPrev !== null && xPrev !== xLast) {
+                return xLast + ((time - tLast) / step) * (xLast - xPrev);
+            }
+        }
+        const tFirst = first[0];
+        const xFirst = tFirst !== undefined ? chart.timeScale().timeToCoordinate(tFirst) : null;
+        if (xFirst !== null && time < tFirst && first.length >= 2) {
+            const step = barStep(first);
+            const xNext = chart.timeScale().timeToCoordinate(first[1]);
+            if (step !== null && xNext !== null && xNext !== xFirst) {
+                return xFirst - ((tFirst - time) / step) * (xNext - xFirst);
+            }
+        }
+        return null;
+    };
+
     const attachRedraw = () => {
         if (priceSeries && redrawCallback) {
             priceSeries.attachPrimitive(new RedrawPrimitive(redrawCallback));
@@ -93,9 +160,9 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
         },
 
         size: () => ({ width: container.clientWidth, height: container.clientHeight }),
-        timeToX: (time) => chart.timeScale().timeToCoordinate(time),
+        timeToX: (time) => extrapolateCoordinate(time),
         priceToY: (price) => (priceSeries ? priceSeries.priceToCoordinate(price) : null),
-        xToTime: (px) => chart.timeScale().coordinateToTime(px),
+        xToTime: (px) => extrapolateTime(px),
         yToPrice: (py) => (priceSeries ? priceSeries.coordinateToPrice(py) : null),
 
         getVisibleRange: () => chart.timeScale().getVisibleLogicalRange(),
@@ -118,6 +185,10 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
                 attachRedraw();
             }
             priceSeries.setData(rows);
+            edgeTimes = {
+                first: rows.slice(0, EDGE_REF_COUNT).map(r => r.time),
+                last: rows.slice(-EDGE_REF_COUNT).map(r => r.time),
+            };
         },
 
         applyPriceScaleMargins: (margins) =>
@@ -160,7 +231,14 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
 
         onCrosshairMove(cb) {
             const handler = (param) => {
-                if (!param.time || !priceSeries || param.point === undefined) {
+                if (!param.point || !priceSeries) {
+                    cb(null);
+                    return;
+                }
+                // Beyond the last bar param.time is null: extrapolate so the
+                // crosshair (and drawing previews) work in the right whitespace.
+                const time = param.time ?? extrapolateTime(param.point.x);
+                if (time == null) {
                     cb(null);
                     return;
                 }
@@ -171,7 +249,7 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
                     if (value !== undefined) seriesValues.set(h, value);
                 });
                 cb({
-                    time: param.time,
+                    time,
                     point: param.point,
                     price: priceSeries.coordinateToPrice(param.point.y),
                     priceBar: param.seriesData.get(priceSeries),
@@ -184,11 +262,16 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
 
         onClick(cb) {
             const handler = (param) => {
-                if (!param.point || !priceSeries || param.time === undefined || param.time === null) {
+                if (!param.point || !priceSeries) {
                     cb(null);
                     return;
                 }
-                cb({ time: param.time, price: priceSeries.coordinateToPrice(param.point.y) });
+                const time = param.time ?? extrapolateTime(param.point.x);
+                if (time == null) {
+                    cb(null);
+                    return;
+                }
+                cb({ time, price: priceSeries.coordinateToPrice(param.point.y) });
             };
             chart.subscribeClick(handler);
             return () => chart.unsubscribeClick(handler);

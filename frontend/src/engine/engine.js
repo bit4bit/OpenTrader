@@ -15,7 +15,9 @@
 //   Lifecycle
 //     dispose()
 //
-//   Size / coordinate conversion (null when unconvertible)
+//   Size / coordinate conversion (null when unconvertible). Converters
+//   extrapolate past the data edges so drawings can extend into the
+//   whitespace beyond the first/last bar.
 //     size() -> { width, height }
 //     timeToX(time) -> px | null
 //     priceToY(price) -> px | null
