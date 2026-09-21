@@ -7,6 +7,7 @@ const TopBar = ({
     symbolProvider,
     interval, setInterval,
     chartType, setChartType,
+    showWeekendCandles = false, onToggleWeekendCandles,
     hasActiveChart,
     openIndicatorSearch,
     openCustomIndicators,
@@ -128,6 +129,15 @@ const TopBar = ({
                         </button>
                     ))}
                 </div>
+                <button
+                    className={`toolbar-btn ${showWeekendCandles ? 'active' : ''}`}
+                    onClick={onToggleWeekendCandles}
+                    disabled={!hasActiveChart}
+                    title="Show placeholder candles for weekends and holidays (daily intervals)"
+                >
+                    <span style={{ fontSize: '14px', marginRight: '4px' }}>📅</span>
+                    Weekends
+                </button>
             </div>
 
             <div className="top-bar-divider" />

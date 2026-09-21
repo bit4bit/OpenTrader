@@ -33,7 +33,7 @@ const ChartPanel = ({
     onUpdate,
     scriptsById,
 }) => {
-    const { symbol: chartSymbol, interval, chartType, indicators, drawings } = chart;
+    const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles } = chart;
     const symbol = chartSymbol?.symbol || '';
     const provider = chartSymbol?.provider || null;
     const { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange } = useChartData(symbol, provider, interval);
@@ -221,6 +221,7 @@ const ChartPanel = ({
                         syncEnabled={locked}
                         data={data}
                         chartType={chartType}
+                        showWeekendCandles={showWeekendCandles}
                         symbol={symbol}
                         provider={provider}
                         interval={interval}

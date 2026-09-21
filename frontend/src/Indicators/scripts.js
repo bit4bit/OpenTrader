@@ -44,8 +44,9 @@ const SCRIPTS = {
         fields: [
             { key: 'upColor', label: 'Up Color', type: 'color', default: '#26a69a' },
             { key: 'downColor', label: 'Down Color', type: 'color', default: '#ef5350' },
+            { key: 'latestColor', label: 'Latest Bar Color', type: 'color', default: '#f2c14e' },
         ],
-        body: "plot(volume.map(v => v ?? 0), { title: 'Volume', color: upColor, style: 'histogram', overlay: false, colors: close.map((c, i) => c >= open[i] ? upColor : downColor), lastValueVisible: false })",
+        body: "plot(volume.map(v => v ?? 0), { title: 'Volume', color: upColor, style: 'histogram', overlay: false, colors: close.map((c, i) => i === close.length - 1 ? latestColor : (c >= open[i] ? upColor : downColor)), lastValueVisible: false })",
     },
     vol_sma: {
         title: 'Volume SMA',

@@ -179,13 +179,16 @@ describe('script equivalence', () => {
     });
 
     it('volume', () => {
-        const result = run('volume', { upColor: '#0f0', downColor: '#f00' });
+        const result = run('volume', { upColor: '#0f0', downColor: '#f00', latestColor: '#ff0' });
         const plot = plotOf(result, 'Volume');
         expect(result.plots[0].style).toBe('histogram');
         expect(plot).toHaveLength(DATA.length);
         plot.forEach((bar, i) => {
             expect(bar.value).toBe(DATA[i].volume ?? 0);
-            expect(bar.color).toBe(DATA[i].close >= DATA[i].open ? '#0f0' : '#f00');
+            const expectedColor = i === DATA.length - 1
+                ? '#ff0'
+                : (DATA[i].close >= DATA[i].open ? '#0f0' : '#f00');
+            expect(bar.color).toBe(expectedColor);
         });
     });
 

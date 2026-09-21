@@ -88,9 +88,11 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         symbolProvider={activeChart?.symbol?.provider || null}
         interval={activeChart?.interval || '1d'}
         chartType={activeChart?.chartType || 'candle'}
+        showWeekendCandles={activeChart?.showWeekendCandles ?? false}
         hasActiveChart={!!activeChart}
         setInterval={(interval) => activeChart && updateChart(activeChart.id, { interval })}
         setChartType={(chartType) => activeChart && updateChart(activeChart.id, { chartType })}
+        onToggleWeekendCandles={() => activeChart && updateChart(activeChart.id, { showWeekendCandles: !activeChart.showWeekendCandles })}
         openIndicatorSearch={() => activeChart && setShowIndicatorSearch(true)}
         openCustomIndicators={() => setShowCustomIndicators(true)}
         openSymbolSearch={() => setSymbolSearchMode('change')}

@@ -4,6 +4,8 @@ import { formatADLValue } from '../Indicators/adl';
 import { registerChart, broadcastRange, broadcastCrosshair, isApplyingSync } from '../sync/chartSync';
 import { formatCrosshairTime, crosshairLineColor } from '../chart/timeFormat';
 import { priceSeriesData } from '../chart/heikinAshi';
+import { fillGapRows } from '../chart/gapFill';
+import { buildWeekendShapes } from '../chart/weekendShapes';
 import { findNearestBar } from '../chart/barSearch';
 import { isDrawingTool, buildPreviewDrawing } from '../chart/drawingTools';
 import { applyDrawingClick, edgeRange } from '../chart/drawingInteraction';
@@ -30,6 +32,7 @@ import { LAYERS, SVG_LAYER_NAMES } from '../render/layers';
 const Chart = ({
     data,
     chartType,
+    showWeekendCandles = false,
     symbol,
     provider = null,
     interval,
@@ -116,6 +119,13 @@ const Chart = ({
             data: dataRef.current,
         };
     };
+
+    // Price rows actually displayed: gap-filled when the weekend toggle is
+    // on (indicators below still run on the raw data).
+    const displayPriceRows = React.useMemo(() => {
+        const rows = priceSeriesData(data, chartType);
+        return showWeekendCandles ? fillGapRows(rows, interval) : rows;
+    }, [data, chartType, showWeekendCandles, interval]);
 
     // Renderer entity for a named overlay layer (see render/layers.js).
     // Each renderer owns its surface: every draw clears the layer first.
@@ -282,6 +292,16 @@ const Chart = ({
         return offClick;
     }, [activeTool, setDrawings, setActiveTool]);
 
+    // Weekend/holiday placeholder candles (gray overlay; the chart library
+    // cannot color candlesticks per bar).
+    useEffect(() => {
+        if (!engineReady) return;
+        const shapes = showWeekendCandles
+            ? buildWeekendShapes(displayPriceRows, interval, geometryCtx())
+            : [];
+        layerRenderer('weekends')?.drawShapes(shapes);
+    }, [engineReady, displayPriceRows, showWeekendCandles, interval, chartTick]);
+
     // Script indicator fills (BB band shade, Ichimoku cloud, ...).
     useEffect(() => {
         if (!engineReady) return;
@@ -360,7 +380,7 @@ const Chart = ({
         const paneIndexOf = (type) => paneIndexOfType(activePaneTypes, type);
 
         engine.applyPriceScaleMargins({ top: 0.02, bottom: 0.02 });
-        engine.setPriceSeries(chartType, priceSeriesData(data, chartType));
+        engine.setPriceSeries(chartType, displayPriceRows);
 
         // Indicator Management
         // A tracked series is renderable only while its indicator is visible
@@ -462,7 +482,7 @@ const Chart = ({
             }
             pendingScrollRef.current = null;
         }
-    }, [data, chartType, indicators, symbol, interval, indicatorResults, engineReady]);
+    }, [data, chartType, displayPriceRows, indicators, symbol, interval, indicatorResults, engineReady]);
 
     const updateNoteRef = useRef(updateNote);
     useEffect(() => { updateNoteRef.current = updateNote; }, [updateNote]);

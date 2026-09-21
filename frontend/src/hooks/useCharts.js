@@ -10,6 +10,7 @@ const createChartConfig = (symbol, interval = '1d') => ({
     symbol: normalizeSymbol(symbol),
     interval,
     chartType: 'candle',
+    showWeekendCandles: false,
     indicators: [createIndicator('volume')],
     drawings: [],
     minimizedPanels: [],
