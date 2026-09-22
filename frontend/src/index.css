@@ -47,6 +47,9 @@ body {
   white-space: nowrap;
   margin-right: 16px;
   letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .top-bar-section {
@@ -660,6 +663,12 @@ div[class*="tradingview"] {
   background: var(--text-dim);
 }
 
+/* Top Bar collapsed: slim strip with only the show toggle */
+.top-bar-collapsed {
+  height: 32px;
+  padding: 0 8px;
+}
+
 /* Drawing Toolbar */
 .drawing-toolbar {
   position: absolute;
@@ -676,6 +685,28 @@ div[class*="tradingview"] {
   gap: 4px;
   z-index: 100;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.drawing-toolbar-show-btn {
+  position: absolute;
+  top: 60px;
+  left: 8px;
+  z-index: 100;
+  width: 42px;
+  height: 42px;
+  background-color: rgba(30, 34, 45, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.drawing-toolbar-show-btn:hover {
+  color: #fff;
+  border-color: var(--text-dim);
 }
 
 .drawing-tool-btn {

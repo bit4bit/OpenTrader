@@ -39,6 +39,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
   const [symbolSearchMode, setSymbolSearchMode] = useState(null);
   const [activeTool, setActiveTool] = useState('cursor');
   const [magnetEnabled, setMagnetEnabled] = useState(true);
+  const [toolbarVisible, setToolbarVisible] = useState(true);
+  const [drawingToolbarVisible, setDrawingToolbarVisible] = useState(true);
 
   const activeChart = charts.find(c => c.id === activeChartId) || null;
 
@@ -83,7 +85,9 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
 
   return (
     <>
+      {toolbarVisible ? (
       <TopBar
+        onToggleToolbar={() => setToolbarVisible(false)}
         symbol={activeChart?.symbol?.symbol || ''}
         symbolProvider={activeChart?.symbol?.provider || null}
         interval={activeChart?.interval || '1d'}
@@ -107,14 +111,35 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         }}
         {...sessionProps}
       />
+      ) : (
+      <div className="top-bar top-bar-collapsed">
+        <button
+          className="toolbar-btn"
+          onClick={() => setToolbarVisible(true)}
+          title="Show toolbar"
+        >
+          <span style={{ fontSize: '14px' }}>🞃</span> Open Trader
+        </button>
+      </div>
+      )}
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        {activeChart && (
+        {activeChart && drawingToolbarVisible && (
           <DrawingToolbar
             activeTool={activeTool}
             onSelectTool={handleSelectTool}
             magnetEnabled={magnetEnabled}
             onToggleMagnet={() => setMagnetEnabled(m => !m)}
+            onHide={() => setDrawingToolbarVisible(false)}
           />
+        )}
+        {activeChart && !drawingToolbarVisible && (
+          <button
+            className="drawing-toolbar-show-btn"
+            onClick={() => setDrawingToolbarVisible(true)}
+            title="Show drawing tools"
+          >
+            ✏️
+          </button>
         )}
 
         <ChartGrid

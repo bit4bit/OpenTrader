@@ -17,6 +17,7 @@ const TopBar = ({
     gridLayout, onSetGridLayout,
     onAddChart,
     onCloseAll,
+    onToggleToolbar,
     sessions = [],
     folders = [],
     activeSession,
@@ -53,7 +54,14 @@ const TopBar = ({
     return (
         <div className="top-bar">
             <div className="top-bar-brand">
-                Open Trader
+                <button
+                    className="toolbar-btn"
+                    onClick={onToggleToolbar}
+                    title="Hide toolbar"
+                >
+                    <span style={{ fontSize: '14px' }}>🞁</span>
+                </button>
+                <span>Open Trader</span>
             </div>
 
             <div className="top-bar-divider" />
