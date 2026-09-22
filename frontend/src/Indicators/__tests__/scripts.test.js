@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { runScript } from '../dsl/runtime';
 import { scriptCode, scriptValues } from '../scripts';
 import { computeSMA } from '../sma';
+import { computeEMA } from '../ema';
 import { computeRSI } from '../rsi';
 import { computeMACD } from '../macd';
 import { computeBollingerBands } from '../bollinger';
@@ -54,6 +55,15 @@ describe('script equivalence', () => {
         expectSameBars(plotOf(run('sma', hlc3), 'SMA'), computeSMA(DATA, 7, 'hlc3'));
         const vol = { length: 10, source: 'volume' };
         expectSameBars(plotOf(run('sma', vol), 'SMA'), computeSMA(DATA, 10, 'volume'));
+    });
+
+    it('ema', () => {
+        const config = { length: 21, source: 'close', color: '#123456' };
+        expectSameBars(plotOf(run('ema', config), 'EMA'), computeEMA(DATA, 21, 'close'));
+        const hlc3 = { length: 7, source: 'hlc3' };
+        expectSameBars(plotOf(run('ema', hlc3), 'EMA'), computeEMA(DATA, 7, 'hlc3'));
+        const vol = { length: 10, source: 'volume' };
+        expectSameBars(plotOf(run('ema', vol), 'EMA'), computeEMA(DATA, 10, 'volume'));
     });
 
     it('rsi', () => {
@@ -179,15 +189,13 @@ describe('script equivalence', () => {
     });
 
     it('volume', () => {
-        const result = run('volume', { upColor: '#0f0', downColor: '#f00', latestColor: '#ff0' });
+        const result = run('volume', { upColor: '#0f0', downColor: '#f00' });
         const plot = plotOf(result, 'Volume');
         expect(result.plots[0].style).toBe('histogram');
         expect(plot).toHaveLength(DATA.length);
         plot.forEach((bar, i) => {
             expect(bar.value).toBe(DATA[i].volume ?? 0);
-            const expectedColor = i === DATA.length - 1
-                ? '#ff0'
-                : (DATA[i].close >= DATA[i].open ? '#0f0' : '#f00');
+            const expectedColor = DATA[i].close >= DATA[i].open ? '#0f0' : '#f00';
             expect(bar.color).toBe(expectedColor);
         });
     });

@@ -44,7 +44,7 @@ function isValid(val) {
  * @param {Array} data - Full OHLCV array
  * @param {number} length - SMA length (for volume_ma)
  */
-function getSourceValue(d, source, index, data, length) {
+export function getSourceValue(d, source, index, data, length) {
     if (!d) return null;
 
     switch (source) {

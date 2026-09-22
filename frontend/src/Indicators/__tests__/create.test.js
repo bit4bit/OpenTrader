@@ -10,7 +10,7 @@ describe('indicator creation', () => {
     it('sma seeds the standard length set, first three visible', () => {
         const created = addIndicators([], 'sma');
         expect(created).toHaveLength(10);
-        expect(created.map(i => i.length)).toEqual([5, 10, 20, 50, 100, 200, 7, 14, 30, 150]);
+        expect(created.map(i => i.length)).toEqual([50, 150, 200, 5, 10, 20, 100, 7, 14, 30]);
         expect(created.map(i => i.visible)).toEqual([true, true, true, ...new Array(7).fill(false)]);
         expect(created.map(i => i.source).every(s => s === 'close')).toBe(true);
         expect(created[0].id).toBe('sma-0');

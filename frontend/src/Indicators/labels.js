@@ -4,6 +4,7 @@ export function indicatorLabel(groupType, ind, idx) {
     switch (groupType) {
         case 'custom': return ind.name || 'Custom Script';
         case 'sma': return `SMA ${idx + 1}`;
+        case 'ema': return `EMA ${idx + 1}`;
         case 'rsi': return `RSI (${ind.length})`;
         case 'macd': return 'Normalized MACD';
         case 'volume_profile': return `Volume Profile (${ind.priceBins})`;
@@ -20,6 +21,7 @@ export function indicatorLabel(groupType, ind, idx) {
         case 'price_level': return `Price Level (${ind.length} ${ind.unit})`;
         case 'volume': return 'Volume';
         case 'vol_sma': return `Vol SMA (${ind.length})`;
+        case 'vol_ema': return `Vol EMA (${ind.length})`;
         default: return 'Indicator';
     }
 }

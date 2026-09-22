@@ -27,7 +27,7 @@ const SCRIPTS = {
         ],
         // TradingView-style: adding SMA seeds the chart with a set of
         // standard lengths, the first three visible.
-        create: () => [5, 10, 20, 50, 100, 200, 7, 14, 30, 150].map((length, i) => ({
+        create: () => [50, 150, 200, 5, 10, 20, 100, 7, 14, 30].map((length, i) => ({
             id: `sma-${i}`,
             type: 'sma',
             length,
@@ -37,6 +37,26 @@ const SCRIPTS = {
         })),
         body: "plot(ta.sma(source, length), { title: 'SMA ' + length, color })",
     },
+    ema: {
+        title: 'Exponential Moving Average',
+        singleton: false,
+        fields: [
+            { key: 'length', label: 'Length', type: 'int', default: 21, min: 1, max: 500 },
+            { key: 'source', label: 'Source', type: 'source', default: 'close' },
+            { key: 'color', label: 'Color', type: 'color', default: '#9c27b0' },
+        ],
+        // Like SMA: adding EMA seeds the chart with a set of standard
+        // lengths, only the first (21) visible.
+        create: () => [21, 8, 50, 100, 200].map((length, i) => ({
+            id: `ema-${i}`,
+            type: 'ema',
+            length,
+            source: 'close',
+            visible: i === 0,
+            color: '#9c27b0',
+        })),
+        body: "plot(ta.ema(source, length), { title: 'EMA ' + length, color })",
+    },
     volume: {
         title: 'Volume',
         id: 'volume-main',
@@ -44,9 +64,8 @@ const SCRIPTS = {
         fields: [
             { key: 'upColor', label: 'Up Color', type: 'color', default: '#26a69a' },
             { key: 'downColor', label: 'Down Color', type: 'color', default: '#ef5350' },
-            { key: 'latestColor', label: 'Latest Bar Color', type: 'color', default: '#f2c14e' },
         ],
-        body: "plot(volume.map(v => v ?? 0), { title: 'Volume', color: upColor, style: 'histogram', overlay: false, colors: close.map((c, i) => i === close.length - 1 ? latestColor : (c >= open[i] ? upColor : downColor)), lastValueVisible: false })",
+        body: "plot(volume.map(v => v ?? 0), { title: 'Volume', color: upColor, style: 'histogram', overlay: false, colors: close.map((c, i) => c >= open[i] ? upColor : downColor), lastValueVisible: false })",
     },
     vol_sma: {
         title: 'Volume SMA',
@@ -57,6 +76,16 @@ const SCRIPTS = {
             { key: 'color', label: 'Color', type: 'color', default: '#ff9800' },
         ],
         body: "plot(ta.sma(volume, length), { title: 'Vol SMA ' + length, color, overlay: false, lastValueVisible: false })",
+    },
+    vol_ema: {
+        title: 'Volume EMA',
+        id: 'vol-ema-main',
+        paneType: 'volume',
+        fields: [
+            { key: 'length', label: 'Length', type: 'int', default: 21, min: 1, max: 500 },
+            { key: 'color', label: 'Color', type: 'color', default: '#9c27b0' },
+        ],
+        body: "plot(ta.ema(volume, length), { title: 'Vol EMA ' + length, color, overlay: false, lastValueVisible: false })",
     },
     rsi: {
         title: 'Relative Strength Index',
