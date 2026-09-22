@@ -3,7 +3,9 @@ import axios from 'axios';
 
 const SAVE_DEBOUNCE_MS = 1000;
 
-export function useSessions(enabled) {
+export function useSessions(enabled, onAuthFailed) {
+    const onAuthFailedRef = useRef(onAuthFailed);
+    useEffect(() => { onAuthFailedRef.current = onAuthFailed; }, [onAuthFailed]);
     const [sessions, setSessions] = useState([]);
     const [folders, setFolders] = useState([]);
     const [activeSessionId, setActiveSessionId] = useState(null);
@@ -37,7 +39,12 @@ export function useSessions(enabled) {
             setFolders(foldersRes.data);
             setActiveFolderId(preferencesRes.data.active_folder ?? null);
             setLoaded(true);
-        }).catch(err => console.warn('Failed to load sessions:', err));
+        }).catch(err => {
+            console.warn('Failed to load sessions:', err);
+            // A rejected token (e.g. server DB recreated) must not leave the
+            // app in a logged-in-looking state where nothing persists.
+            if (err?.response?.status === 401) onAuthFailedRef.current?.();
+        });
         return () => { cancelled = true; };
     }, [enabled]);
 
