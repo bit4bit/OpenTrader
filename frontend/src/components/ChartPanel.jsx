@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import Chart from './Chart';
 import { useChartData, useAdFullData, useMarketIndexData } from '../hooks/useChartData';
 import { formatADLValue } from '../Indicators/adl';
 import { computeActivePaneTypes } from '../chart/paneLayout';
+import { averageVolume } from '../chart/averageVolume';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
 
@@ -47,6 +48,8 @@ const ChartPanel = ({
         }));
     }, [chart.id, onUpdate]);
 
+    const avgVolume = useMemo(() => averageVolume(data, interval), [data, interval]);
+
     const priceData = hoveredData?.price;
     const pnl = priceData ? ((priceData.close - priceData.open) / priceData.open * 100) : null;
     const pnlColor = pnl >= 0 ? '#26a69a' : '#ef5350';
@@ -69,7 +72,7 @@ const ChartPanel = ({
             onMouseDown={onActivate}
         >
             <div className="chart-tile-header">
-                <span className="chart-tile-title">{symbol}{provider ? ` · ${provider}` : ''} · {interval}</span>
+                <span className="chart-tile-title">{symbol}{provider ? ` · ${provider}` : ''} · {interval}{avgVolume != null ? ` · Avg Vol ${formatVolumeValue(avgVolume)}` : ''}</span>
                 <button
                     className="chart-tile-close"
                     title="Close chart"
