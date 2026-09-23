@@ -12,18 +12,27 @@ export function useSessions(enabled, onAuthFailed) {
     const [activeFolderId, setActiveFolderId] = useState(null);
     const [loaded, setLoaded] = useState(false);
     const saveTimers = useRef(new Map());
-    const pendingLayouts = useRef(new Map());
+    const pendingUpdates = useRef(new Map()); // sessionId -> { layout?, notes? }
 
-    const flushLayout = useCallback((sessionId) => {
+    const flushSession = useCallback((sessionId) => {
         const timer = saveTimers.current.get(sessionId);
-        if (timer == null) return;
-        clearTimeout(timer);
-        saveTimers.current.delete(sessionId);
-        const layout = pendingLayouts.current.get(sessionId);
-        pendingLayouts.current.delete(sessionId);
-        axios.patch(`/api/sessions/${sessionId}/`, { layout })
-            .catch(err => console.warn('Failed to save layout:', err));
+        if (timer != null) {
+            clearTimeout(timer);
+            saveTimers.current.delete(sessionId);
+        }
+        const update = pendingUpdates.current.get(sessionId);
+        if (!update) return;
+        pendingUpdates.current.delete(sessionId);
+        axios.patch(`/api/sessions/${sessionId}/`, update)
+            .catch(err => console.warn('Failed to save session:', err));
     }, []);
+
+    const scheduleSave = useCallback((sessionId, fields) => {
+        const update = pendingUpdates.current.get(sessionId) || {};
+        pendingUpdates.current.set(sessionId, { ...update, ...fields });
+        clearTimeout(saveTimers.current.get(sessionId));
+        saveTimers.current.set(sessionId, setTimeout(() => flushSession(sessionId), SAVE_DEBOUNCE_MS));
+    }, [flushSession]);
 
     useEffect(() => {
         if (!enabled) return;
@@ -49,12 +58,12 @@ export function useSessions(enabled, onAuthFailed) {
     }, [enabled]);
 
     useEffect(() => () => {
-        saveTimers.current.forEach((_, sessionId) => flushLayout(sessionId));
-    }, [flushLayout]);
+        saveTimers.current.forEach((_, sessionId) => flushSession(sessionId));
+    }, [flushSession]);
 
     useEffect(() => {
         const flushOnUnload = () => {
-            pendingLayouts.current.forEach((layout, sessionId) => {
+            pendingUpdates.current.forEach((update, sessionId) => {
                 fetch(`/api/sessions/${sessionId}/`, {
                     method: 'PATCH',
                     keepalive: true,
@@ -62,7 +71,7 @@ export function useSessions(enabled, onAuthFailed) {
                         'Content-Type': 'application/json',
                         'Authorization': axios.defaults.headers.common['Authorization'] || '',
                     },
-                    body: JSON.stringify({ layout }),
+                    body: JSON.stringify(update),
                 });
             });
         };
@@ -84,7 +93,7 @@ export function useSessions(enabled, onAuthFailed) {
     const deleteSession = useCallback(async (id) => {
         clearTimeout(saveTimers.current.get(id));
         saveTimers.current.delete(id);
-        pendingLayouts.current.delete(id);
+        pendingUpdates.current.delete(id);
         await axios.delete(`/api/sessions/${id}/`);
         setSessions(prev => {
             const next = prev.filter(s => s.id !== id);
@@ -95,17 +104,20 @@ export function useSessions(enabled, onAuthFailed) {
 
     const switchSession = useCallback((id) => {
         setActiveSessionId(current => {
-            if (current != null && current !== id) flushLayout(current);
+            if (current != null && current !== id) flushSession(current);
             return id;
         });
-    }, [flushLayout]);
+    }, [flushSession]);
 
     const saveLayout = useCallback((sessionId, layout) => {
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, layout } : s));
-        pendingLayouts.current.set(sessionId, layout);
-        clearTimeout(saveTimers.current.get(sessionId));
-        saveTimers.current.set(sessionId, setTimeout(() => flushLayout(sessionId), SAVE_DEBOUNCE_MS));
-    }, [flushLayout]);
+        scheduleSave(sessionId, { layout });
+    }, [scheduleSave]);
+
+    const saveNotes = useCallback((sessionId, notes) => {
+        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, notes } : s));
+        scheduleSave(sessionId, { notes });
+    }, [scheduleSave]);
 
     const activeSession = sessions.find(s => s.id === activeSessionId) || null;
 
@@ -154,6 +166,7 @@ export function useSessions(enabled, onAuthFailed) {
         deleteSession,
         switchSession,
         saveLayout,
+        saveNotes,
         createFolder,
         renameFolder,
         deleteFolder,

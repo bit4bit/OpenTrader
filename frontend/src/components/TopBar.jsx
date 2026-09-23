@@ -31,6 +31,7 @@ const TopBar = ({
     onDeleteFolder,
     onMoveSession,
     onSetActiveFolder,
+    noteOpen = false, onToggleNotes,
     username,
     onLogout,
 }) => {
@@ -82,6 +83,15 @@ const TopBar = ({
                     onMoveSession={onMoveSession}
                     onSetActiveFolder={onSetActiveFolder}
                 />
+                <button
+                    className={`toolbar-btn ${noteOpen ? 'active' : ''}`}
+                    onClick={onToggleNotes}
+                    disabled={!activeSession}
+                    title="Session note"
+                >
+                    <span style={{ fontSize: '14px', marginRight: '4px' }}>📝</span>
+                    Note
+                </button>
             </div>
 
             <div className="top-bar-divider" />

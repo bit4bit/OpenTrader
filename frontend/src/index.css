@@ -1212,3 +1212,63 @@ div[class*="tradingview"] {
   opacity: 1;
   background: rgba(41, 98, 255, 0.25);
 }
+
+/* Session note: draggable, resizable floating note pad */
+.session-note {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-dark-lighter);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  z-index: 2500;
+  overflow: hidden;
+}
+
+.session-note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: bold;
+  font-size: 13px;
+  color: var(--text-main);
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.session-note-text {
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 10px 12px;
+  background-color: transparent;
+  color: var(--text-main);
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+.session-note-text::placeholder {
+  color: var(--text-dim);
+}
+
+.session-note-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, var(--text-dim) 50%);
+  opacity: 0.4;
+}
+
+.session-note-resize:hover {
+  opacity: 0.8;
+}

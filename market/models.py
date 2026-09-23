@@ -19,6 +19,7 @@ class Session(models.Model):
     folder = models.ForeignKey(Folder, null=True, blank=True, on_delete=models.SET_NULL, related_name='sessions')
     name = models.CharField(max_length=100)
     layout = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

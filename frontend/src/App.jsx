@@ -7,6 +7,7 @@ import SymbolCatalogModal from './components/SymbolCatalogModal';
 import DrawingToolbar from './components/DrawingToolbar';
 import LoginScreen from './components/LoginScreen';
 import CustomIndicatorModal from './components/CustomIndicatorModal';
+import SessionNote from './components/SessionNote';
 import { useAuth } from './hooks/useAuth';
 import { useSessions } from './hooks/useSessions';
 import { useCharts } from './hooks/useCharts';
@@ -36,6 +37,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
   const [showIndicatorSearch, setShowIndicatorSearch] = useState(false);
   const [showCustomIndicators, setShowCustomIndicators] = useState(false);
   const [showSymbolCatalog, setShowSymbolCatalog] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [symbolSearchMode, setSymbolSearchMode] = useState(null);
   const [activeTool, setActiveTool] = useState('cursor');
   const [magnetEnabled, setMagnetEnabled] = useState(true);
@@ -109,6 +111,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         onCloseAll={() => {
           if (charts.length > 0 && window.confirm('Close all charts?')) closeAllCharts();
         }}
+        noteOpen={showNotes}
+        onToggleNotes={() => setShowNotes(v => !v)}
         {...sessionProps}
       />
       ) : (
@@ -197,6 +201,14 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
             onClose={() => setSymbolSearchMode(null)}
           />
         )}
+
+        {showNotes && sessionProps.activeSession && (
+          <SessionNote
+            notes={sessionProps.activeSession.notes || ''}
+            onChange={(notes) => sessionProps.onSaveNotes(sessionId, notes)}
+            onClose={() => setShowNotes(false)}
+          />
+        )}
       </div>
     </>
   );
@@ -214,6 +226,7 @@ function App() {
     deleteSession,
     switchSession,
     saveLayout,
+    saveNotes,
     createFolder,
     renameFolder,
     deleteFolder,
@@ -267,6 +280,7 @@ function App() {
     },
     onMoveSession: moveSession,
     onSetActiveFolder: setActiveFolder,
+    onSaveNotes: saveNotes,
     username,
     onLogout: logout,
   };
