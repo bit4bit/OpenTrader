@@ -93,6 +93,8 @@ const SessionMenu = ({
     onDeleteFolder,
     onMoveSession,
     onSetActiveFolder,
+    onToggleFavorite,
+    onTogglePortfolio,
 }) => {
     const [open, setOpen] = useState(false);
     const [menuPos, setMenuPos] = useState(null);
@@ -168,6 +170,30 @@ const SessionMenu = ({
                     <RenameInput initialName={session.name} onCommit={commitRename} onCancel={() => setRenaming(null)} />
                 ) : (
                     <>
+                        <button
+                            style={{
+                                ...actionButtonStyle,
+                                marginRight: '6px',
+                                fontSize: '13px',
+                                opacity: session.favorite ? 1 : 0.35,
+                                color: session.favorite ? '#ffd54f' : '#888',
+                                textShadow: session.favorite ? 'none' : '0 0 3px rgba(255, 255, 255, 0.4)',
+                            }}
+                            title={session.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                            onClick={(e) => { e.stopPropagation(); onToggleFavorite(session.id); }}
+                        >★</button>
+                        <button
+                            style={{
+                                ...actionButtonStyle,
+                                marginRight: '6px',
+                                fontSize: '13px',
+                                opacity: session.portfolio ? 1 : 0.35,
+                                color: session.portfolio ? '#66bb6a' : '#888',
+                                textShadow: session.portfolio ? 'none' : '0 0 3px rgba(255, 255, 255, 0.4)',
+                            }}
+                            title={session.portfolio ? 'Remove from portfolio' : 'Add to portfolio'}
+                            onClick={(e) => { e.stopPropagation(); onTogglePortfolio(session.id); }}
+                        >💼</button>
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.name}</span>
                         <button style={actionButtonStyle} title="Rename session" onClick={(e) => { e.stopPropagation(); startRename('session', session.id); }}>✏️</button>
                         <button style={actionButtonStyle} title="Delete session" onClick={(e) => { e.stopPropagation(); onDeleteSession(session.id); }}>🗑</button>

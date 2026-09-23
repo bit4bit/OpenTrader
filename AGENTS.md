@@ -17,7 +17,7 @@ OpenTrader is an open-source TradingView alternative: Django + DRF backend servi
   - `components/ChartGrid.jsx` / `ChartPanel.jsx` — multi-chart flow layout and per-chart tile (header, legends, indicator panels, loaders).
   - `hooks/useAuth.js` — token+username in `localStorage` (`opentrader_auth`), axios `Authorization: Token ...` header, `login`/`logout`.
   - `hooks/useSessions.js` — sessions list, folders list, active session/folder, CRUD against `/api/sessions/`, `/api/folders/`, `/api/preferences/`, debounced (~1s) layout auto-save (PATCH).
-  - `components/SessionMenu.jsx` — session dropdown in the TopBar: folders with expand/collapse (localStorage), drag & drop sessions between folders, inline rename, per-item delete.
+  - `components/SessionMenu.jsx` — session dropdown in the TopBar: folders with expand/collapse (localStorage), drag & drop sessions between folders, inline rename, per-item delete, per-session toggle flags (favorite star ★ and portfolio briefcase 💼 — persisted on `Session.favorite` / `Session.portfolio`).
   - `hooks/useCharts.js` — charts collection state: CRUD, active chart, lock flag. No persistence of its own; reports changes via `onLayoutChange`.
   - `hooks/useChartData.js` — per-chart market data: initial fetch, refresh polling, left-scroll pagination, `useAdFullData`; `useMarketIndexData` fetches full history for the extra symbols pane indicators need (SMI constituents, Benchmark Index indexes).
   - `hooks/useIndexMembership.js` — fetches `/api/index-membership/` (which benchmark indexes a stock belongs to) for the Benchmark Index settings UI.

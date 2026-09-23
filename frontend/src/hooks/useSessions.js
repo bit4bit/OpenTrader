@@ -90,6 +90,24 @@ export function useSessions(enabled, onAuthFailed) {
         setSessions(prev => prev.map(s => s.id === id ? response.data : s));
     }, []);
 
+    const toggleSessionFlag = useCallback(async (id, flag) => {
+        let nextValue = false;
+        setSessions(prev => prev.map(s => {
+            if (s.id !== id) return s;
+            nextValue = !s[flag];
+            return { ...s, [flag]: nextValue };
+        }));
+        try {
+            await axios.patch(`/api/sessions/${id}/`, { [flag]: nextValue });
+        } catch (err) {
+            console.warn(`Failed to toggle session ${flag}:`, err);
+        }
+    }, []);
+
+    const toggleFavoriteSession = useCallback((id) => toggleSessionFlag(id, 'favorite'), [toggleSessionFlag]);
+
+    const togglePortfolioSession = useCallback((id) => toggleSessionFlag(id, 'portfolio'), [toggleSessionFlag]);
+
     const deleteSession = useCallback(async (id) => {
         clearTimeout(saveTimers.current.get(id));
         saveTimers.current.delete(id);
@@ -164,6 +182,8 @@ export function useSessions(enabled, onAuthFailed) {
         createSession,
         renameSession,
         deleteSession,
+        toggleFavoriteSession,
+        togglePortfolioSession,
         switchSession,
         saveLayout,
         saveNotes,

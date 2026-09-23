@@ -18,6 +18,8 @@ def serialize_session(session):
         'name': session.name,
         'layout': session.layout,
         'notes': session.notes,
+        'favorite': session.favorite,
+        'portfolio': session.portfolio,
         'folder': session.folder_id,
         'created_at': session.created_at.isoformat(),
         'updated_at': session.updated_at.isoformat(),
@@ -94,6 +96,10 @@ class SessionDetail(APIView):
             session.layout = request.data['layout']
         if 'notes' in request.data:
             session.notes = request.data['notes']
+        if 'favorite' in request.data:
+            session.favorite = bool(request.data['favorite'])
+        if 'portfolio' in request.data:
+            session.portfolio = bool(request.data['portfolio'])
         if 'folder' in request.data:
             folder, error = validate_folder_id(request, request.data.get('folder'))
             if error:

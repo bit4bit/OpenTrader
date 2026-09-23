@@ -31,6 +31,8 @@ const TopBar = ({
     onDeleteFolder,
     onMoveSession,
     onSetActiveFolder,
+    onToggleFavorite,
+    onTogglePortfolio,
     noteOpen = false, onToggleNotes,
     username,
     onLogout,
@@ -82,6 +84,8 @@ const TopBar = ({
                     onDeleteFolder={onDeleteFolder}
                     onMoveSession={onMoveSession}
                     onSetActiveFolder={onSetActiveFolder}
+                    onToggleFavorite={onToggleFavorite}
+                    onTogglePortfolio={onTogglePortfolio}
                 />
                 <button
                     className={`toolbar-btn ${noteOpen ? 'active' : ''}`}

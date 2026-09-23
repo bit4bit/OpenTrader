@@ -225,6 +225,8 @@ function App() {
     renameSession,
     deleteSession,
     switchSession,
+    toggleFavoriteSession,
+    togglePortfolioSession,
     saveLayout,
     saveNotes,
     createFolder,
@@ -267,6 +269,8 @@ function App() {
         deleteSession(id);
       }
     },
+    onToggleFavorite: (id) => toggleFavoriteSession(id),
+    onTogglePortfolio: (id) => togglePortfolioSession(id),
     onCreateFolder: () => {
       const name = window.prompt('Folder name:');
       if (name?.trim()) createFolder(name.trim());

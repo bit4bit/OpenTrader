@@ -20,6 +20,8 @@ class Session(models.Model):
     name = models.CharField(max_length=100)
     layout = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True, default='')
+    favorite = models.BooleanField(default=False)
+    portfolio = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
