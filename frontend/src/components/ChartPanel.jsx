@@ -98,24 +98,31 @@ const ChartPanel = ({
 
                 {/* SCRIPT INDICATOR LEGENDS (built-ins + custom): one legend
                     item per plot, bullets/titles/values from the script. */}
-                {indicators.filter(i => scriptLegendIndicators.includes(i.type) && i.visible && !isPaneType(i.type)).map(ind => {
-                    const plots = hoveredData?.generic?.[ind.id] ?? [];
-                    const hasOverlay = indicatorResults.resultsById[ind.id]?.plots.some(p => p.overlay);
-                    if (!hasOverlay) return null;
+                {(() => {
+                    const overlayIndicators = indicators.filter(i => scriptLegendIndicators.includes(i.type) && i.visible && !isPaneType(i.type))
+                        .filter(ind => indicatorResults.resultsById[ind.id]?.plots.some(p => p.overlay));
+                    if (overlayIndicators.length === 0) return null;
                     return (
-                        <div key={ind.id} className="chart-legend-indicators price-indicators">
-                            {plots.map((p, pi) => (
-                                <div key={pi} className="legend-item">
-                                    <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>
-                                    <span className="legend-label">{p.title}</span>
-                                    <span className="legend-value" style={{ color: p.color }}>
-                                        {p.value != null ? formatLegendValue(p.value, ind.type) : ''}
-                                    </span>
-                                </div>
-                            ))}
+                        <div className="chart-legend-overlay">
+                            {overlayIndicators.map(ind => {
+                                const plots = hoveredData?.generic?.[ind.id] ?? [];
+                                return (
+                                    <div key={ind.id} className="chart-legend-indicators price-indicators">
+                                        {plots.map((p, pi) => (
+                                            <div key={pi} className="legend-item">
+                                                <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>
+                                                <span className="legend-label">{p.title}</span>
+                                                <span className="legend-value" style={{ color: p.color }}>
+                                                    {p.value != null ? formatLegendValue(p.value, ind.type) : ''}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })}
                         </div>
                     );
-                })}
+                })()}
                 {activePaneTypes.filter(t => !t.startsWith('custom-')).map(type => (
                     <div key={type} className="chart-legend-indicators" style={{ top: paneLegendTop(type) }}>
                         {indicators.filter(i => scriptPaneType(i.type) === type && i.visible).map(ind =>

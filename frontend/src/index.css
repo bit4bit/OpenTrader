@@ -184,8 +184,19 @@ body {
   font-size: 12px;
 }
 
-.price-indicators {
+.chart-legend-overlay {
+  position: absolute;
   top: 36px;
+  left: 70px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.chart-legend-overlay .chart-legend-indicators {
+  position: static;
 }
 
 .legend-item {
@@ -955,7 +966,8 @@ div[class*="tradingview"] {
   left: 8px;
 }
 
-.chart-tile-body .chart-legend-indicators {
+.chart-tile-body .chart-legend-indicators,
+.chart-tile-body .chart-legend-overlay {
   left: 8px;
 }
 
