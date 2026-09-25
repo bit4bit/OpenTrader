@@ -20,6 +20,7 @@ import { computeIchimoku } from '../ichimoku';
 import { computeVolumeProfile } from '../volumeProfile';
 import { computeMarketIndex } from '../marketIndex';
 import { computeBenchmarkLine } from '../benchmarkIndex';
+import { computeBuyVolume } from '../tradingActivity';
 
 function isValid(v) {
     return typeof v === 'number' && isFinite(v);
@@ -141,6 +142,8 @@ export function buildTa(data, barsBySymbol = {}) {
             return { k: align(res.k), d: align(res.d) };
         },
         atr: (length = 14) => align(computeATR(data, { length })),
+        // Estimated bought volume per bar (close position in range).
+        buyVolume: () => align(computeBuyVolume(data)),
         adl: () => align(computeADL(data)),
         tsi: (longLength = 25, shortLength = 13, signalLength = 13) => {
             const res = computeTSI(data, { longLength, shortLength, signalLength });

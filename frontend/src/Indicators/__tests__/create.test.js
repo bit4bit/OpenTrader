@@ -65,6 +65,10 @@ describe('indicator creation', () => {
             spanAColor: 'rgba(38, 166, 154, 0.4)', spanBColor: 'rgba(239, 83, 80, 0.4)',
             chikouColor: '#9c27b0', visible: true,
         }]);
+        expect(addIndicators([], 'trading_activity')).toEqual([{
+            id: 'trading-activity-main', type: 'trading_activity',
+            buyColor: '#26a69a', sellColor: '#ef5350', visible: true,
+        }]);
         expect(addIndicators([], 'vol_sma')).toEqual([{
             id: 'vol-sma-main', type: 'vol_sma', length: 20, color: '#ff9800', visible: true,
         }]);

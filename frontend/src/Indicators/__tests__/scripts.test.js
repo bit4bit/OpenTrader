@@ -22,6 +22,7 @@ import { computeIchimoku } from '../ichimoku';
 import { computeVolumeProfile } from '../volumeProfile';
 import { computeMarketIndex } from '../marketIndex';
 import { computeBenchmarkLine } from '../benchmarkIndex';
+import { computeBuyVolume } from '../tradingActivity';
 import { DATA } from './golden.test';
 
 const closeTolerance = 1e-9;
@@ -198,6 +199,18 @@ describe('script equivalence', () => {
             const expectedColor = DATA[i].close >= DATA[i].open ? '#0f0' : '#f00';
             expect(bar.color).toBe(expectedColor);
         });
+    });
+
+    it('trading_activity', () => {
+        const result = run('trading_activity', { buyColor: '#0f0', sellColor: '#f00' });
+        expect(result.plots).toHaveLength(2);
+        expect(result.plots[0].style).toBe('histogram');
+        expect(result.plots[1].style).toBe('histogram');
+        expect(result.plots[0].color).toBe('#f00');
+        expect(result.plots[1].color).toBe('#0f0');
+        // Sellers base bar carries the full volume; Buyers overlay the split.
+        expectSameBars(result.plots[0].series, DATA.map(d => ({ time: d.time, value: d.volume ?? 0 })));
+        expectSameBars(result.plots[1].series, computeBuyVolume(DATA));
     });
 
     it('smi', () => {

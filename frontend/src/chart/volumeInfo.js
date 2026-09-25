@@ -1,6 +1,7 @@
 // Volume statistics for the bar under the crosshair, computed from the
 // bar data alone (bars sorted by time ascending; `time` matched exactly —
 // the crosshair snaps to bar times in every engine).
+import { buyFractionOf } from '../Indicators/tradingActivity';
 
 function barIndexAt(bars, time) {
     if (!bars?.length || time == null) return -1;
@@ -22,13 +23,6 @@ export function volumeChangeAt(bars, time) {
     if (current == null || previous == null || previous === 0) return null;
     const delta = current - previous;
     return { delta, percent: (delta / previous) * 100 };
-}
-
-// Buy fraction of one bar estimated from the close's position in the bar's
-// range (no bid/ask data from the providers). Bars with no range split 50/50.
-function buyFractionOf(bar) {
-    const range = bar.high - bar.low;
-    return range > 0 ? (bar.close - bar.low) / range : 0.5;
 }
 
 // Estimate of bought vs sold volume within one bar: the split and the signed

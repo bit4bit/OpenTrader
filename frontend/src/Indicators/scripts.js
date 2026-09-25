@@ -77,6 +77,23 @@ const SCRIPTS = {
         ],
         body: "plot(ta.sma(volume, length), { title: 'Vol SMA ' + length, color, overlay: false, lastValueVisible: false })",
     },
+    trading_activity: {
+        title: 'Trading Activity',
+        id: 'trading-activity-main',
+        pane: true,
+        fields: [
+            { key: 'buyColor', label: 'Buy Color', type: 'color', default: '#26a69a' },
+            { key: 'sellColor', label: 'Sell Color', type: 'color', default: '#ef5350' },
+        ],
+        // Stacked split: the sell-colored base bar carries the full volume;
+        // the buy-colored overlay covers the estimated bought portion, so
+        // each bar totals the period's volume split into buy % vs sell %.
+        body: [
+            'const bought = ta.buyVolume()',
+            "plot(volume.map(v => v ?? 0), { title: 'Sellers', color: sellColor, style: 'histogram', overlay: false, lastValueVisible: false })",
+            "plot(bought, { title: 'Buyers', color: buyColor, style: 'histogram', overlay: false, lastValueVisible: false })",
+        ].join('\n'),
+    },
     vol_ema: {
         title: 'Volume EMA',
         id: 'vol-ema-main',

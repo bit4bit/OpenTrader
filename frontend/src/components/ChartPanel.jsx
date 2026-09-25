@@ -17,7 +17,7 @@ const formatVolumeValue = (val) => {
 };
 const formatLegendValue = (val, type) =>
     type === 'ad' ? formatADLValue(val)
-        : (type === 'volume' || type === 'vol_sma') ? formatVolumeValue(val)
+        : (type === 'volume' || type === 'vol_sma' || type === 'trading_activity') ? formatVolumeValue(val)
             : val.toFixed(2);
 const formatVolumeChange = ({ delta, percent }) =>
     `${formatPercent(percent)} ${delta >= 0 ? '+' : '−'}${formatVolumeValue(Math.abs(delta))}`;
@@ -125,21 +125,29 @@ const ChartPanel = ({
                 })()}
                 {activePaneTypes.filter(t => !t.startsWith('custom-')).map(type => (
                     <div key={type} className="chart-legend-indicators" style={{ top: paneLegendTop(type) }}>
-                        {indicators.filter(i => scriptPaneType(i.type) === type && i.visible).map(ind =>
-                            (hoveredData?.generic?.[ind.id] ?? []).map((p, pi) => {
-                                const isVolume = ind.type === 'volume' && pi === 0;
+                        {indicators.filter(i => scriptPaneType(i.type) === type && i.visible).map(ind => {
+                            const plots = hoveredData?.generic?.[ind.id] ?? [];
+                            const buyersValue = ind.type === 'trading_activity' ? plots[1]?.value : null;
+                            return plots.map((p, pi) => {
+                                const isVolume = (ind.type === 'volume' || ind.type === 'trading_activity') && pi === 0;
                                 const volumeChange = isVolume ? hoveredData?.volumeChange : null;
                                 const volumeSplit = isVolume ? hoveredData?.volumeSplit : null;
                                 const splitTotal = isVolume ? hoveredData?.volumeSplitTotal : null;
+                                // Trading Activity's Sellers plot is the full-volume
+                                // base bar; display the sell portion (base minus the
+                                // overlaid buy portion).
+                                const value = pi === 0 && buyersValue != null && p.value != null
+                                    ? p.value - buyersValue
+                                    : p.value;
                                 return (
                                     <React.Fragment key={`${ind.id}-${pi}`}>
                                         <div className="legend-item">
                                             <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>
                                             <span className="legend-label">{p.title}</span>
                                             <span className="legend-value" style={{ color: p.color }}>
-                                                {p.value != null ? formatLegendValue(p.value, ind.type) : ''}
+                                                {value != null ? formatLegendValue(value, ind.type) : ''}
                                             </span>
-                                            {volumeChange && p.value != null && (
+                                            {volumeChange && value != null && (
                                                 <span
                                                     className="legend-volume-change"
                                                     style={{ color: volumeChange.delta >= 0 ? '#26a69a' : '#ef5350' }}
@@ -148,7 +156,7 @@ const ChartPanel = ({
                                                 </span>
                                             )}
                                         </div>
-                                        {volumeSplit && p.value != null && (
+                                        {volumeSplit && value != null && (
                                             <div className="legend-item">
                                                 <span className="legend-label">
                                                     Buy {formatVolumeValue(volumeSplit.bought)}
@@ -162,7 +170,7 @@ const ChartPanel = ({
                                                 </span>
                                             </div>
                                         )}
-                                        {splitTotal && p.value != null && (
+                                        {splitTotal && value != null && (
                                             <div className="legend-item">
                                                 <span className="legend-label">
                                                     Total Buy {formatVolumeValue(splitTotal.bought)}
@@ -179,7 +187,7 @@ const ChartPanel = ({
                                     </React.Fragment>
                                 );
                             })
-                        )}
+                        })}
                     </div>
                 ))}
                 {indicators.filter(i => i.type === 'custom' && i.visible).map(ind => {

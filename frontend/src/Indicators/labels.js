@@ -20,6 +20,7 @@ export function indicatorLabel(groupType, ind, idx) {
         case 'w52': return `52W High/Low (${ind.basis === 'close' ? 'Close' : 'Highs/Lows'})`;
         case 'price_level': return `Price Level (${ind.length} ${ind.unit})`;
         case 'volume': return 'Volume';
+        case 'trading_activity': return 'Trading Activity';
         case 'vol_sma': return `Vol SMA (${ind.length})`;
         case 'vol_ema': return `Vol EMA (${ind.length})`;
         default: return 'Indicator';

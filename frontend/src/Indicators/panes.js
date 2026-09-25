@@ -9,7 +9,7 @@
  */
 import { scriptPaneType } from './scripts';
 
-export const PANE_ORDER = ['volume', 'rsi', 'stoch', 'macd', 'atr', 'tsi', 'ad', 'smi', 'benchmark'];
+export const PANE_ORDER = ['volume', 'trading_activity', 'rsi', 'stoch', 'macd', 'atr', 'tsi', 'ad', 'smi', 'benchmark'];
 
 /**
  * Given the indicators array, return the active pane types in canonical order.
