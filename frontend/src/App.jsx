@@ -229,6 +229,8 @@ function App() {
     togglePortfolioSession,
     saveLayout,
     saveNotes,
+    saveGlobalNote,
+    globalNote,
     createFolder,
     renameFolder,
     deleteFolder,
@@ -245,6 +247,7 @@ function App() {
     }
     return false;
   });
+  const [showGlobalNote, setShowGlobalNote] = useState(false);
 
   const customIndicators = useCustomIndicators(!!token);
 
@@ -285,12 +288,24 @@ function App() {
     onMoveSession: moveSession,
     onSetActiveFolder: setActiveFolder,
     onSaveNotes: saveNotes,
+    globalNoteOpen: showGlobalNote,
+    onToggleGlobalNote: () => setShowGlobalNote(v => !v),
     username,
     onLogout: logout,
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+      {showGlobalNote && (
+        <SessionNote
+          notes={globalNote}
+          onChange={saveGlobalNote}
+          onClose={() => setShowGlobalNote(false)}
+          title="🌍 Global note"
+          placeholder="Write notes shared across all your sessions…"
+          storageKey="opentrader_global_note_modal"
+        />
+      )}
       {showWelcome && (
         <div style={{
           position: 'fixed',

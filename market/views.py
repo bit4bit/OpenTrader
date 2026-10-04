@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from .models import Session, CustomIndicator, Folder, UserPreference
 from .providers import registry
 from .providers import index_membership
+from .providers import symbol_info
 
 
 def serialize_session(session):
@@ -152,16 +153,19 @@ class PreferenceView(APIView):
 
     def get(self, request):
         preference, _ = UserPreference.objects.get_or_create(user=request.user)
-        return Response({'active_folder': preference.active_folder_id})
+        return Response({'active_folder': preference.active_folder_id, 'note': preference.note})
 
     def patch(self, request):
         preference, _ = UserPreference.objects.get_or_create(user=request.user)
-        folder, error = validate_folder_id(request, request.data.get('active_folder'))
-        if error:
-            return error
-        preference.active_folder = folder
+        if 'active_folder' in request.data:
+            folder, error = validate_folder_id(request, request.data.get('active_folder'))
+            if error:
+                return error
+            preference.active_folder = folder
+        if 'note' in request.data:
+            preference.note = request.data['note'] or ''
         preference.save()
-        return Response({'active_folder': preference.active_folder_id})
+        return Response({'active_folder': preference.active_folder_id, 'note': preference.note})
 
 
 def serialize_indicator(indicator):
@@ -227,6 +231,32 @@ class IndexMembership(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
         return Response({'symbol': symbol, 'indexes': indexes})
+
+
+class SymbolInfo(APIView):
+    """Static fundamentals (shares outstanding, market cap) for turnover
+    indicators. Provider-specific (Yahoo returns the real values; Kraken
+    returns an empty dict because crypto has no share count)."""
+    def get(self, request):
+        symbol = request.query_params.get('symbol')
+        provider_name = request.query_params.get('provider') or None
+        if not symbol:
+            return Response({'error': 'Symbol is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            provider, _meta = registry.resolve_provider(symbol, provider_name)
+        except registry.SymbolNotSupported as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            info = symbol_info.info_for(symbol, _meta['provider'])
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'symbol': symbol, 'provider': _meta['provider'], **info})
+
+
+class ProviderConfig(APIView):
+    """Display config per provider (price decimals), for frontend formatting."""
+    def get(self, request):
+        return Response({'price_decimals': registry.get_price_decimals()})
 
 
 class TickerSearch(APIView):

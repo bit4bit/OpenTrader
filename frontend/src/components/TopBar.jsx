@@ -34,6 +34,7 @@ const TopBar = ({
     onToggleFavorite,
     onTogglePortfolio,
     noteOpen = false, onToggleNotes,
+    globalNoteOpen = false, onToggleGlobalNote,
     username,
     onLogout,
 }) => {
@@ -94,6 +95,14 @@ const TopBar = ({
                     title="Session note"
                 >
                     <span style={{ fontSize: '14px', marginRight: '4px' }}>📝</span>
+                    Note
+                </button>
+                <button
+                    className={`toolbar-btn ${globalNoteOpen ? 'active' : ''}`}
+                    onClick={onToggleGlobalNote}
+                    title="Global note (shared across all sessions)"
+                >
+                    <span style={{ fontSize: '14px', marginRight: '4px' }}>🌍</span>
                     Note
                 </button>
             </div>

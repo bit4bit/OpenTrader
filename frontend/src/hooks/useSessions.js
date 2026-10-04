@@ -11,8 +11,12 @@ export function useSessions(enabled, onAuthFailed) {
     const [activeSessionId, setActiveSessionId] = useState(null);
     const [activeFolderId, setActiveFolderId] = useState(null);
     const [loaded, setLoaded] = useState(false);
+    const [globalNote, setGlobalNote] = useState('');
     const saveTimers = useRef(new Map());
     const pendingUpdates = useRef(new Map()); // sessionId -> { layout?, notes? }
+    const globalNoteTimer = useRef(null);
+    const pendingGlobalNote = useRef(false);
+    const globalNoteRef = useRef('');
 
     const flushSession = useCallback((sessionId) => {
         const timer = saveTimers.current.get(sessionId);
@@ -34,6 +38,29 @@ export function useSessions(enabled, onAuthFailed) {
         saveTimers.current.set(sessionId, setTimeout(() => flushSession(sessionId), SAVE_DEBOUNCE_MS));
     }, [flushSession]);
 
+    const flushGlobalNote = useCallback(() => {
+        clearTimeout(globalNoteTimer.current);
+        if (!pendingGlobalNote.current) return;
+        pendingGlobalNote.current = false;
+        axios.patch('/api/preferences/', { note: globalNoteRef.current })
+            .catch(err => console.warn('Failed to save global note:', err));
+    }, []);
+
+    const scheduleGlobalNoteSave = useCallback(() => {
+        pendingGlobalNote.current = true;
+        clearTimeout(globalNoteTimer.current);
+        globalNoteTimer.current = setTimeout(flushGlobalNote, SAVE_DEBOUNCE_MS);
+    }, [flushGlobalNote]);
+
+    const saveGlobalNote = useCallback((note) => {
+        setGlobalNote(note);
+        scheduleGlobalNoteSave();
+    }, [scheduleGlobalNoteSave]);
+
+    useEffect(() => {
+        globalNoteRef.current = globalNote;
+    }, [globalNote]);
+
     useEffect(() => {
         if (!enabled) return;
         let cancelled = false;
@@ -47,6 +74,7 @@ export function useSessions(enabled, onAuthFailed) {
             setActiveSessionId(sessionsRes.data[0]?.id ?? null);
             setFolders(foldersRes.data);
             setActiveFolderId(preferencesRes.data.active_folder ?? null);
+            setGlobalNote(preferencesRes.data.note ?? '');
             setLoaded(true);
         }).catch(err => {
             console.warn('Failed to load sessions:', err);
@@ -59,6 +87,17 @@ export function useSessions(enabled, onAuthFailed) {
 
     useEffect(() => () => {
         saveTimers.current.forEach((_, sessionId) => flushSession(sessionId));
+        if (pendingGlobalNote.current) {
+            fetch('/api/preferences/', {
+                method: 'PATCH',
+                keepalive: true,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': axios.defaults.headers.common['Authorization'] || '',
+                },
+                body: JSON.stringify({ note: globalNoteRef.current }),
+            });
+        }
     }, [flushSession]);
 
     useEffect(() => {
@@ -74,6 +113,17 @@ export function useSessions(enabled, onAuthFailed) {
                     body: JSON.stringify(update),
                 });
             });
+            if (pendingGlobalNote.current) {
+                fetch('/api/preferences/', {
+                    method: 'PATCH',
+                    keepalive: true,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': axios.defaults.headers.common['Authorization'] || '',
+                    },
+                    body: JSON.stringify({ note: globalNoteRef.current }),
+                });
+            }
         };
         window.addEventListener('beforeunload', flushOnUnload);
         return () => window.removeEventListener('beforeunload', flushOnUnload);
@@ -179,6 +229,7 @@ export function useSessions(enabled, onAuthFailed) {
         activeSessionId,
         activeFolderId,
         loaded,
+        globalNote,
         createSession,
         renameSession,
         deleteSession,
@@ -187,6 +238,7 @@ export function useSessions(enabled, onAuthFailed) {
         switchSession,
         saveLayout,
         saveNotes,
+        saveGlobalNote,
         createFolder,
         renameFolder,
         deleteFolder,

@@ -6,9 +6,9 @@ const MIN_HEIGHT = 180;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-const loadGeometry = () => {
+const loadGeometry = (storageKey) => {
     try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        const saved = JSON.parse(localStorage.getItem(storageKey));
         if (saved) {
             return {
                 x: clamp(saved.x ?? 120, 0, window.innerWidth - MIN_WIDTH),
@@ -21,15 +21,15 @@ const loadGeometry = () => {
     return { x: 120, y: 120, width: 360, height: 260 };
 };
 
-const SessionNote = ({ notes = '', onChange, onClose }) => {
-    const [geometry, setGeometry] = useState(loadGeometry);
+const SessionNote = ({ notes = '', onChange, onClose, title = '📝 Session note', placeholder = 'Write your notes for this session…', storageKey = STORAGE_KEY }) => {
+    const [geometry, setGeometry] = useState(() => loadGeometry(storageKey));
     const geometryRef = useRef(geometry);
     const dragState = useRef(null);
 
     useEffect(() => {
         geometryRef.current = geometry;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(geometry));
-    }, [geometry]);
+        localStorage.setItem(storageKey, JSON.stringify(geometry));
+    }, [geometry, storageKey]);
 
     const startDrag = useCallback((e) => {
         const { x, y } = geometryRef.current;
@@ -75,7 +75,7 @@ const SessionNote = ({ notes = '', onChange, onClose }) => {
                 onPointerMove={onPointerMove}
                 onPointerUp={endDrag}
             >
-                <span>📝 Session note</span>
+                <span>{title}</span>
                 <button
                     className="header-action-btn remove"
                     onPointerDown={(e) => e.stopPropagation()}
@@ -86,7 +86,7 @@ const SessionNote = ({ notes = '', onChange, onClose }) => {
             </div>
             <textarea
                 className="session-note-text"
-                placeholder="Write your notes for this session…"
+                placeholder={placeholder}
                 value={notes}
                 onChange={(e) => onChange(e.target.value)}
                 spellCheck={false}
