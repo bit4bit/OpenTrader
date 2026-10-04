@@ -10,6 +10,7 @@ import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { averageVolume } from '../chart/averageVolume';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
+import { qoqEpsChangeAt } from '../chart/earningsLegend';
 
 const formatPrice = (price, decimals) => formatPriceValue(price, decimals);
 const formatPercent = (val) => (val != null ? (val >= 0 ? '+' : '') + val.toFixed(2) + '%' : '');
@@ -156,7 +157,12 @@ const ChartPanel = ({
                         {indicators.filter(i => scriptPaneType(i.type) === type && i.visible).map(ind => {
                             const plots = hoveredData?.generic?.[ind.id] ?? [];
                             const buyersValue = ind.type === 'trading_activity' ? plots[1]?.value : null;
-                            return plots.map((p, pi) => {
+                            const qoqChange = ind.type === 'earnings'
+                                ? qoqEpsChangeAt(data, earnings, hoveredData?.price?.time ?? null)
+                                : null;
+                            return (
+                                <React.Fragment key={ind.id}>
+                                    {plots.map((p, pi) => {
                                 const isVolume = (ind.type === 'volume' || ind.type === 'trading_activity') && pi === 0;
                                 const volumeChange = isVolume ? hoveredData?.volumeChange : null;
                                 const volumeSplit = isVolume ? hoveredData?.volumeSplit : null;
@@ -218,7 +224,24 @@ const ChartPanel = ({
                                         )}
                                     </React.Fragment>
                                 );
-                            })
+                                })}
+                                {qoqChange && plots.length > 0 && (
+                                    <div className="legend-item">
+                                        <span
+                                            className="legend-bullet"
+                                            style={{ backgroundColor: qoqChange.change >= 0 ? ind.beatColor : ind.missColor }}
+                                        ></span>
+                                        <span className="legend-label">QoQ {qoqChange.date}</span>
+                                        <span
+                                            className="legend-value"
+                                            style={{ color: qoqChange.change >= 0 ? ind.beatColor : ind.missColor }}
+                                        >
+                                            {formatPercent(qoqChange.change)}
+                                        </span>
+                                    </div>
+                                )}
+                                </React.Fragment>
+                            );
                         })}
                     </div>
                 ))}
