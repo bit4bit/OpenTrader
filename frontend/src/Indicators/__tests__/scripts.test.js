@@ -399,17 +399,21 @@ describe('script equivalence', () => {
         ];
         const result = runScript(
             scriptCode('benchmark'), DATA,
-            scriptValues('benchmark', { baseValue: 100, indexes }),
+            scriptValues('benchmark', { indexes }),
             barsBySymbol,
         );
         expect(result.error).toBeNull();
-        // Disabled index produces no plot; palette assigns colors by position.
+        // Price-scale overlay: every line sits on the main pane and is
+        // rebased to the stock's close at the first shared bar.
         expect(result.plots.length).toBe(2);
+        expect(result.plots.every(p => p.overlay)).toBe(true);
         expect(result.plots[0].color).toBe('#4fc3f7');
         expect(result.plots[1].color).toBe('#f4c542');
-        // toBars() drops null-valued points, so expected bars must too.
+        // The first shared bar anchors the rebasing: stock close / index
+        // base value (100) is the scale factor for every point.
+        const factor = DATA[0].close / 100;
         const expectedBars = (bars) => computeBenchmarkLine(bars, times, tolerance, 100)
-            .map((value, i) => ({ time: times[i], value }))
+            .map((value, i) => ({ time: times[i], value: value == null ? null : value * factor }))
             .filter(b => b.value !== null);
         expectSameBars(plotOf(result, 'S&P 500'), expectedBars(barsBySymbol['^GSPC']));
         expectSameBars(plotOf(result, 'NASDAQ 100'), expectedBars(barsBySymbol['^NDX']));

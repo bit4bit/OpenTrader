@@ -74,9 +74,10 @@ const ScriptSettings = ({ fields, values = {}, disabled = false, onChange, scrip
 );
 
 /**
- * Benchmark Index settings (base value handled by the generic script
- * settings above): one row per index, plus a membership picker listing the
- * benchmark indexes the chart symbol belongs to.
+ * Benchmark Index settings: one row per index, plus a membership picker
+ * listing the benchmark indexes the chart symbol belongs to. The lines
+ * plot on the price scale, rebased to the stock's close at the first
+ * shared bar.
  */
 const BenchmarkSettings = ({ ind, chartSymbol, updateIndicator }) => {
     const { membership, error } = useIndexMembership(chartSymbol);
