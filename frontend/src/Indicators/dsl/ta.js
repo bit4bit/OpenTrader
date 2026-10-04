@@ -21,6 +21,7 @@ import { computeVolumeProfile } from '../volumeProfile';
 import { computeMarketIndex } from '../marketIndex';
 import { computeBenchmarkLine } from '../benchmarkIndex';
 import { computeBuyVolume } from '../tradingActivity';
+import { snapEarningsReports } from '../../chart/earningsBars';
 
 function isValid(v) {
     return typeof v === 'number' && isFinite(v);
@@ -144,6 +145,22 @@ export function buildTa(data, barsBySymbol = {}) {
         atr: (length = 14) => align(computeATR(data, { length })),
         // Estimated bought volume per bar (close position in range).
         buyVolume: () => align(computeBuyVolume(data)),
+        // Quarterly EPS reports snapped onto this chart's bars: aligned
+        // actual/estimate arrays plus per-bar beat/miss colors. Shares the
+        // snap rule with the earnings pane legend (chart/earningsBars.js).
+        earningsBars: (quarters, { beatColor = '#26a69a', missColor = '#ef5350' } = {}) => {
+            const actual = new Array(data.length).fill(null);
+            const estimate = new Array(data.length).fill(null);
+            const colors = new Array(data.length).fill(null);
+            for (const r of snapEarningsReports(data, quarters)) {
+                if (r.epsEstimate != null) estimate[r.index] = r.epsEstimate;
+                if (r.epsActual != null) {
+                    actual[r.index] = r.epsActual;
+                    colors[r.index] = r.epsEstimate != null && r.epsActual < r.epsEstimate ? missColor : beatColor;
+                }
+            }
+            return { actual, estimate, colors };
+        },
         adl: () => align(computeADL(data)),
         tsi: (longLength = 25, shortLength = 13, signalLength = 13) => {
             const res = computeTSI(data, { longLength, shortLength, signalLength });

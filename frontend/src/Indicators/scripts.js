@@ -385,31 +385,13 @@ const SCRIPTS = {
         // (beat/miss colored against the estimate) plus a dashed estimate
         // line. The QoQ change is shown in percent by the pane legend
         // (chart/earningsLegend.js), not as bars: percent values on the
-        // EPS axis would distort the pane scale. Report dates are snapped
-        // to the nearest chart bar because Yahoo's report timestamps and
-        // chart bar times can sit in different timezones.
+        // EPS axis would distort the pane scale. Snapping (including the
+        // drop of reports outside the loaded range) lives in
+        // ta.earningsBars, shared with the legend.
         body: [
-            'const quarters = symbolInfo?.earnings || []',
-            'const indexFor = (ts) => {',
-            '    let lo = 0, hi = time.length - 1',
-            '    while (lo < hi) { const mid = (lo + hi) >> 1; if (time[mid] < ts) lo = mid + 1; else hi = mid }',
-            '    return lo',
-            '}',
-            'const actual = time.map(() => null)',
-            'const estimate = time.map(() => null)',
-            'const colors = time.map(() => null)',
-            'quarters.forEach(q => {',
-            '    const ts = Date.parse(q.date) / 1000',
-            '    if (!isFinite(ts)) return',
-            '    const i = indexFor(ts)',
-            '    if (q.epsEstimate != null) estimate[i] = q.epsEstimate',
-            '    if (q.epsActual != null) {',
-            '        actual[i] = q.epsActual',
-            '        colors[i] = q.epsEstimate != null && q.epsActual < q.epsEstimate ? missColor : beatColor',
-            '    }',
-            '})',
-            "plot(actual, { title: 'EPS Actual', color: beatColor, style: 'histogram', overlay: false, colors, lastValueVisible: false })",
-            "plot(estimate, { title: 'EPS Estimate', color: estimateColor, overlay: false, lineStyle: 'dashed', lineWidth: 1, lastValueVisible: false, priceLineVisible: false })",
+            'const e = ta.earningsBars(symbolInfo?.earnings || [], { beatColor, missColor })',
+            "plot(e.actual, { title: 'EPS Actual', color: beatColor, style: 'histogram', overlay: false, colors: e.colors, lastValueVisible: false })",
+            "plot(e.estimate, { title: 'EPS Estimate', color: estimateColor, overlay: false, lineStyle: 'dashed', lineWidth: 1, lastValueVisible: false, priceLineVisible: false })",
         ].join('\n'),
     },
     smi: {

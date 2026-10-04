@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { qoqEpsChangeAt } from '../earningsLegend';
 
-// Midnight-aligned bar times so date-only report strings snap exactly.
 const day = (offset) => 1704067200 + offset * 86400;
+const iso = (epochSeconds) => new Date(epochSeconds * 1000).toISOString().slice(0, 10);
 const data = [0, 1, 2, 3, 4].map(d => ({ time: day(d), open: 10, close: 10 }));
 
 // Reports at bars 0/1/2/4: growth, decline, growth again.
@@ -12,10 +12,6 @@ const quarters = [
     { date: iso(day(2)), epsEstimate: 1.0, epsActual: 1.2, surprisePct: 20 },
     { date: iso(day(4)), epsEstimate: 1.0, epsActual: 1.44, surprisePct: 44 },
 ];
-
-function iso(epochSeconds) {
-    return new Date(epochSeconds * 1000).toISOString().slice(0, 10);
-}
 
 describe('qoqEpsChangeAt', () => {
     it('returns the change of the report snapped to the hovered bar', () => {
@@ -27,6 +23,15 @@ describe('qoqEpsChangeAt', () => {
     it('falls back to the latest change off report bars', () => {
         expect(qoqEpsChangeAt(data, quarters, day(3)).change).toBe(20);
         expect(qoqEpsChangeAt(data, quarters, null).change).toBe(20);
+    });
+
+    it('returns null when no report is in range of the loaded bars', () => {
+        const outOfRange = [
+            { date: iso(day(0) - 90 * 86400), epsEstimate: null, epsActual: 1.0 },
+            { date: iso(day(0) - 30 * 86400), epsEstimate: null, epsActual: 1.1 },
+        ];
+        expect(qoqEpsChangeAt(data, outOfRange, day(1))).toBeNull();
+        expect(qoqEpsChangeAt(data, outOfRange, null)).toBeNull();
     });
 
     it('returns null without reports or data', () => {
