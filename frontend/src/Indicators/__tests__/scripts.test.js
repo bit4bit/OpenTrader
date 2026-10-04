@@ -201,6 +201,78 @@ describe('script equivalence', () => {
         });
     });
 
+    it('volume % of shares mode re-expresses bars as turnover', () => {
+        const so = 1_000_000;
+        const result = runScript(
+            scriptCode('volume'),
+            DATA,
+            scriptValues('volume', { upColor: '#0f0', downColor: '#f00', pctShares: true, missingColor: '#888' }),
+            {},
+            { sharesOutstanding: so },
+        );
+        expect(result.error).toBeNull();
+        const plot = plotOf(result, 'Volume % of Shares');
+        expect(plot).toHaveLength(DATA.length);
+        plot.forEach((bar, i) => {
+            expect(bar.value).toBeCloseTo((DATA[i].volume / so) * 100, 9);
+            expect(bar.color).toBe(DATA[i].close >= DATA[i].open ? '#0f0' : '#f00');
+        });
+    });
+
+    it('volume % of shares mode falls back to raw volume without a share count', () => {
+        const result = runScript(
+            scriptCode('volume'),
+            DATA,
+            scriptValues('volume', { upColor: '#0f0', downColor: '#f00', pctShares: true, missingColor: '#888' }),
+            {},
+            {},
+        );
+        expect(result.error).toBeNull();
+        const plot = plotOf(result, 'Volume (no shares data)');
+        expect(plot).toHaveLength(DATA.length);
+        plot.forEach((bar, i) => {
+            expect(bar.value).toBe(DATA[i].volume ?? 0);
+            expect(bar.color).toBe('#888');
+        });
+    });
+
+    it('vol_sma matches the volume units in both modes', () => {
+        // Raw mode: SMA over share counts, unchanged behavior.
+        const raw = run('vol_sma', { length: 10, color: '#ff9800' });
+        expectSameBars(plotOf(raw, 'Vol SMA'), computeSMA(DATA, 10, 'volume'));
+
+        // % of shares mode: the pane y-scale is turnover %, so the SMA
+        // must average the scaled series, not the raw counts.
+        const so = 1_000_000;
+        const scaledData = DATA.map(d => ({ ...d, volume: (d.volume / so) * 100 }));
+        const pct = runScript(
+            scriptCode('vol_sma'),
+            DATA,
+            scriptValues('vol_sma', { length: 10, color: '#ff9800' }),
+            {},
+            { volumePctShares: true, sharesOutstanding: so },
+        );
+        expect(pct.error).toBeNull();
+        expectSameBars(plotOf(pct, 'Vol SMA'), computeSMA(scaledData, 10, 'volume'), 1e-9);
+    });
+
+    it('vol_ema matches the volume units in both modes', () => {
+        const raw = run('vol_ema', { length: 8, color: '#9c27b0' });
+        expectSameBars(plotOf(raw, 'Vol EMA'), computeEMA(DATA, 8, 'volume'));
+
+        const so = 1_000_000;
+        const scaledData = DATA.map(d => ({ ...d, volume: (d.volume / so) * 100 }));
+        const pct = runScript(
+            scriptCode('vol_ema'),
+            DATA,
+            scriptValues('vol_ema', { length: 8, color: '#9c27b0' }),
+            {},
+            { volumePctShares: true, sharesOutstanding: so },
+        );
+        expect(pct.error).toBeNull();
+        expectSameBars(plotOf(pct, 'Vol EMA'), computeEMA(scaledData, 8, 'volume'), 1e-9);
+    });
+
     it('trading_activity', () => {
         const result = run('trading_activity', { buyColor: '#0f0', sellColor: '#f00' });
         expect(result.plots).toHaveLength(2);
@@ -211,6 +283,26 @@ describe('script equivalence', () => {
         // Sellers base bar carries the full volume; Buyers overlay the split.
         expectSameBars(result.plots[0].series, DATA.map(d => ({ time: d.time, value: d.volume ?? 0 })));
         expectSameBars(result.plots[1].series, computeBuyVolume(DATA));
+    });
+
+    it('pe', () => {
+        const eps = 2.5;
+        const withEps = runScript(
+            scriptCode('pe'), DATA,
+            scriptValues('pe', { color: '#2962ff' }),
+            {},
+            { trailingEps: eps },
+        );
+        expect(withEps.error).toBeNull();
+        expectSameBars(plotOf(withEps, 'P/E'), DATA.map(d => ({ time: d.time, value: d.close / eps })));
+        expect(withEps.plots[0].overlay).toBe(false);
+    });
+
+    it('pe without EPS data plots an empty series', () => {
+        const noEps = runScript(scriptCode('pe'), DATA, scriptValues('pe', { color: '#2962ff' }), {}, {});
+        expect(noEps.error).toBeNull();
+        const plot = plotOf(noEps, 'P/E (no EPS data)');
+        expect(plot).toHaveLength(0);
     });
 
     it('smi', () => {

@@ -8,7 +8,7 @@
  *
  * Two-pass model:
  *   discoverInputs(code)  -> input schema for the settings UI
- *   runScript(code, data, values, barsBySymbol) -> render descriptors
+ *   runScript(code, data, values, barsBySymbol, symbolInfo) -> render descriptors
  *
  * plot(series, opts) returns a handle usable in fill(a, b, opts) to shade
  * the area between two plots. opts: { title, color, overlay=true,
@@ -17,7 +17,9 @@
  * histogram(bins, { color }) draws a horizontal price-by-volume profile on
  * the price pane (bins: [{low, high, normalizedVolume}] from
  * ta.volumeProfile). barsBySymbol feeds multi-symbol helpers like
- * ta.marketIndex.
+ * ta.marketIndex. symbolInfo carries static fundamentals
+ * (sharesOutstanding, marketCap) for turnover-style indicators — scripts
+ * must defensively handle missing fields.
  */
 import { buildTa } from './ta';
 
@@ -69,12 +71,13 @@ function buildSources(data) {
 function compile(code) {
     const params = [
         'open', 'high', 'low', 'close', 'volume', 'time',
-        'ta', 'input', 'plot', 'fill', 'histogram', ...SHADOWED_GLOBALS,
+        'ta', 'input', 'plot', 'fill', 'histogram', 'symbolInfo',
+        ...SHADOWED_GLOBALS,
     ];
     return new Function(...params, `'use strict';\n${code}`);
 }
 
-function execute(code, data, values, barsBySymbol, collectPlots) {
+function execute(code, data, values, barsBySymbol, symbolInfo, collectPlots) {
     const declaring = { schema: [] };
     const plots = [];
     const fills = [];
@@ -106,6 +109,7 @@ function execute(code, data, values, barsBySymbol, collectPlots) {
         plot,
         fill,
         histogram,
+        symbolInfo ?? {},
     );
     return { schema: declaring.schema, plots, fills, histograms };
 }
@@ -135,7 +139,7 @@ function toBars(series, times, colors) {
  */
 export function discoverInputs(code) {
     try {
-        const { schema } = execute(code, null, null, null, false);
+        const { schema } = execute(code, null, null, null, null, false);
         return { schema, error: null };
     } catch (e) {
         return { schema: [], error: e.message };
@@ -149,9 +153,9 @@ export function discoverInputs(code) {
  *   histograms: [{bins, color}],       // price-by-volume profiles
  *   error }.
  */
-export function runScript(code, data, values = {}, barsBySymbol = {}) {
+export function runScript(code, data, values = {}, barsBySymbol = {}, symbolInfo = {}) {
     try {
-        const { plots, fills, histograms } = execute(code, data, values, barsBySymbol, true);
+        const { plots, fills, histograms } = execute(code, data, values, barsBySymbol, symbolInfo, true);
         const times = data.map(d => d.time);
         const rendered = plots.map((p, i) => ({
             title: p.title || `Plot ${i + 1}`,

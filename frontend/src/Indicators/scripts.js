@@ -64,8 +64,21 @@ const SCRIPTS = {
         fields: [
             { key: 'upColor', label: 'Up Color', type: 'color', default: '#26a69a' },
             { key: 'downColor', label: 'Down Color', type: 'color', default: '#ef5350' },
+            { key: 'pctShares', label: '% of Shares Outstanding', type: 'bool', default: false },
+            { key: 'missingColor', label: 'No Shares Data', type: 'color', default: 'rgba(128, 128, 128, 0.5)' },
         ],
-        body: "plot(volume.map(v => v ?? 0), { title: 'Volume', color: upColor, style: 'histogram', overlay: false, colors: close.map((c, i) => c >= open[i] ? upColor : downColor), lastValueVisible: false })",
+        // % of Shares mode re-expresses each bar as turnover: volume /
+        // shares outstanding * 100. Without a share count the mode falls
+        // back to raw volume in gray, so the pane is never blank.
+        body: [
+            'const so = pctShares ? symbolInfo?.sharesOutstanding : null',
+            "const upDown = close.map((c, i) => c >= open[i] ? upColor : downColor)",
+            "const hasSo = so != null && so > 0",
+            "const values = hasSo ? volume.map(v => v != null ? (v / so) * 100 : null) : volume.map(v => v ?? 0)",
+            "const colors = hasSo ? upDown : pctShares ? volume.map(() => missingColor) : upDown",
+            "const title = hasSo ? 'Volume % of Shares' : pctShares ? 'Volume (no shares data)' : 'Volume'",
+            "plot(values, { title, color: upColor, style: 'histogram', overlay: false, colors, lastValueVisible: false })",
+        ].join('\n'),
     },
     vol_sma: {
         title: 'Volume SMA',
@@ -75,7 +88,14 @@ const SCRIPTS = {
             { key: 'length', label: 'Length', type: 'int', default: 20, min: 1, max: 500 },
             { key: 'color', label: 'Color', type: 'color', default: '#ff9800' },
         ],
-        body: "plot(ta.sma(volume, length), { title: 'Vol SMA ' + length, color, overlay: false, lastValueVisible: false })",
+        // Plots in the units of the Volume bars: turnover % when the volume
+        // indicator is in % of shares mode (the pane y-scale demands it),
+        // raw share counts otherwise.
+        body: [
+            'const so = symbolInfo?.volumePctShares ? symbolInfo?.sharesOutstanding : null',
+            "const scaled = so > 0 ? volume.map(v => v != null ? (v / so) * 100 : null) : volume",
+            "plot(ta.sma(scaled, length), { title: 'Vol SMA ' + length, color, overlay: false, lastValueVisible: false })",
+        ].join('\n'),
     },
     trading_activity: {
         title: 'Trading Activity',
@@ -102,7 +122,13 @@ const SCRIPTS = {
             { key: 'length', label: 'Length', type: 'int', default: 21, min: 1, max: 500 },
             { key: 'color', label: 'Color', type: 'color', default: '#9c27b0' },
         ],
-        body: "plot(ta.ema(volume, length), { title: 'Vol EMA ' + length, color, overlay: false, lastValueVisible: false })",
+        // Same unit-matching as vol_sma: turnover % when the volume bars
+        // are in % of shares mode, raw counts otherwise.
+        body: [
+            'const so = symbolInfo?.volumePctShares ? symbolInfo?.sharesOutstanding : null',
+            "const scaled = so > 0 ? volume.map(v => v != null ? (v / so) * 100 : null) : volume",
+            "plot(ta.ema(scaled, length), { title: 'Vol EMA ' + length, color, overlay: false, lastValueVisible: false })",
+        ].join('\n'),
     },
     rsi: {
         title: 'Relative Strength Index',
@@ -322,6 +348,24 @@ const SCRIPTS = {
             { key: 'color', label: 'Color', type: 'color', default: 'rgba(38, 166, 154, 0.2)' },
         ],
         body: "histogram(ta.volumeProfile(priceBins), { color })",
+    },
+    pe: {
+        title: 'P/E Ratio',
+        id: 'pe-main',
+        pane: true,
+        fields: [
+            { key: 'color', label: 'Color', type: 'color', default: '#2962ff' },
+        ],
+        // Trailing P/E: close over trailing EPS from the symbol
+        // fundamentals. EPS is a snapshot, so the line tracks how the
+        // market re-rated the stock at constant earnings. Missing or
+        // zero EPS (crypto, indices, no-earnings stocks) -> empty plot.
+        body: [
+            'const eps = symbolInfo?.trailingEps',
+            'const hasEps = typeof eps === "number" && eps > 0',
+            "const values = hasEps ? close.map(c => c / eps) : close.map(() => null)",
+            "plot(values, { title: hasEps ? 'P/E' : 'P/E (no EPS data)', color, overlay: false, lineWidth: 2 })",
+        ].join('\n'),
     },
     smi: {
         title: 'Simple Market Index',

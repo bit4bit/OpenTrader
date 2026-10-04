@@ -169,7 +169,7 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
         setVisibleRange: (range) => chart.timeScale().setVisibleLogicalRange(range),
         fitContent: () => chart.timeScale().fitContent(),
 
-        setPriceSeries(chartType, rows) {
+        setPriceSeries(chartType, rows, priceFormat) {
             if (priceSeries && priceChartType !== chartType) {
                 chart.removeSeries(priceSeries);
                 priceSeries = null;
@@ -184,6 +184,10 @@ export function createLwcEngine(container, { timeFormatter } = {}) {
                 priceChartType = chartType;
                 attachRedraw();
             }
+            // Axis ticks and the crosshair price label both follow the
+            // series price format; apply every call so provider switches
+            // on an existing series take effect.
+            if (priceFormat) priceSeries.applyOptions({ priceFormat });
             priceSeries.setData(rows);
             edgeTimes = {
                 first: rows.slice(0, EDGE_REF_COUNT).map(r => r.time),

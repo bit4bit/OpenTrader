@@ -14,6 +14,7 @@ from django.test import TestCase
 
 from market.providers import registry
 from market.providers import index_membership
+from market.providers import symbol_info
 from market.providers.kraken import KrakenMarketProvider
 from market.providers.yahoo import YahooMarketProvider
 
@@ -393,6 +394,18 @@ class SymbolsApiBehavior(ProviderScenarioTestCase):
         response = self.client.get('/api/symbols/', {'provider': 'bogus'})
         self.assertEqual(response.status_code, 500)
 
+class ProviderConfigBehavior(ProviderScenarioTestCase):
+    def test_price_decimals_default_to_the_provider_class(self):
+        response = self.client.get('/api/providers/config/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'price_decimals': {'kraken': 5, 'yahoo': 2}})
+
+    def test_price_decimals_are_overridable_per_provider(self):
+        self.given_config({'kraken': {'price_decimals': 3}, 'yahoo': {'price_decimals': 4}})
+        response = self.client.get('/api/providers/config/')
+        self.assertEqual(response.json(), {'price_decimals': {'kraken': 3, 'yahoo': 4}})
+
+
 class IndexMembershipBehavior(TestCase):
     """Constituents HTTP stubbed; inversion, caching and the API endpoint real."""
 
@@ -469,3 +482,170 @@ class IndexMembershipBehavior(TestCase):
     def test_endpoint_requires_symbol(self):
         response = self.client.get('/api/index-membership/')
         self.assertEqual(response.status_code, 400)
+
+
+class YahooGetInfoBehavior(TestCase):
+    """Provider-level get_info() converts yfinance fast_info scalars into
+    the flat {shares_outstanding, market_cap} dict the symbol_info layer
+    expects. We don't talk to Yahoo here — only to yfinance.Ticker()."""
+
+    def _fast_info(self, shares=None, market_cap=None):
+        fast = mock.Mock()
+        fast.shares = shares
+        fast.market_cap = market_cap
+        return fast
+
+    def test_yahoo_get_info_returns_integer_shares_and_market_cap(self):
+        provider = YahooMarketProvider()
+        with mock.patch.object(provider, '_screener', return_value=[]), \
+             mock.patch('market.providers.yahoo.yf.Ticker') as ticker:
+            ticker.return_value.fast_info = self._fast_info(shares=15_000_000_000, market_cap=2_500_000_000_000)
+            info = provider.get_info('AAPL')
+        self.assertEqual(info, {'shares_outstanding': 15_000_000_000, 'market_cap': 2_500_000_000_000})
+
+    def test_yahoo_get_info_handles_missing_fields(self):
+        provider = YahooMarketProvider()
+        with mock.patch('market.providers.yahoo.yf.Ticker') as ticker:
+            ticker.return_value.fast_info = self._fast_info(shares=None, market_cap=None)
+            info = provider.get_info('AAPL')
+        self.assertEqual(info, {'shares_outstanding': None, 'market_cap': None})
+
+    def test_kraken_get_info_is_empty(self):
+        provider = KrakenMarketProvider()
+        self.assertEqual(provider.get_info('XBT/USD'), {})
+
+
+class SymbolInfoBehavior(ProviderScenarioTestCase):
+    """Disk-cached fundamentals: Yahoo fast_info is the source, Kraken
+    bypasses the cache entirely because it has no fundamentals."""
+
+    def setUp(self):
+        super().setUp()
+        self._orig_cache_path = symbol_info.CACHE_PATH
+        symbol_info.CACHE_PATH = self._orig_cache_path.parent / f'symbol-info-test-{self.id()}.json'
+        self._reset()
+
+    def tearDown(self):
+        self._reset()
+        symbol_info.CACHE_PATH.unlink(missing_ok=True)
+        symbol_info.CACHE_PATH = self._orig_cache_path
+
+    def _reset(self):
+        symbol_info._inflight.clear()
+
+    def _stub_yahoo(self, **fast_info_kwargs):
+        fast = mock.Mock()
+        fast.shares = fast_info_kwargs.get('shares')
+        fast.market_cap = fast_info_kwargs.get('market_cap')
+        info = {'trailingEps': fast_info_kwargs.get('trailing_eps')}
+        return mock.patch(
+            'market.providers.symbol_info.yf.Ticker',
+            return_value=mock.Mock(fast_info=fast, info=info),
+        )
+
+    def test_yahoo_info_for_returns_shares_outstanding_and_market_cap(self):
+        self.given_config({'yahoo': {}})
+        with self._stub_yahoo(shares=15_000_000_000, market_cap=2_500_000_000_000, trailing_eps=6.5):
+            info = symbol_info.info_for('AAPL', 'yahoo')
+        self.assertEqual(info, {
+            'shares_outstanding': 15_000_000_000,
+            'market_cap': 2_500_000_000_000,
+            'trailing_eps': 6.5,
+        })
+
+    def test_yahoo_info_for_handles_missing_trailing_eps(self):
+        self.given_config({'yahoo': {}})
+        with self._stub_yahoo(shares=15_000_000_000):
+            info = symbol_info.info_for('AAPL', 'yahoo')
+        self.assertEqual(info['trailing_eps'], None)
+
+    def test_yahoo_info_for_refetches_cache_entries_from_older_schema(self):
+        # Entries written before a schema bump (no version tag) lack the new
+        # fields; they must be treated as expired and refetched.
+        self.given_config({'yahoo': {}})
+        symbol_info._write_disk_cache({
+            'fetched_at': time.time(),
+            'entries': {'AAPL|yahoo_fast_info': {
+                'fetched_at': time.time(),
+                'info': {'shares_outstanding': 1, 'market_cap': 2},
+            }},
+        })
+        with self._stub_yahoo(shares=15_000_000_000, market_cap=2_500_000_000_000, trailing_eps=6.5) as ticker:
+            info = symbol_info.info_for('AAPL', 'yahoo')
+            self.assertEqual(ticker.call_count, 1)
+        self.assertEqual(info, {
+            'shares_outstanding': 15_000_000_000,
+            'market_cap': 2_500_000_000_000,
+            'trailing_eps': 6.5,
+        })
+
+    def test_yahoo_info_for_is_cached_on_disk_and_not_refetched(self):
+        self.given_config({'yahoo': {}})
+        with self._stub_yahoo(shares=15_000_000_000) as ticker:
+            symbol_info.info_for('AAPL', 'yahoo')
+            self.assertEqual(ticker.call_count, 1)
+            symbol_info.info_for('AAPL', 'yahoo')
+            self.assertEqual(ticker.call_count, 1)
+        self.assertTrue(symbol_info.CACHE_PATH.exists())
+
+    def test_yahoo_fetch_failure_serves_stale_cache(self):
+        self.given_config({'yahoo': {}})
+        with self._stub_yahoo(shares=15_000_000_000):
+            fresh = symbol_info.info_for('AAPL', 'yahoo')
+        self._reset()
+        broken = mock.patch('market.providers.symbol_info.yf.Ticker', side_effect=RuntimeError('down'))
+        with broken:
+            self.assertEqual(symbol_info.info_for('AAPL', 'yahoo'), fresh)
+
+    def test_kraken_info_for_is_empty_without_touching_yahoo(self):
+        self.given_config({'kraken': {}})
+        with mock.patch('market.providers.symbol_info.yf.Ticker') as ticker:
+            info = symbol_info.info_for('XBT/USD', 'kraken')
+            ticker.assert_not_called()
+        self.assertEqual(info, {})
+
+
+class SymbolInfoApiBehavior(ProviderScenarioTestCase):
+    def setUp(self):
+        super().setUp()
+        self._orig_cache_path = symbol_info.CACHE_PATH
+        symbol_info.CACHE_PATH = self._orig_cache_path.parent / f'symbol-info-api-{self.id()}.json'
+        symbol_info._inflight.clear()
+
+    def tearDown(self):
+        symbol_info._inflight.clear()
+        symbol_info.CACHE_PATH.unlink(missing_ok=True)
+        symbol_info.CACHE_PATH = self._orig_cache_path
+
+    def _stub_yahoo(self, shares, market_cap, trailing_eps=6.5):
+        fast = mock.Mock(shares=shares, market_cap=market_cap)
+        ticker = mock.Mock(fast_info=fast, info={'trailingEps': trailing_eps})
+        return mock.patch('market.providers.symbol_info.yf.Ticker', return_value=ticker)
+
+    def test_endpoint_returns_yahoo_fundamentals(self):
+        self.given_config({'yahoo': {}})
+        with self._stub_yahoo(shares=15_000_000_000, market_cap=2_500_000_000_000, trailing_eps=6.5):
+            response = self.client.get('/api/symbol/info/', {'symbol': 'AAPL', 'provider': 'yahoo'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'symbol': 'AAPL',
+            'provider': 'yahoo',
+            'shares_outstanding': 15_000_000_000,
+            'market_cap': 2_500_000_000_000,
+            'trailing_eps': 6.5,
+        })
+
+    def test_endpoint_returns_empty_dict_for_kraken(self):
+        self.given_config({'kraken': {}})
+        response = self.client.get('/api/symbol/info/', {'symbol': 'XBT/USD', 'provider': 'kraken'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'symbol': 'XBT/USD', 'provider': 'kraken'})
+
+    def test_endpoint_requires_symbol(self):
+        response = self.client.get('/api/symbol/info/')
+        self.assertEqual(response.status_code, 400)
+
+    def test_endpoint_404_for_unsupported_symbol(self):
+        self.given_config({'yahoo': {}})
+        response = self.client.get('/api/symbol/info/', {'symbol': 'NOPE'})
+        self.assertEqual(response.status_code, 404)

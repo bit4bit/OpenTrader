@@ -72,9 +72,15 @@ describe('indicator creation', () => {
         expect(addIndicators([], 'vol_sma')).toEqual([{
             id: 'vol-sma-main', type: 'vol_sma', length: 20, color: '#ff9800', visible: true,
         }]);
+        expect(addIndicators([], 'vol_ema')).toEqual([{
+            id: 'vol-ema-main', type: 'vol_ema', length: 21, color: '#9c27b0', visible: true,
+        }]);
         expect(addIndicators([], 'volume_profile')).toEqual([{
             id: 'vp-main', type: 'volume_profile', priceBins: 40,
             color: 'rgba(38, 166, 154, 0.4)', visible: true,
+        }]);
+        expect(addIndicators([], 'pe')).toEqual([{
+            id: 'pe-main', type: 'pe', color: '#2962ff', visible: true,
         }]);
         expect(addIndicators([], 'smi')).toEqual([{
             id: 'smi-main', type: 'smi', baseValue: 100,

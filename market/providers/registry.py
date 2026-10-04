@@ -69,6 +69,17 @@ def get_config():
     return _load_config()
 
 
+def get_price_decimals():
+    """Display precision per provider: the class default, overridable via
+    config.json providers.<name>.price_decimals."""
+    config = _load_config()
+    overrides = config.get('providers', {})
+    return {
+        name: overrides.get(name, {}).get('price_decimals', cls.price_decimals)
+        for name, cls in PROVIDER_CLASSES.items()
+    }
+
+
 def get_configured_provider_names():
     config = _load_config()
     configured = config.get('providers', {})

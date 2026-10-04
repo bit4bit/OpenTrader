@@ -9,6 +9,10 @@ class MarketDataProvider:
     The registry stamps the extra 'provider' key.
     """
 
+    # Display precision for prices from this provider; overridable per
+    # provider in config.json (providers.<name>.price_decimals).
+    price_decimals = 2
+
     def __init__(self, **config):
         self.config = config
 
@@ -23,6 +27,13 @@ class MarketDataProvider:
     def get_history(self, symbol, interval, period=None, start=None, end=None):
         """Return OHLCV history as a DataFrame with Open/High/Low/Close/Volume columns."""
         raise NotImplementedError
+
+    def get_info(self, symbol):
+        """Static fundamentals per symbol used by indicators (e.g. turnover
+        ratios). Return a flat dict of scalar fields; missing data -> None.
+        Providers that have no fundamentals (crypto) return {}.
+        """
+        return {}
 
 
 def search_in_catalog(catalog, query):

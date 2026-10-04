@@ -19,6 +19,9 @@ INTERVAL_MINUTES = {
 class KrakenMarketProvider(MarketDataProvider):
     """Kraken public REST API: crypto pairs only, no key required."""
 
+    # Crypto pairs quote in sub-cent units.
+    price_decimals = 5
+
     def _get(self, path, params=None):
         response = requests.get(f'{KRAKEN_API}{path}', params=params, timeout=15)
         response.raise_for_status()
@@ -73,3 +76,8 @@ class KrakenMarketProvider(MarketDataProvider):
         df = df.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'})
         df['Date'] = df['time'].apply(lambda t: datetime.fromtimestamp(t, tz=timezone.utc))
         return df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']]
+
+    def get_info(self, symbol):
+        # Crypto has no shares outstanding / market cap. Quote-volume turnover
+        # is computed per bar (volume * close) by the vol_quote indicator.
+        return {}

@@ -86,3 +86,28 @@ class YahooMarketProvider(MarketDataProvider):
         if df is None or df.empty:
             return pd.DataFrame()
         return df
+
+    def get_info(self, symbol):
+        # fast_info is the lightweight subset of .info cached by yfinance:
+        # enough for turnover-style indicators (sharesOutstanding, marketCap)
+        # without the per-call overhead of the full fundamentals payload.
+        try:
+            fast = yf.Ticker(symbol).fast_info
+        except Exception as e:
+            logger.warning('Yahoo fast_info fetch failed for %s: %s', symbol, e)
+            return {'shares_outstanding': None, 'market_cap': None}
+
+        def _as_int(value):
+            if value is None:
+                return None
+            try:
+                if hasattr(value, 'item'):
+                    value = value.item()
+                return int(value) if value == value and value not in (float('inf'), float('-inf')) else None
+            except (TypeError, ValueError):
+                return None
+
+        return {
+            'shares_outstanding': _as_int(getattr(fast, 'shares', None)),
+            'market_cap': _as_int(getattr(fast, 'market_cap', None)),
+        }

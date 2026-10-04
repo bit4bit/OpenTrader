@@ -4,6 +4,8 @@ import { formatADLValue } from '../Indicators/adl';
 import { registerChart, broadcastRange, broadcastCrosshair, isApplyingSync } from '../sync/chartSync';
 import { formatCrosshairTime, crosshairLineColor } from '../chart/timeFormat';
 import { priceSeriesData } from '../chart/heikinAshi';
+import { priceFormatForDecimals, DEFAULT_PRICE_DECIMALS } from '../chart/priceFormat';
+import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { fillGapRows } from '../chart/gapFill';
 import { buildWeekendShapes } from '../chart/weekendShapes';
 import { findNearestBar } from '../chart/barSearch';
@@ -63,6 +65,7 @@ const Chart = ({
     const [noteDrag, setNoteDrag] = useState(null);
     const [notePositions, setNotePositions] = useState({});
     const [engineReady, setEngineReady] = useState(false);
+    const priceDecimalsByProvider = useProviderPriceDecimals();
     const [engineError, setEngineError] = useState(null);
     const currentCrosshairColor = useRef('#758696');
 
@@ -380,7 +383,8 @@ const Chart = ({
         const paneIndexOf = (type) => paneIndexOfType(activePaneTypes, type);
 
         engine.applyPriceScaleMargins({ top: 0.02, bottom: 0.02 });
-        engine.setPriceSeries(chartType, displayPriceRows);
+        const priceDecimals = priceDecimalsByProvider[provider] ?? DEFAULT_PRICE_DECIMALS;
+        engine.setPriceSeries(chartType, displayPriceRows, priceFormatForDecimals(priceDecimals));
 
         // Indicator Management
         // A tracked series is renderable only while its indicator is visible
@@ -482,7 +486,7 @@ const Chart = ({
             }
             pendingScrollRef.current = null;
         }
-    }, [data, chartType, displayPriceRows, indicators, symbol, interval, indicatorResults, engineReady]);
+    }, [data, chartType, displayPriceRows, indicators, symbol, provider, interval, indicatorResults, engineReady, priceDecimalsByProvider]);
 
     const updateNoteRef = useRef(updateNote);
     useEffect(() => { updateNoteRef.current = updateNote; }, [updateNote]);

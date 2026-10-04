@@ -30,8 +30,10 @@
 //     fitContent()
 //
 //   Price
-//     setPriceSeries(chartType, rows)   // 'candles' | 'line'; rows already
-//                                       // presentation-mapped (heikin-ashi)
+//     setPriceSeries(chartType, rows, priceFormat?) // 'candles' | 'line';
+//                                       // rows already presentation-mapped
+//                                       // (heikin-ashi); priceFormat: chart/
+//                                       // priceFormat.js shape
 //     applyPriceScaleMargins({ top, bottom })
 //
 //   Panes (indicator subplots below the price pane)

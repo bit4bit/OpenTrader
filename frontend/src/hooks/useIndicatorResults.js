@@ -13,18 +13,28 @@ import { scriptCode, scriptValues, scriptPaneType, SCRIPT_TYPES, needsFullData }
  * pane legend layout in ChartPanel stays deterministic; custom indicators
  * get `custom-<indicator id>`.
  */
-export function useIndicatorResults(data, adFullData, indicators, scriptsById, barsBySymbol = {}) {
+export function useIndicatorResults(data, adFullData, indicators, scriptsById, barsBySymbol = {}, symbolInfo = null) {
     return useMemo(() => {
         const resultsById = {};
         const errorsById = {};
         const paneIds = [];
+
+        // Turnover mode is a property of the Volume bars; the pane companions
+        // (vol_sma/vol_ema) must plot in the same units, so expose the
+        // active flag and share count to every script via symbolInfo.
+        const volumeBars = indicators.find(i => i.type === 'volume' && i.visible);
+        const pctShares = volumeBars?.pctShares === true;
+        const context = {
+            ...(symbolInfo || {}),
+            volumePctShares: pctShares,
+        };
 
         indicators.forEach(ind => {
             if (!ind.visible) return;
             if (ind.type === 'custom') {
                 const script = scriptsById?.[ind.scriptId];
                 if (!script) return;
-                const result = runScript(script.code, data, ind.inputs || {});
+                const result = runScript(script.code, data, ind.inputs || {}, {}, context);
                 resultsById[ind.id] = result;
                 if (result.error) errorsById[ind.id] = result.error;
                 if (result.plots.some(p => !p.overlay)) paneIds.push(`custom-${ind.id}`);
@@ -37,6 +47,7 @@ export function useIndicatorResults(data, adFullData, indicators, scriptsById, b
                     needsFullData(ind.type) ? adFullData : data,
                     scriptValues(ind.type, ind),
                     barsBySymbol,
+                    context,
                 );
                 resultsById[ind.id] = result;
                 if (result.error) errorsById[ind.id] = result.error;
@@ -45,5 +56,5 @@ export function useIndicatorResults(data, adFullData, indicators, scriptsById, b
         });
 
         return { resultsById, paneIds, errorsById };
-    }, [data, adFullData, indicators, scriptsById, barsBySymbol]);
+    }, [data, adFullData, indicators, scriptsById, barsBySymbol, symbolInfo]);
 }
