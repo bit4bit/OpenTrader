@@ -377,10 +377,10 @@ const SCRIPTS = {
             { key: 'estimateColor', label: 'Estimate Color', type: 'color', default: 'rgba(255, 255, 255, 0.4)' },
         ],
         // Quarterly EPS at each report date: a histogram bar per report
-        // (beat/miss colored against the estimate) plus a dashed estimate
-        // line. Report dates are snapped to the nearest chart bar because
-        // Yahoo's report timestamps and chart bar times can sit in
-        // different timezones.
+        // (beat/miss colored against the estimate), a dashed estimate
+        // line, and a change-vs-previous-quarter histogram. Report dates
+        // are snapped to the nearest chart bar because Yahoo's report
+        // timestamps and chart bar times can sit in different timezones.
         body: [
             'const quarters = symbolInfo?.earnings || []',
             'const indexFor = (ts) => {',
@@ -390,7 +390,10 @@ const SCRIPTS = {
             '}',
             'const actual = time.map(() => null)',
             'const estimate = time.map(() => null)',
+            'const change = time.map(() => null)',
             'const colors = time.map(() => null)',
+            'const changeColors = time.map(() => null)',
+            'let prevActual = null',
             'quarters.forEach(q => {',
             '    const ts = Date.parse(q.date) / 1000',
             '    if (!isFinite(ts)) return',
@@ -399,10 +402,16 @@ const SCRIPTS = {
             '    if (q.epsActual != null) {',
             '        actual[i] = q.epsActual',
             '        colors[i] = q.epsEstimate != null && q.epsActual < q.epsEstimate ? missColor : beatColor',
+            '        if (prevActual != null) {',
+            '            change[i] = q.epsActual - prevActual',
+            '            changeColors[i] = q.epsActual >= prevActual ? beatColor : missColor',
+            '        }',
+            '        prevActual = q.epsActual',
             '    }',
             '})',
             "plot(actual, { title: 'EPS Actual', color: beatColor, style: 'histogram', overlay: false, colors, lastValueVisible: false })",
             "plot(estimate, { title: 'EPS Estimate', color: estimateColor, overlay: false, lineStyle: 'dashed', lineWidth: 1, lastValueVisible: false, priceLineVisible: false })",
+            "plot(change, { title: 'EPS Change QoQ', color: beatColor, style: 'histogram', overlay: false, colors: changeColors, lastValueVisible: false })",
         ].join('\n'),
     },
     smi: {

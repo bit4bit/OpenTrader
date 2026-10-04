@@ -335,6 +335,11 @@ describe('script equivalence', () => {
         expect(estimate.map(b => b.value)).toEqual([1.0, 1.0, 1.1]);
         // Runtime maps 'dashed' to the engine's dashed enum value.
         expect(result.plots[1].lineStyle).toBe(2);
+        // First report has no previous quarter to compare against.
+        const change = plotOf(result, 'EPS Change QoQ');
+        expect(change.map(b => b.time)).toEqual([DATA[1].time]);
+        expect(change[0].value).toBeCloseTo(-0.3, 9);
+        expect(change[0].color).toBe('#f00');
     });
 
     it('earnings without reports plots empty series', () => {
