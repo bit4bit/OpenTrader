@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import Chart from './Chart';
 import { useChartData, useAdFullData, useMarketIndexData } from '../hooks/useChartData';
 import { useSymbolInfo } from '../hooks/useSymbolInfo';
+import { useSymbolEarnings } from '../hooks/useSymbolEarnings';
 import { formatADLValue } from '../Indicators/adl';
 import { computeActivePaneTypes } from '../chart/paneLayout';
 import { formatPriceValue, DEFAULT_PRICE_DECIMALS } from '../chart/priceFormat';
@@ -62,6 +63,7 @@ const ChartPanel = ({
     const adFullData = useAdFullData(symbol, provider, interval, indicators);
     const { data: smiData } = useMarketIndexData(indicators, interval);
     const symbolInfo = useSymbolInfo(symbol, provider);
+    const earnings = useSymbolEarnings(symbol, provider);
     const [hoveredData, setHoveredData] = useState(null);
 
     const setDrawings = useCallback((updater) => {
@@ -76,7 +78,7 @@ const ChartPanel = ({
     const pnl = priceData ? ((priceData.close - priceData.open) / priceData.open * 100) : null;
     const pnlColor = pnl >= 0 ? '#26a69a' : '#ef5350';
 
-    const indicatorResults = useIndicatorResults(data, adFullData, indicators, scriptsById, smiData, symbolInfo);
+    const indicatorResults = useIndicatorResults(data, adFullData, indicators, scriptsById, smiData, symbolInfo, earnings);
 
     const activePaneTypes = computeActivePaneTypes(indicators, indicatorResults.paneIds);
     const isPaneType = (type) => type === 'custom' || isScriptPane(type);

@@ -79,6 +79,11 @@ describe('indicator creation', () => {
             id: 'vp-main', type: 'volume_profile', priceBins: 40,
             color: 'rgba(38, 166, 154, 0.4)', visible: true,
         }]);
+        expect(addIndicators([], 'earnings')).toEqual([{
+            id: 'earnings-main', type: 'earnings',
+            beatColor: '#26a69a', missColor: '#ef5350',
+            estimateColor: 'rgba(255, 255, 255, 0.4)', visible: true,
+        }]);
         expect(addIndicators([], 'pe')).toEqual([{
             id: 'pe-main', type: 'pe', color: '#2962ff', visible: true,
         }]);

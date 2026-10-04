@@ -305,6 +305,45 @@ describe('script equivalence', () => {
         expect(plot).toHaveLength(0);
     });
 
+    it('earnings', () => {
+        const dayOf = (t) => new Date(t * 1000).toISOString().slice(0, 10);
+        const quarters = [
+            { date: dayOf(DATA[0].time), epsEstimate: 1.0, epsActual: 1.2, surprisePct: 20 },
+            { date: dayOf(DATA[1].time), epsEstimate: 1.0, epsActual: 0.9, surprisePct: -10 },
+            { date: dayOf(DATA[2].time), epsEstimate: 1.1, epsActual: null, surprisePct: null },
+        ];
+        const config = { beatColor: '#0f0', missColor: '#f00', estimateColor: '#888' };
+        const result = runScript(
+            scriptCode('earnings'), DATA,
+            scriptValues('earnings', config),
+            {},
+            { earnings: quarters },
+        );
+        expect(result.error).toBeNull();
+        expect(result.plots[0].style).toBe('histogram');
+        // Report dates snap to the nearest chart bar: actuals at bars 0/1,
+        // the upcoming report leaves the actual series empty there.
+        const actual = plotOf(result, 'EPS Actual');
+        expect(actual.map(b => [b.time, b.value])).toEqual([
+            [DATA[0].time, 1.2],
+            [DATA[1].time, 0.9],
+        ]);
+        expect(actual[0].color).toBe('#0f0');
+        expect(actual[1].color).toBe('#f00');
+        // Estimates line carries all three reports, upcoming included.
+        const estimate = plotOf(result, 'EPS Estimate');
+        expect(estimate.map(b => b.value)).toEqual([1.0, 1.0, 1.1]);
+        // Runtime maps 'dashed' to the engine's dashed enum value.
+        expect(result.plots[1].lineStyle).toBe(2);
+    });
+
+    it('earnings without reports plots empty series', () => {
+        const result = runScript(scriptCode('earnings'), DATA, scriptValues('earnings', {}), {}, {});
+        expect(result.error).toBeNull();
+        expect(plotOf(result, 'EPS Actual')).toHaveLength(0);
+        expect(plotOf(result, 'EPS Estimate')).toHaveLength(0);
+    });
+
     it('smi', () => {
         const half = Math.floor(DATA.length / 2);
         const barsBySymbol = {

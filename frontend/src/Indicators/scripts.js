@@ -367,6 +367,44 @@ const SCRIPTS = {
             "plot(values, { title: hasEps ? 'P/E' : 'P/E (no EPS data)', color, overlay: false, lineWidth: 2 })",
         ].join('\n'),
     },
+    earnings: {
+        title: 'Earnings (Quarterly EPS)',
+        id: 'earnings-main',
+        pane: true,
+        fields: [
+            { key: 'beatColor', label: 'Beat Color', type: 'color', default: '#26a69a' },
+            { key: 'missColor', label: 'Miss Color', type: 'color', default: '#ef5350' },
+            { key: 'estimateColor', label: 'Estimate Color', type: 'color', default: 'rgba(255, 255, 255, 0.4)' },
+        ],
+        // Quarterly EPS at each report date: a histogram bar per report
+        // (beat/miss colored against the estimate) plus a dashed estimate
+        // line. Report dates are snapped to the nearest chart bar because
+        // Yahoo's report timestamps and chart bar times can sit in
+        // different timezones.
+        body: [
+            'const quarters = symbolInfo?.earnings || []',
+            'const indexFor = (ts) => {',
+            '    let lo = 0, hi = time.length - 1',
+            '    while (lo < hi) { const mid = (lo + hi) >> 1; if (time[mid] < ts) lo = mid + 1; else hi = mid }',
+            '    return lo',
+            '}',
+            'const actual = time.map(() => null)',
+            'const estimate = time.map(() => null)',
+            'const colors = time.map(() => null)',
+            'quarters.forEach(q => {',
+            '    const ts = Date.parse(q.date) / 1000',
+            '    if (!isFinite(ts)) return',
+            '    const i = indexFor(ts)',
+            '    if (q.epsEstimate != null) estimate[i] = q.epsEstimate',
+            '    if (q.epsActual != null) {',
+            '        actual[i] = q.epsActual',
+            '        colors[i] = q.epsEstimate != null && q.epsActual < q.epsEstimate ? missColor : beatColor',
+            '    }',
+            '})',
+            "plot(actual, { title: 'EPS Actual', color: beatColor, style: 'histogram', overlay: false, colors, lastValueVisible: false })",
+            "plot(estimate, { title: 'EPS Estimate', color: estimateColor, overlay: false, lineStyle: 'dashed', lineWidth: 1, lastValueVisible: false, priceLineVisible: false })",
+        ].join('\n'),
+    },
     smi: {
         title: 'Simple Market Index',
         id: 'smi-main',

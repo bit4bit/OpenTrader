@@ -13,7 +13,7 @@ import { scriptCode, scriptValues, scriptPaneType, SCRIPT_TYPES, needsFullData }
  * pane legend layout in ChartPanel stays deterministic; custom indicators
  * get `custom-<indicator id>`.
  */
-export function useIndicatorResults(data, adFullData, indicators, scriptsById, barsBySymbol = {}, symbolInfo = null) {
+export function useIndicatorResults(data, adFullData, indicators, scriptsById, barsBySymbol = {}, symbolInfo = null, earnings = null) {
     return useMemo(() => {
         const resultsById = {};
         const errorsById = {};
@@ -27,6 +27,7 @@ export function useIndicatorResults(data, adFullData, indicators, scriptsById, b
         const context = {
             ...(symbolInfo || {}),
             volumePctShares: pctShares,
+            earnings: earnings || [],
         };
 
         indicators.forEach(ind => {
@@ -56,5 +57,5 @@ export function useIndicatorResults(data, adFullData, indicators, scriptsById, b
         });
 
         return { resultsById, paneIds, errorsById };
-    }, [data, adFullData, indicators, scriptsById, barsBySymbol, symbolInfo]);
+    }, [data, adFullData, indicators, scriptsById, barsBySymbol, symbolInfo, earnings]);
 }

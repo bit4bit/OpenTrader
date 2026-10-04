@@ -11,6 +11,7 @@ from .models import Session, CustomIndicator, Folder, UserPreference
 from .providers import registry
 from .providers import index_membership
 from .providers import symbol_info
+from .providers import earnings as earnings_provider
 
 
 def serialize_session(session):
@@ -257,6 +258,26 @@ class ProviderConfig(APIView):
     """Display config per provider (price decimals), for frontend formatting."""
     def get(self, request):
         return Response({'price_decimals': registry.get_price_decimals()})
+
+
+class SymbolEarnings(APIView):
+    """Quarterly earnings history (report date, EPS estimate/actual,
+    surprise) for earnings indicators. Yahoo returns the real reports;
+    Kraken returns an empty list because crypto has no earnings."""
+    def get(self, request):
+        symbol = request.query_params.get('symbol')
+        provider_name = request.query_params.get('provider') or None
+        if not symbol:
+            return Response({'error': 'Symbol is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            provider, _meta = registry.resolve_provider(symbol, provider_name)
+        except registry.SymbolNotSupported as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            earnings = earnings_provider.earnings_for(symbol, _meta['provider'])
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'symbol': symbol, 'provider': _meta['provider'], **earnings})
 
 
 class TickerSearch(APIView):

@@ -10,11 +10,13 @@ import json
 import time
 from unittest import mock
 
+import pandas as pd
 from django.test import TestCase
 
 from market.providers import registry
 from market.providers import index_membership
 from market.providers import symbol_info
+from market.providers import earnings
 from market.providers.kraken import KrakenMarketProvider
 from market.providers.yahoo import YahooMarketProvider
 
@@ -649,3 +651,110 @@ class SymbolInfoApiBehavior(ProviderScenarioTestCase):
         self.given_config({'yahoo': {}})
         response = self.client.get('/api/symbol/info/', {'symbol': 'NOPE'})
         self.assertEqual(response.status_code, 404)
+
+
+class EarningsBehavior(ProviderScenarioTestCase):
+    """Disk-cached quarterly earnings: Yahoo earnings_dates is the source,
+    Kraken returns an empty list because crypto has no earnings."""
+    def setUp(self):
+        super().setUp()
+        self._orig_cache_path = earnings.CACHE_PATH
+        earnings.CACHE_PATH = self._orig_cache_path.parent / f'symbol-earnings-{self.id()}.json'
+        earnings._inflight.clear()
+
+    def tearDown(self):
+        earnings._inflight.clear()
+        earnings.CACHE_PATH.unlink(missing_ok=True)
+        earnings.CACHE_PATH = self._orig_cache_path
+
+    def _stub_yahoo(self, rows):
+        # rows: [(report_date, estimate, actual, surprise)] in the raw
+        # yfinance column order.
+        frame = pd.DataFrame(
+            {
+                'EPS Estimate': [r[1] for r in rows],
+                'Reported EPS': [r[2] for r in rows],
+                'Surprise(%)': [r[3] for r in rows],
+            },
+            index=pd.DatetimeIndex([r[0] for r in rows], name='Earnings Date'),
+        )
+        ticker = mock.Mock()
+        ticker.get_earnings_dates.return_value = frame
+        return mock.patch('market.providers.earnings.yf.Ticker', return_value=ticker)
+
+    def test_yahoo_earnings_for_returns_sorted_quarters_with_none_for_unreported(self):
+        self.given_config({'yahoo': {}})
+        with self._stub_yahoo([
+            ('2024-04-30', 1.0, 1.2, 20.0),
+            ('2024-01-30', 1.0, 0.9, -10.0),
+            ('2024-07-30', 1.1, None, None),
+        ]) as ticker:
+            result = earnings.earnings_for('AAPL', 'yahoo')
+            self.assertEqual(ticker.return_value.get_earnings_dates.call_count, 1)
+        self.assertEqual(result, {'quarters': [
+            {'date': '2024-01-30', 'eps_estimate': 1.0, 'eps_actual': 0.9, 'surprise_pct': -10.0},
+            {'date': '2024-04-30', 'eps_estimate': 1.0, 'eps_actual': 1.2, 'surprise_pct': 20.0},
+            {'date': '2024-07-30', 'eps_estimate': 1.1, 'eps_actual': None, 'surprise_pct': None},
+        ]})
+
+    def test_yahoo_earnings_for_is_cached_on_disk_and_not_refetched(self):
+        self.given_config({'yahoo': {}})
+        with self._stub_yahoo([('2024-01-30', 1.0, 1.2, 20.0)]) as ticker:
+            earnings.earnings_for('AAPL', 'yahoo')
+            self.assertEqual(ticker.return_value.get_earnings_dates.call_count, 1)
+            earnings.earnings_for('AAPL', 'yahoo')
+            self.assertEqual(ticker.return_value.get_earnings_dates.call_count, 1)
+        self.assertTrue(earnings.CACHE_PATH.exists())
+
+    def test_kraken_earnings_for_is_empty_without_touching_yahoo(self):
+        self.given_config({'kraken': {}})
+        with mock.patch('market.providers.earnings.yf.Ticker') as ticker:
+            result = earnings.earnings_for('XBT/USD', 'kraken')
+            ticker.assert_not_called()
+        self.assertEqual(result, {'quarters': []})
+
+
+class EarningsApiBehavior(ProviderScenarioTestCase):
+    def setUp(self):
+        super().setUp()
+        self._orig_cache_path = earnings.CACHE_PATH
+        earnings.CACHE_PATH = self._orig_cache_path.parent / f'symbol-earnings-api-{self.id()}.json'
+        earnings._inflight.clear()
+
+    def tearDown(self):
+        earnings._inflight.clear()
+        earnings.CACHE_PATH.unlink(missing_ok=True)
+        earnings.CACHE_PATH = self._orig_cache_path
+
+    def test_endpoint_returns_yahoo_earnings(self):
+        self.given_config({'yahoo': {}})
+        frame = pd.DataFrame(
+            {
+                'EPS Estimate': [1.0],
+                'Reported EPS': [1.2],
+                'Surprise(%)': [20.0],
+            },
+            index=pd.DatetimeIndex(['2024-04-30'], name='Earnings Date'),
+        )
+        ticker = mock.Mock()
+        ticker.get_earnings_dates.return_value = frame
+        with mock.patch('market.providers.earnings.yf.Ticker', return_value=ticker):
+            response = self.client.get('/api/symbol/earnings/', {'symbol': 'AAPL', 'provider': 'yahoo'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'symbol': 'AAPL',
+            'provider': 'yahoo',
+            'quarters': [
+                {'date': '2024-04-30', 'eps_estimate': 1.0, 'eps_actual': 1.2, 'surprise_pct': 20.0},
+            ],
+        })
+
+    def test_endpoint_returns_empty_list_for_kraken(self):
+        self.given_config({'kraken': {}})
+        response = self.client.get('/api/symbol/earnings/', {'symbol': 'XBT/USD', 'provider': 'kraken'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'symbol': 'XBT/USD', 'provider': 'kraken', 'quarters': []})
+
+    def test_endpoint_requires_symbol(self):
+        response = self.client.get('/api/symbol/earnings/')
+        self.assertEqual(response.status_code, 400)
