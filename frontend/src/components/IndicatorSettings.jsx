@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SMA_SOURCES } from '../Indicators/sma';
 import { discoverInputs } from '../Indicators/dsl/runtime';
 import { SCRIPT_TYPES, scriptFields } from '../Indicators/scripts';
@@ -80,6 +80,7 @@ const ScriptSettings = ({ fields, values = {}, disabled = false, onChange, scrip
  */
 const BenchmarkSettings = ({ ind, chartSymbol, updateIndicator }) => {
     const { membership, error } = useIndexMembership(chartSymbol);
+    const [manualSymbol, setManualSymbol] = useState('');
     const indexes = ind.indexes || [];
     const added = new Set(indexes.map(ix => ix.symbol));
     const available = membership.filter(m => !added.has(m.yahoo));
@@ -87,6 +88,18 @@ const BenchmarkSettings = ({ ind, chartSymbol, updateIndicator }) => {
     const addIndex = (entry) => updateIndicator(ind.id, {
         indexes: [...indexes, { symbol: entry.yahoo, name: entry.name, enabled: true }],
     });
+
+    // Membership only covers the constituents dataset's indexes; stocks
+    // outside them (e.g. small caps) still need a benchmark, so any index
+    // symbol can be added by hand.
+    const addManualIndex = () => {
+        const symbol = manualSymbol.trim();
+        if (!symbol || added.has(symbol)) return;
+        updateIndicator(ind.id, {
+            indexes: [...indexes, { symbol, name: '', enabled: true }],
+        });
+        setManualSymbol('');
+    };
 
     return (
         <div className="indicator-settings smi-grid">
@@ -119,6 +132,27 @@ const BenchmarkSettings = ({ ind, chartSymbol, updateIndicator }) => {
                     </div>
                 </React.Fragment>
             ))}
+            <div className="setting-item" style={{ gridColumn: 'span 2' }}>
+                <label>Add index</label>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                    <input
+                        type="text"
+                        placeholder="Index symbol (e.g. ^GSPC)"
+                        value={manualSymbol}
+                        onChange={(e) => setManualSymbol(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') addManualIndex();
+                        }}
+                    />
+                    <button
+                        className="action-btn"
+                        title="Add index"
+                        onClick={addManualIndex}
+                    >
+                        Add
+                    </button>
+                </div>
+            </div>
             {membership.length > 0 && (
                 <div className="setting-item" style={{ gridColumn: 'span 2' }}>
                     <label>{chartSymbol} belongs to</label>
