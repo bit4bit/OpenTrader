@@ -6,6 +6,8 @@ services:
         VITE_CHART_ENGINE: ${VITE_CHART_ENGINE:-lwc}
     volumes:
       - dist:/dist
+    networks:
+      - app
 
   backend:
     build: .
@@ -15,6 +17,12 @@ services:
       - OPENTRADER_WORKING_DIR=/data
     volumes:
       - opentrader_data:/data
+    networks:
+      app:
+        # Fixed address: nginx resolves proxy_pass hosts once at startup,
+        # so a backend restart with a new IP would otherwise 502 until a
+        # router reload.
+        ipv4_address: 172.28.0.10
 
   router:
     image: nginx:alpine
@@ -26,7 +34,15 @@ services:
     depends_on:
       - frontend
       - backend
+    networks:
+      - app
 
 volumes:
   dist:
   opentrader_data:
+
+networks:
+  app:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
