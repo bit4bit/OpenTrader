@@ -466,9 +466,12 @@ const Chart = ({
         setFillsData(nextFills);
 
         if (isFirstLoad.current && data.length > 0) {
+            // fitContent alone covers the engine's 20-bar right offset.
+            // Reading the range back synchronously returns the pre-fit
+            // state (the engine applies fit/setRange on the next frame),
+            // and re-applying that stale range kept the oldest bars
+            // off-screen until the user zoomed out.
             engine.fitContent();
-            const lr = engine.getVisibleRange();
-            if (lr) engine.setVisibleRange({ from: lr.from, to: lr.to + 20 });
             isFirstLoad.current = false;
         }
 
