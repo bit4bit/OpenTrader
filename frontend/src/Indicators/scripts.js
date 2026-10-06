@@ -415,17 +415,21 @@ const SCRIPTS = {
             { key: 'indexes', label: 'Indexes', type: 'symbols', default: [] },
         ],
         // Overlay comparison on the price scale: each index is rebased to
-        // the stock's close at the first bar where both have data, so the
+        // the stock's close at the first visible bar (anchorTime), so the
         // lines read directly against the chart's own price axis instead
-        // of an abstract base-100 pane.
+        // of an abstract base-100 pane — and stay near the candles instead
+        // of stretching the price scale when the window is far from the
+        // data start.
         body: [
             "const PALETTE = ['#4fc3f7', '#f4c542', '#9c27b0', '#26a69a', '#ef5350', '#ff9800', '#2962ff']",
+            "let start = 0",
+            "if (anchorTime != null) { for (let k = 0; k < time.length; k++) { if (time[k] >= anchorTime) { start = k; break } } }",
             "indexes.filter(ix => ix.enabled !== false && ix.symbol).forEach((ix, i) => {",
             "    const b = ta.benchmark(ix.symbol)",
             "    let anchor = -1",
-            "    for (let k = 0; k < b.length; k++) { if (b[k] != null && close[k] != null) { anchor = k; break } }",
+            "    for (let k = start; k < b.length; k++) { if (b[k] != null && close[k] != null) { anchor = k; break } }",
             "    const factor = anchor >= 0 ? close[anchor] / b[anchor] : null",
-            "    const line = factor != null ? b.map(v => v != null ? v * factor : null) : b.map(() => null)",
+            "    const line = b.map((v, k) => factor != null && k >= anchor && v != null ? v * factor : null)",
             "    plot(line, { title: ix.name || ix.symbol, color: ix.color || PALETTE[i % PALETTE.length], lineWidth: 2, priceLineVisible: false })",
             '})',
         ].join('\n'),

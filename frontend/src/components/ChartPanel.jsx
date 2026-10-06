@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import Chart from './Chart';
 import { useChartData, useAdFullData, useMarketIndexData } from '../hooks/useChartData';
 import { useSymbolInfo } from '../hooks/useSymbolInfo';
@@ -67,6 +67,26 @@ const ChartPanel = ({
     const earnings = useSymbolEarnings(symbol, provider);
     const [hoveredData, setHoveredData] = useState(null);
 
+    // First visible bar's time, debounced until pan/zoom settles: the
+    // Benchmark Index overlay rebases against it so comparison lines stay
+    // near the candles instead of stretching the price scale. Keyed by
+    // the data source so a symbol/interval switch drops the stale anchor.
+    const anchorTimerRef = useRef(null);
+    const dataKey = `${symbol}-${provider}-${interval}`;
+    const [anchor, setAnchor] = useState(null); // { key, time }
+    useEffect(() => () => clearTimeout(anchorTimerRef.current), []);
+    const onVisibleRangeChange = useCallback((range) => {
+        handleVisibleLogicalRangeChange(range);
+        if (!range) return;
+        clearTimeout(anchorTimerRef.current);
+        anchorTimerRef.current = setTimeout(() => {
+            if (data.length === 0) return;
+            const firstVisibleIndex = Math.min(Math.max(Math.ceil(range.from), 0), data.length - 1);
+            setAnchor({ key: dataKey, time: data[firstVisibleIndex].time });
+        }, 150);
+    }, [handleVisibleLogicalRangeChange, data, dataKey]);
+    const overlayAnchorTime = anchor?.key === dataKey ? anchor.time : null;
+
     const setDrawings = useCallback((updater) => {
         onUpdate(chart.id, c => ({
             drawings: typeof updater === 'function' ? updater(c.drawings) : updater,
@@ -79,7 +99,7 @@ const ChartPanel = ({
     const pnl = priceData ? ((priceData.close - priceData.open) / priceData.open * 100) : null;
     const pnlColor = pnl >= 0 ? '#26a69a' : '#ef5350';
 
-    const indicatorResults = useIndicatorResults(data, adFullData, indicators, scriptsById, smiData, symbolInfo, earnings);
+    const indicatorResults = useIndicatorResults(data, adFullData, indicators, scriptsById, smiData, symbolInfo, earnings, overlayAnchorTime);
 
     const activePaneTypes = computeActivePaneTypes(indicators, indicatorResults.paneIds);
     const isPaneType = (type) => type === 'custom' || isScriptPane(type);
@@ -304,7 +324,7 @@ const ChartPanel = ({
                         activeTool={activeTool}
                         setActiveTool={setActiveTool}
                         magnetEnabled={magnetEnabled}
-                        onVisibleLogicalRangeChange={handleVisibleLogicalRangeChange}
+                        onVisibleLogicalRangeChange={onVisibleRangeChange}
                         onCrosshairMove={setHoveredData}
                         indicatorResults={indicatorResults}
                     />

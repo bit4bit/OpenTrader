@@ -418,4 +418,29 @@ describe('script equivalence', () => {
         expectSameBars(plotOf(result, 'S&P 500'), expectedBars(barsBySymbol['^GSPC']));
         expectSameBars(plotOf(result, 'NASDAQ 100'), expectedBars(barsBySymbol['^NDX']));
     });
+
+    it('benchmark rebases at the first visible bar (anchorTime)', () => {
+        const times = DATA.map(d => d.time);
+        const diffs = times.slice(1).map((t, i) => t - times[i]).sort((a, b) => a - b);
+        const tolerance = diffs[diffs.length >> 1] / 2;
+        const barsBySymbol = {
+            '^GSPC': DATA.map((d, i) => ({ time: d.time, close: 100 + i })),
+        };
+        const indexes = [{ symbol: '^GSPC', name: 'S&P 500', enabled: true }];
+        const anchor = 10;
+        const result = runScript(
+            scriptCode('benchmark'), DATA,
+            scriptValues('benchmark', { indexes }),
+            barsBySymbol, {}, times[anchor],
+        );
+        expect(result.error).toBeNull();
+        const b = computeBenchmarkLine(barsBySymbol['^GSPC'], times, tolerance, 100);
+        const factor = DATA[anchor].close / b[anchor];
+        // The line starts at the stock's close at the anchor bar and is
+        // null before it: the comparison is relative to the visible window.
+        const expected = b
+            .map((v, i) => i >= anchor && v != null ? { time: times[i], value: v * factor } : null)
+            .filter(x => x != null);
+        expectSameBars(plotOf(result, 'S&P 500'), expected);
+    });
 });
