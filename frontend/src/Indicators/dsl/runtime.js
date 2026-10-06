@@ -121,6 +121,14 @@ function isValid(v) {
     return typeof v === 'number' && isFinite(v);
 }
 
+// Plot legend metadata -> { byTime: Map<time, value>, base }, or null.
+function renderLegend(legend, times) {
+    if (!legend || !Array.isArray(legend.values)) return null;
+    const byTime = new Map(toBars(legend.values, times).map(b => [b.time, b.value]));
+    const base = isValid(legend.base) ? legend.base : null;
+    return byTime.size > 0 || base != null ? { byTime, base } : null;
+}
+
 function toBars(series, times, colors) {
     if (!Array.isArray(series)) return [];
     const bars = [];
@@ -151,10 +159,15 @@ export function discoverInputs(code) {
 
 /**
  * Run a script against OHLCV data with resolved input values; returns
- * { plots: [{title, color, style, lineStyle, overlay, series}],
+ * { plots: [{title, color, style, lineStyle, overlay, series,
+ *            legend: {byTime, base} | null}],
  *   fills: [{a, b, color, colorAlt}],  // a/b = indices into plots
  *   histograms: [{bins, color}],       // price-by-volume profiles
  *   error }.
+ * A plot's optional legend metadata ({values (parallel to time), base})
+ * overrides what the crosshair legend displays for that plot: values are
+ * the display values keyed by bar time, base the value changes are
+ * relative to.
  */
 export function runScript(code, data, values = {}, barsBySymbol = {}, symbolInfo = {}, anchorTime = null) {
     try {
@@ -170,6 +183,7 @@ export function runScript(code, data, values = {}, barsBySymbol = {}, symbolInfo
             lastValueVisible: p.lastValueVisible,
             priceLineVisible: p.priceLineVisible,
             series: toBars(p.series, times, p.colors),
+            legend: renderLegend(p.legend, times),
         }));
         const validFills = fills
             .filter(f => rendered[f.a]?.overlay && rendered[f.b]?.overlay)

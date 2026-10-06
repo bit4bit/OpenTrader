@@ -1,8 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { computeBenchmarkLine } from '../benchmarkIndex';
+import { computeBenchmarkLine, alignedIndexCloses } from '../benchmarkIndex';
 
 const DAY = 86400;
 const times = [0, DAY, 2 * DAY, 3 * DAY, 4 * DAY].map(t => t + 1700000000);
+
+describe('alignedIndexCloses', () => {
+    it('returns the real closes as-of aligned to the chart bars', () => {
+        const indexBars = [
+            { time: times[0], close: 50 },
+            { time: times[1], close: 100 },
+            { time: times[2], close: 25 },
+        ];
+        expect(alignedIndexCloses(indexBars, times)).toEqual([50, 100, 25, 25, 25]);
+    });
+
+    it('leads with nulls until the first index bar', () => {
+        const indexBars = [{ time: times[2], close: 10 }, { time: times[3], close: 20 }];
+        expect(alignedIndexCloses(indexBars, times)).toEqual([null, null, 10, 20, 20]);
+    });
+
+    it('handles empty inputs', () => {
+        expect(alignedIndexCloses([], times)).toEqual([null, null, null, null, null]);
+        expect(alignedIndexCloses(null, [])).toEqual([]);
+    });
+});
 
 describe('computeBenchmarkLine', () => {
     it('rebases to baseValue at the first aligned bar', () => {

@@ -419,18 +419,22 @@ const SCRIPTS = {
         // lines read directly against the chart's own price axis instead
         // of an abstract base-100 pane — and stay near the candles instead
         // of stretching the price scale when the window is far from the
-        // data start.
+        // data start. The legend shows the index's own price plus its
+        // change since the anchor (plot legend metadata).
         body: [
             "const PALETTE = ['#4fc3f7', '#f4c542', '#9c27b0', '#26a69a', '#ef5350', '#ff9800', '#2962ff']",
             "let start = 0",
             "if (anchorTime != null) { for (let k = 0; k < time.length; k++) { if (time[k] >= anchorTime) { start = k; break } } }",
             "indexes.filter(ix => ix.enabled !== false && ix.symbol).forEach((ix, i) => {",
             "    const b = ta.benchmark(ix.symbol)",
+            "    const c = ta.foreignCloses(ix.symbol)",
             "    let anchor = -1",
             "    for (let k = start; k < b.length; k++) { if (b[k] != null && close[k] != null) { anchor = k; break } }",
             "    const factor = anchor >= 0 ? close[anchor] / b[anchor] : null",
             "    const line = b.map((v, k) => factor != null && k >= anchor && v != null ? v * factor : null)",
-            "    plot(line, { title: ix.name || ix.symbol, color: ix.color || PALETTE[i % PALETTE.length], lineWidth: 2, priceLineVisible: false })",
+            "    const base = anchor >= 0 ? c[anchor] : null",
+            "    const legend = c.map((v, k) => base != null && k >= anchor && v != null ? v : null)",
+            "    plot(line, { title: ix.name || ix.symbol, color: ix.color || PALETTE[i % PALETTE.length], lineWidth: 2, priceLineVisible: false, lastValueVisible: false, legend: { values: legend, base } })",
             '})',
         ].join('\n'),
     },

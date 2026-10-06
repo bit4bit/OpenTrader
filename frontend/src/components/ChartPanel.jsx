@@ -164,6 +164,14 @@ const ChartPanel = ({
                                                 <span className="legend-value" style={{ color: p.color }}>
                                                     {p.value != null ? formatLegendValue(p.value, ind.type, ind) : ''}
                                                 </span>
+                                                {p.change != null && p.value != null && (
+                                                    <span
+                                                        className="legend-volume-change"
+                                                        style={{ color: p.change >= 0 ? '#26a69a' : '#ef5350' }}
+                                                    >
+                                                        {formatPercent(p.change * 100)}
+                                                    </span>
+                                                )}
                                             </div>
                                         ))}
                                     </div>

@@ -19,7 +19,7 @@ import { computeTSI } from '../tsi';
 import { computeIchimoku } from '../ichimoku';
 import { computeVolumeProfile } from '../volumeProfile';
 import { computeMarketIndex } from '../marketIndex';
-import { computeBenchmarkLine } from '../benchmarkIndex';
+import { computeBenchmarkLine, alignedIndexCloses } from '../benchmarkIndex';
 import { computeBuyVolume } from '../tradingActivity';
 import { snapEarningsReports } from '../../chart/earningsBars';
 
@@ -210,5 +210,10 @@ export function buildTa(data, barsBySymbol = {}) {
         // As-of alignment keeps daily indexes continuous on intraday charts.
         benchmark: (symbol, baseValue = 100) =>
             computeBenchmarkLine(barsBySymbol[symbol], times, maxDistance, baseValue),
+
+        // Foreign symbol's real closes aligned to this chart's bars, for
+        // legends that display the foreign price next to a rebased line.
+        foreignCloses: (symbol) =>
+            alignedIndexCloses(barsBySymbol[symbol], times, maxDistance),
     };
 }

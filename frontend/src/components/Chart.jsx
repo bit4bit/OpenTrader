@@ -207,7 +207,8 @@ const Chart = ({
                         series => evt.seriesValues.get(series),
                         volumeChangeAt(dataRef.current, evt.time),
                         volumeSplitAt(dataRef.current, evt.time),
-                        volumeSplitTotal(dataRef.current, evt.time)
+                        volumeSplitTotal(dataRef.current, evt.time),
+                        evt.time
                     );
 
                     onCrosshairMoveRef.current(results);
@@ -436,7 +437,7 @@ const Chart = ({
                         const series = p.style === 'histogram'
                             ? engine.addHistogramSeries(options, p.overlay ? 0 : paneIndex)
                             : engine.addLineSeries(options, p.overlay ? 0 : paneIndex);
-                        return { series, title: p.title, color: p.color };
+                        return { series, title: p.title, color: p.color, legend: p.legend };
                     });
                     genericSeriesRef.current[ind.id] = existing;
                 }
@@ -447,6 +448,7 @@ const Chart = ({
                     entry.series.setData(sliceToWindow(p.series, ind.type, firstTime));
                     entry.title = p.title;
                     entry.color = p.color;
+                    entry.legend = p.legend;
                 });
 
                 if (res.fills.length > 0 && res.plots.every(p => p.overlay)) {

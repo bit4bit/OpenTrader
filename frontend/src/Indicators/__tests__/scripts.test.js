@@ -417,6 +417,12 @@ describe('script equivalence', () => {
             .filter(b => b.value !== null);
         expectSameBars(plotOf(result, 'S&P 500'), expectedBars(barsBySymbol['^GSPC']));
         expectSameBars(plotOf(result, 'NASDAQ 100'), expectedBars(barsBySymbol['^NDX']));
+        // Legend metadata: each line displays the index's real closes plus
+        // the change since the anchor bar (^GSPC closes are 100 + i).
+        const gspcLegend = result.plots[0].legend;
+        expect(gspcLegend.base).toBe(100);
+        expect(gspcLegend.byTime.get(times[3])).toBe(103);
+        expect(gspcLegend.byTime.size).toBe(times.length);
     });
 
     it('benchmark rebases at the first visible bar (anchorTime)', () => {
@@ -442,5 +448,12 @@ describe('script equivalence', () => {
             .map((v, i) => i >= anchor && v != null ? { time: times[i], value: v * factor } : null)
             .filter(x => x != null);
         expectSameBars(plotOf(result, 'S&P 500'), expected);
+        // Legend metadata anchors at the visible anchor bar too: base is
+        // the real index close there and earlier bars display nothing.
+        const legend = result.plots[0].legend;
+        expect(legend.base).toBe(100 + anchor);
+        expect(legend.byTime.has(times[anchor - 1])).toBe(false);
+        expect(legend.byTime.get(times[anchor])).toBe(100 + anchor);
+        expect(legend.byTime.get(times[times.length - 1])).toBe(100 + times.length - 1);
     });
 });
