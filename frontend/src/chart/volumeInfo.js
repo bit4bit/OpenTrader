@@ -41,6 +41,35 @@ export function volumeSplitAt(bars, time) {
     };
 }
 
+// Totals of the volume bars within a time window (the visible range),
+// classified exactly like the bars are colored: close at or above the open
+// is a buy bar, below is a sell bar. Bars with no volume are skipped.
+export function volumeBarTotals(bars, fromTime, toTime) {
+    if (!bars?.length || fromTime == null || toTime == null || fromTime > toTime) return null;
+    let buyBars = 0, sellBars = 0, buyVolume = 0, sellVolume = 0;
+    for (const bar of bars) {
+        if (bar.time < fromTime) continue;
+        if (bar.time > toTime) break;
+        if (bar.volume == null || bar.volume <= 0) continue;
+        if (bar.close >= bar.open) {
+            buyBars += 1;
+            buyVolume += bar.volume;
+        } else {
+            sellBars += 1;
+            sellVolume += bar.volume;
+        }
+    }
+    const totalVolume = buyVolume + sellVolume;
+    if (totalVolume === 0) return null;
+    return {
+        buyBars,
+        sellBars,
+        buyVolume,
+        sellVolume,
+        percent: ((buyVolume - sellVolume) / totalVolume) * 100,
+    };
+}
+
 // Cumulative bought vs sold volume from the first bar up to and including
 // the bar at `time`, same estimate as volumeSplitAt.
 export function volumeSplitTotal(bars, time) {

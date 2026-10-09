@@ -8,6 +8,8 @@ import { computeActivePaneTypes } from '../chart/paneLayout';
 import { formatPriceValue, DEFAULT_PRICE_DECIMALS } from '../chart/priceFormat';
 import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { averageVolume } from '../chart/averageVolume';
+import { volumeBarTotals } from '../chart/volumeInfo';
+import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
 import { qoqEpsChangeAt } from '../chart/earningsLegend';
@@ -43,6 +45,16 @@ const formatTurnover = (val, so) => {
 };
 const formatVolumeChangePct = ({ delta, percent }, so) =>
     `${formatPercent(percent)} ${delta >= 0 ? '+' : '−'}${formatTurnover(Math.abs(delta), so)}`;
+// Compact timestamp for the visible-range volume totals legend: date for
+// daily+ intervals, date + time for intraday.
+const formatWindowTime = (time, interval) => {
+    const d = new Date(time * 1000);
+    const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', timeZone: 'UTC' });
+    if (!INTRADAY_INTERVALS.includes(interval)) return date;
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${date} ${hh}:${mm}`;
+};
 
 const ChartPanel = ({
     chart,
@@ -74,6 +86,9 @@ const ChartPanel = ({
     const anchorTimerRef = useRef(null);
     const dataKey = `${symbol}-${provider}-${interval}`;
     const [anchor, setAnchor] = useState(null); // { key, time }
+    // Visible time window ({ key, fromTime, toTime }), debounced with the
+    // anchor: feeds the volume pane's buy/sell bar totals legend.
+    const [visibleWindow, setVisibleWindow] = useState(null);
     useEffect(() => () => clearTimeout(anchorTimerRef.current), []);
     const onVisibleRangeChange = useCallback((range) => {
         handleVisibleLogicalRangeChange(range);
@@ -82,7 +97,13 @@ const ChartPanel = ({
         anchorTimerRef.current = setTimeout(() => {
             if (data.length === 0) return;
             const firstVisibleIndex = Math.min(Math.max(Math.ceil(range.from), 0), data.length - 1);
+            const lastVisibleIndex = Math.min(Math.max(Math.floor(range.to), 0), data.length - 1);
             setAnchor({ key: dataKey, time: data[firstVisibleIndex].time });
+            setVisibleWindow({
+                key: dataKey,
+                fromTime: data[firstVisibleIndex].time,
+                toTime: data[Math.max(firstVisibleIndex, lastVisibleIndex)].time,
+            });
         }, 150);
     }, [handleVisibleLogicalRangeChange, data, dataKey]);
     const overlayAnchorTime = anchor?.key === dataKey ? anchor.time : null;
@@ -104,10 +125,21 @@ const ChartPanel = ({
     const activePaneTypes = computeActivePaneTypes(indicators, indicatorResults.paneIds);
     const isPaneType = (type) => type === 'custom' || isScriptPane(type);
     const scriptLegendIndicators = [...SCRIPT_TYPES, 'custom'];
-    const volumePctShares = indicators.some(i => i.type === 'volume' && i.visible && i.pctShares);
+    const volumeIndicator = indicators.find(i => i.type === 'volume' && i.visible);
+    const volumePctShares = volumeIndicator?.pctShares === true;
     // Divisor that re-expresses count-based legend decorations as turnover
     // % while the volume bars are in % of shares mode.
     const turnoverDivisor = volumePctShares ? symbolInfo?.sharesOutstanding : null;
+    // Buy vs sell bar totals over the visible time window, matching the
+    // volume bars' own up/down coloring.
+    const visibleVolumeTotals = useMemo(() => {
+        if (visibleWindow?.key !== dataKey) return null;
+        return volumeBarTotals(data, visibleWindow.fromTime, visibleWindow.toTime);
+    }, [data, visibleWindow, dataKey]);
+    const volumeUpColor = volumeIndicator?.upColor ?? '#26a69a';
+    const volumeDownColor = volumeIndicator?.downColor ?? '#ef5350';
+    const formatWindowVolume = (val) =>
+        turnoverDivisor != null ? formatTurnover(val, turnoverDivisor) : formatVolumeValue(val);
     const paneLegendTop = (type) => {
         const idx = activePaneTypes.indexOf(type);
         if (idx === -1) return undefined;
@@ -195,9 +227,9 @@ const ChartPanel = ({
                                 const volumeChange = isVolume ? hoveredData?.volumeChange : null;
                                 const volumeSplit = isVolume ? hoveredData?.volumeSplit : null;
                                 const splitTotal = isVolume ? hoveredData?.volumeSplitTotal : null;
-                                // Trading Activity's Sellers plot is the full-volume
-                                // base bar; display the sell portion (base minus the
-                                // overlaid buy portion).
+                                // Trading Activity's Sell Volume plot is the
+                                // full-volume base bar; display the sell volume
+                                // (base minus the overlaid buy volume).
                                 const value = pi === 0 && buyersValue != null && p.value != null
                                     ? p.value - buyersValue
                                     : p.value;
@@ -271,6 +303,27 @@ const ChartPanel = ({
                                 </React.Fragment>
                             );
                         })}
+                        {type === 'volume' && volumeIndicator && visibleVolumeTotals && (
+                            <div className="legend-item">
+                                <span className="legend-label">
+                                    {formatWindowTime(visibleWindow.fromTime, interval)} → {formatWindowTime(visibleWindow.toTime, interval)}
+                                </span>
+                                <span className="legend-bullet" style={{ backgroundColor: volumeUpColor }}></span>
+                                <span className="legend-label">
+                                    Buy {visibleVolumeTotals.buyBars} bars · {formatWindowVolume(visibleVolumeTotals.buyVolume)}
+                                </span>
+                                <span className="legend-bullet" style={{ backgroundColor: volumeDownColor }}></span>
+                                <span className="legend-label">
+                                    Sell {visibleVolumeTotals.sellBars} bars · {formatWindowVolume(visibleVolumeTotals.sellVolume)}
+                                </span>
+                                <span
+                                    className="legend-volume-change"
+                                    style={{ color: visibleVolumeTotals.percent >= 0 ? volumeUpColor : volumeDownColor }}
+                                >
+                                    Δ {formatPercent(visibleVolumeTotals.percent)}
+                                </span>
+                            </div>
+                        )}
                     </div>
                 ))}
                 {indicators.filter(i => i.type === 'custom' && i.visible).map(ind => {

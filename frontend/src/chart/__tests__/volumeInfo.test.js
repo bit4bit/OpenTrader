@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { volumeChangeAt, volumeSplitAt, volumeSplitTotal } from '../volumeInfo';
+import { volumeChangeAt, volumeSplitAt, volumeSplitTotal, volumeBarTotals } from '../volumeInfo';
 
 const bars = [
     { time: 100, open: 10, high: 12, low: 9, close: 11, volume: 200 },
@@ -94,5 +94,48 @@ describe('volumeSplitTotal', () => {
         expect(volumeSplitTotal(bars, 250)).toBeNull();
         expect(volumeSplitTotal([{ time: 1, open: 1, high: 2, low: 0, close: 1 }], 1)).toBeNull();
         expect(volumeSplitTotal([], 100)).toBeNull();
+    });
+});
+
+describe('volumeBarTotals', () => {
+    it('counts and sums buy vs sell bars within the window', () => {
+        // Bar 100: 11 >= 10 up; bar 200: 13 >= 11 up; bar 300: 11 < 13 down.
+        expect(volumeBarTotals(bars, 100, 300)).toEqual({
+            buyBars: 2,
+            sellBars: 1,
+            buyVolume: 600,
+            sellVolume: 300,
+            percent: ((600 - 300) / 900) * 100,
+        });
+    });
+
+    it('restricts the totals to the requested window', () => {
+        const window = volumeBarTotals(bars, 200, 200);
+        expect(window.buyBars).toBe(1);
+        expect(window.sellBars).toBe(0);
+        expect(window.buyVolume).toBe(400);
+    });
+
+    it('classifies close-equals-open bars as buys, matching the bar colors', () => {
+        const window = volumeBarTotals([{ time: 1, open: 10, high: 11, low: 9, close: 10, volume: 50 }], 1, 1);
+        expect(window.buyBars).toBe(1);
+        expect(window.sellBars).toBe(0);
+    });
+
+    it('skips bars with no volume', () => {
+        const window = volumeBarTotals([
+            { time: 1, open: 10, high: 11, low: 9, close: 12, volume: 0 },
+            { time: 2, open: 10, high: 11, low: 9, close: 8, volume: null },
+            { time: 3, open: 10, high: 11, low: 9, close: 8, volume: 100 },
+        ], 1, 3);
+        expect(window).toEqual({ buyBars: 0, sellBars: 1, buyVolume: 0, sellVolume: 100, percent: -100 });
+    });
+
+    it('returns null for an empty window, a reversed window, or missing input', () => {
+        expect(volumeBarTotals(bars, 250, 250)).toBeNull();
+        expect(volumeBarTotals(bars, 300, 100)).toBeNull();
+        expect(volumeBarTotals(bars, null, 300)).toBeNull();
+        expect(volumeBarTotals([], 1, 2)).toBeNull();
+        expect(volumeBarTotals(null, 1, 2)).toBeNull();
     });
 });
