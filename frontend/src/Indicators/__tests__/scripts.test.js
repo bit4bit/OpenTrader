@@ -280,7 +280,8 @@ describe('script equivalence', () => {
         expect(result.plots[1].style).toBe('histogram');
         expect(result.plots[0].color).toBe('#f00');
         expect(result.plots[1].color).toBe('#0f0');
-        // Sellers base bar carries the full volume; Buyers overlay the split.
+        // Sell Volume base bar carries the full volume; Buy Volume overlays
+        // the estimated split.
         expectSameBars(result.plots[0].series, DATA.map(d => ({ time: d.time, value: d.volume ?? 0 })));
         expectSameBars(result.plots[1].series, computeBuyVolume(DATA));
     });

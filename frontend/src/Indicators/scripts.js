@@ -106,12 +106,13 @@ const SCRIPTS = {
             { key: 'sellColor', label: 'Sell Color', type: 'color', default: '#ef5350' },
         ],
         // Stacked split: the sell-colored base bar carries the full volume;
-        // the buy-colored overlay covers the estimated bought portion, so
-        // each bar totals the period's volume split into buy % vs sell %.
+        // the buy-colored overlay covers the estimated buy volume, so each
+        // bar totals the period's volume split into buy volume vs sell
+        // volume.
         body: [
             'const bought = ta.buyVolume()',
-            "plot(volume.map(v => v ?? 0), { title: 'Sellers', color: sellColor, style: 'histogram', overlay: false, lastValueVisible: false })",
-            "plot(bought, { title: 'Buyers', color: buyColor, style: 'histogram', overlay: false, lastValueVisible: false })",
+            "plot(volume.map(v => v ?? 0), { title: 'Sell Volume', color: sellColor, style: 'histogram', overlay: false, lastValueVisible: false })",
+            "plot(bought, { title: 'Buy Volume', color: buyColor, style: 'histogram', overlay: false, lastValueVisible: false })",
         ].join('\n'),
     },
     vol_ema: {
