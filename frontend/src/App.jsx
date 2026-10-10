@@ -40,7 +40,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
   const [showNotes, setShowNotes] = useState(false);
   const [symbolSearchMode, setSymbolSearchMode] = useState(null);
   const [activeTool, setActiveTool] = useState('cursor');
-  const [magnetEnabled, setMagnetEnabled] = useState(true);
+  const [magnetEnabled, setMagnetEnabled] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [drawingToolbarVisible, setDrawingToolbarVisible] = useState(true);
 
@@ -103,8 +103,6 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         openCustomIndicators={() => setShowCustomIndicators(true)}
         openSymbolSearch={() => setSymbolSearchMode('change')}
         openSymbolCatalog={() => setShowSymbolCatalog(true)}
-        locked={locked}
-        onToggleLock={toggleLock}
         gridLayout={gridLayout}
         onSetGridLayout={setGridLayout}
         onAddChart={() => setSymbolSearchMode('add')}
@@ -133,6 +131,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
             onSelectTool={handleSelectTool}
             magnetEnabled={magnetEnabled}
             onToggleMagnet={() => setMagnetEnabled(m => !m)}
+            locked={locked}
+            onToggleLock={toggleLock}
             onHide={() => setDrawingToolbarVisible(false)}
           />
         )}

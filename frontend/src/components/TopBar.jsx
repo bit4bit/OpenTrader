@@ -13,7 +13,6 @@ const TopBar = ({
     openCustomIndicators,
     openSymbolSearch,
     openSymbolCatalog,
-    locked, onToggleLock,
     gridLayout, onSetGridLayout,
     onAddChart,
     onCloseAll,
@@ -198,13 +197,6 @@ const TopBar = ({
                 {gridLayout && onSetGridLayout && (
                     <LayoutPicker gridLayout={gridLayout} onSetGridLayout={onSetGridLayout} />
                 )}
-                <button
-                    className={`toolbar-btn ${locked ? 'lock-active' : ''}`}
-                    onClick={onToggleLock}
-                    title={locked ? 'Unlock charts (independent zoom/move)' : 'Lock charts (sync zoom/move/crosshair)'}
-                >
-                    <span style={{ fontSize: '14px' }}>{locked ? '🔒' : '🔓'}</span>
-                </button>
                 <button
                     className="toolbar-btn"
                     onClick={onAddChart}
