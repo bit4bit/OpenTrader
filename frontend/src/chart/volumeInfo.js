@@ -25,6 +25,20 @@ export function volumeChangeAt(bars, time) {
     return { delta, percent: (delta / previous) * 100 };
 }
 
+// Percent difference between the volume bar and its moving average at the
+// hovered bar: both series plot in the volume pane's units (raw counts or
+// turnover % of shares), so the ratio is unit-free.
+export function volumeSmaDiffAt(volumeSeries, smaSeries, time) {
+    const volIdx = barIndexAt(volumeSeries, time);
+    const smaIdx = barIndexAt(smaSeries, time);
+    if (volIdx < 0 || smaIdx < 0) return null;
+    const volume = volumeSeries[volIdx].value;
+    const sma = smaSeries[smaIdx].value;
+    if (volume == null || sma == null || sma === 0) return null;
+    const delta = volume - sma;
+    return { delta, percent: (delta / sma) * 100 };
+}
+
 // Estimate of bought vs sold volume within one bar: the split and the signed
 // distance between both as a percent of the bar's total volume
 // (+ = buy-dominant, − = sell-dominant).

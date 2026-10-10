@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { volumeChangeAt, volumeSplitAt, volumeSplitTotal, volumeBarTotals } from '../volumeInfo';
+import { volumeChangeAt, volumeSplitAt, volumeSplitTotal, volumeBarTotals, volumeSmaDiffAt } from '../volumeInfo';
 
 const bars = [
     { time: 100, open: 10, high: 12, low: 9, close: 11, volume: 200 },
@@ -31,6 +31,42 @@ describe('volumeChangeAt', () => {
         expect(volumeChangeAt([], 100)).toBeNull();
         expect(volumeChangeAt(null, 100)).toBeNull();
         expect(volumeChangeAt(bars, null)).toBeNull();
+    });
+});
+
+describe('volumeSmaDiffAt', () => {
+    const volumeSeries = [
+        { time: 100, value: 200 },
+        { time: 200, value: 400 },
+        { time: 300, value: 300 },
+    ];
+    const smaSeries = [
+        { time: 100, value: 200 },
+        { time: 200, value: 300 },
+        { time: 300, value: 300 },
+    ];
+
+    it('returns delta and percent of the volume bar vs the SMA', () => {
+        expect(volumeSmaDiffAt(volumeSeries, smaSeries, 200)).toEqual({ delta: 100, percent: (100 / 300) * 100 });
+        expect(volumeSmaDiffAt(volumeSeries, smaSeries, 300)).toEqual({ delta: 0, percent: 0 });
+    });
+
+    it('returns null for an unknown time in either series', () => {
+        expect(volumeSmaDiffAt(volumeSeries, smaSeries, 250)).toBeNull();
+        expect(volumeSmaDiffAt(volumeSeries, [{ time: 250, value: 100 }], 250)).toBeNull();
+    });
+
+    it('returns null when the SMA value is zero, null or missing', () => {
+        expect(volumeSmaDiffAt(volumeSeries, [{ time: 200, value: 0 }], 200)).toBeNull();
+        expect(volumeSmaDiffAt(volumeSeries, [{ time: 200, value: null }], 200)).toBeNull();
+        expect(volumeSmaDiffAt([{ time: 200, value: null }], smaSeries, 200)).toBeNull();
+    });
+
+    it('returns null for empty or missing input', () => {
+        expect(volumeSmaDiffAt([], smaSeries, 200)).toBeNull();
+        expect(volumeSmaDiffAt(null, smaSeries, 200)).toBeNull();
+        expect(volumeSmaDiffAt(volumeSeries, [], 200)).toBeNull();
+        expect(volumeSmaDiffAt(volumeSeries, smaSeries, null)).toBeNull();
     });
 });
 

@@ -8,7 +8,7 @@ import { computeActivePaneTypes } from '../chart/paneLayout';
 import { formatPriceValue, DEFAULT_PRICE_DECIMALS } from '../chart/priceFormat';
 import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { averageVolume } from '../chart/averageVolume';
-import { volumeBarTotals } from '../chart/volumeInfo';
+import { volumeBarTotals, volumeSmaDiffAt } from '../chart/volumeInfo';
 import { visiblePriceRange } from '../chart/visiblePriceRange';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
@@ -236,6 +236,14 @@ const ChartPanel = ({
                             const qoqChange = ind.type === 'earnings'
                                 ? qoqEpsChangeAt(data, earnings, hoveredData?.price?.time ?? null)
                                 : null;
+                            // Volume bar vs its moving average at the hovered
+                            // bar; both plot series share the pane's units.
+                            const volSmaDiff = (ind.type === 'vol_sma' || ind.type === 'vol_ema') && volumeIndicator
+                                ? volumeSmaDiffAt(
+                                    indicatorResults.resultsById[volumeIndicator.id]?.plots[0]?.series,
+                                    indicatorResults.resultsById[ind.id]?.plots[0]?.series,
+                                    hoveredData?.price?.time ?? null)
+                                : null;
                             return (
                                 <React.Fragment key={ind.id}>
                                     {plots.map((p, pi) => {
@@ -257,6 +265,14 @@ const ChartPanel = ({
                                             <span className="legend-value" style={{ color: p.color }}>
                                                 {value != null ? formatLegendValue(value, ind.type, ind, volumePctShares) : ''}
                                             </span>
+                                            {volSmaDiff && p.value != null && (
+                                                <span
+                                                    className="legend-volume-change"
+                                                    style={{ color: volSmaDiff.percent >= 0 ? '#26a69a' : '#ef5350' }}
+                                                >
+                                                    Vol {formatPercent(volSmaDiff.percent)}
+                                                </span>
+                                            )}
                                             {volumeChange && value != null && (
                                                 <span
                                                     className="legend-volume-change"
