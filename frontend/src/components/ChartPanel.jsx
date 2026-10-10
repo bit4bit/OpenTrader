@@ -13,7 +13,7 @@ import { visiblePriceRange } from '../chart/visiblePriceRange';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
-import { qoqEpsChangeAt } from '../chart/earningsLegend';
+import { qoqEpsChangeAt, nextEarningsReport } from '../chart/earningsLegend';
 
 const formatPrice = (price, decimals) => formatPriceValue(price, decimals);
 const formatPercent = (val) => (val != null ? (val >= 0 ? '+' : '') + val.toFixed(2) + '%' : '');
@@ -236,6 +236,9 @@ const ChartPanel = ({
                             const qoqChange = ind.type === 'earnings'
                                 ? qoqEpsChangeAt(data, earnings, hoveredData?.price?.time ?? null)
                                 : null;
+                            const nextReport = ind.type === 'earnings'
+                                ? nextEarningsReport(earnings)
+                                : null;
                             // Volume bar vs its moving average at the hovered
                             // bar; both plot series share the pane's units.
                             const volSmaDiff = (ind.type === 'vol_sma' || ind.type === 'vol_ema') && volumeIndicator
@@ -330,6 +333,23 @@ const ChartPanel = ({
                                         >
                                             {formatPercent(qoqChange.change)}
                                         </span>
+                                    </div>
+                                )}
+                                {nextReport && plots.length > 0 && (
+                                    <div className="legend-item">
+                                        <span
+                                            className="legend-bullet"
+                                            style={{ backgroundColor: ind.estimateColor }}
+                                        ></span>
+                                        <span className="legend-label">Next {nextReport.date}</span>
+                                        {nextReport.epsEstimate != null && (
+                                            <span
+                                                className="legend-value"
+                                                style={{ color: ind.estimateColor }}
+                                            >
+                                                est {nextReport.epsEstimate.toFixed(2)}
+                                            </span>
+                                        )}
                                     </div>
                                 )}
                                 </React.Fragment>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { qoqEpsChangeAt } from '../earningsLegend';
+import { nextEarningsReport, qoqEpsChangeAt } from '../earningsLegend';
 
 const day = (offset) => 1704067200 + offset * 86400;
 const iso = (epochSeconds) => new Date(epochSeconds * 1000).toISOString().slice(0, 10);
@@ -46,5 +46,32 @@ describe('qoqEpsChangeAt', () => {
             { date: iso(day(1)), epsEstimate: null, epsActual: -0.1 },
         ];
         expect(qoqEpsChangeAt(data, negative, null).change).toBe(50);
+    });
+});
+
+describe('nextEarningsReport', () => {
+    it('returns the earliest report dated at or after today', () => {
+        const quarters = [
+            { date: iso(day(100)), epsEstimate: 1.3, epsActual: null },
+            { date: iso(day(-10)), epsEstimate: 1.0, epsActual: 1.0 },
+            { date: iso(day(10)), epsEstimate: 1.2, epsActual: null },
+        ];
+        expect(nextEarningsReport(quarters, iso(day(0))))
+            .toMatchObject({ date: iso(day(10)), epsEstimate: 1.2 });
+    });
+
+    it('counts today as upcoming', () => {
+        const quarters = [{ date: iso(day(0)), epsEstimate: 1.2, epsActual: null }];
+        expect(nextEarningsReport(quarters, iso(day(0))).date).toBe(iso(day(0)));
+    });
+
+    it('returns null when every report is past or missing', () => {
+        const past = [
+            { date: iso(day(-10)), epsEstimate: 1.0, epsActual: 1.0 },
+            { date: iso(day(-1)), epsEstimate: null, epsActual: 1.1 },
+        ];
+        expect(nextEarningsReport(past, iso(day(0)))).toBeNull();
+        expect(nextEarningsReport([], iso(day(0)))).toBeNull();
+        expect(nextEarningsReport(null, iso(day(0)))).toBeNull();
     });
 });

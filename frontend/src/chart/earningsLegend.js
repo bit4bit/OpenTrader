@@ -5,6 +5,18 @@
 // report when the crosshair isn't on a report bar.
 import { snapEarningsReports } from './earningsBars';
 
+// Next upcoming quarterly report for the earnings pane legend — the
+// earliest report dated today or later. Legend-only information: a future
+// report date has no chart bar to plot on. Date-based (not
+// epsActual == null) so a stale unreported past date doesn't linger as
+// "next" — todayIso is injectable for tests.
+export function nextEarningsReport(quarters, todayIso = new Date().toISOString().slice(0, 10)) {
+    const upcoming = (quarters || [])
+        .filter(q => q && q.date && q.date >= todayIso)
+        .sort((a, b) => a.date.localeCompare(b.date));
+    return upcoming[0] ?? null;
+}
+
 export function qoqEpsChangeAt(data, quarters, time) {
     const reports = snapEarningsReports(data, quarters);
     if (reports.length === 0) return null;
