@@ -10,6 +10,7 @@ import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { averageVolume } from '../chart/averageVolume';
 import { volumeBarTotals, volumeSmaDiffAt } from '../chart/volumeInfo';
 import { visiblePriceRange } from '../chart/visiblePriceRange';
+import { priceDiffPercent } from '../chart/priceDiff';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
@@ -203,15 +204,32 @@ const ChartPanel = ({
                         <div className="chart-legend-overlay">
                             {overlayIndicators.map(ind => {
                                 const plots = hoveredData?.generic?.[ind.id] ?? [];
+                                // Price vs SMA/EMA in percent at the hovered
+                                // bar; volume-sourced MAs plot in volume
+                                // units, so they are not comparable to the price.
+                                const showsPriceDiff = (ind.type === 'sma' || ind.type === 'ema')
+                                    && ind.source !== 'volume' && ind.source !== 'volume_ma';
                                 return (
                                     <div key={ind.id} className="chart-legend-indicators price-indicators">
-                                        {plots.map((p, pi) => (
+                                        {plots.map((p, pi) => {
+                                            const priceDiff = showsPriceDiff
+                                                ? priceDiffPercent(priceData?.close, p.value)
+                                                : null;
+                                            return (
                                             <div key={pi} className="legend-item">
                                                 <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>
                                                 <span className="legend-label">{p.title}</span>
                                                 <span className="legend-value" style={{ color: p.color }}>
                                                     {p.value != null ? formatLegendValue(p.value, ind.type, ind) : ''}
                                                 </span>
+                                                {priceDiff != null && (
+                                                    <span
+                                                        className="legend-volume-change"
+                                                        style={{ color: priceDiff >= 0 ? '#26a69a' : '#ef5350' }}
+                                                    >
+                                                        {formatPercent(priceDiff)}
+                                                    </span>
+                                                )}
                                                 {p.change != null && p.value != null && (
                                                     <span
                                                         className="legend-volume-change"
@@ -221,7 +239,8 @@ const ChartPanel = ({
                                                     </span>
                                                 )}
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 );
                             })}
