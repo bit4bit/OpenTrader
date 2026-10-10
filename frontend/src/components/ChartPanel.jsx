@@ -9,6 +9,7 @@ import { formatPriceValue, DEFAULT_PRICE_DECIMALS } from '../chart/priceFormat';
 import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { averageVolume } from '../chart/averageVolume';
 import { volumeBarTotals } from '../chart/volumeInfo';
+import { visiblePriceRange } from '../chart/visiblePriceRange';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
@@ -136,6 +137,12 @@ const ChartPanel = ({
         if (visibleWindow?.key !== dataKey) return null;
         return volumeBarTotals(data, visibleWindow.fromTime, visibleWindow.toTime);
     }, [data, visibleWindow, dataKey]);
+    // Visible-scale price extremes (lowest low, highest high, spread in
+    // percent) for the range legend next to the OHLC readout.
+    const rangeStats = useMemo(() => {
+        if (visibleWindow?.key !== dataKey) return null;
+        return visiblePriceRange(data, visibleWindow.fromTime, visibleWindow.toTime);
+    }, [data, visibleWindow, dataKey]);
     const volumeUpColor = volumeIndicator?.upColor ?? '#26a69a';
     const volumeDownColor = volumeIndicator?.downColor ?? '#ef5350';
     const formatWindowVolume = (val) =>
@@ -173,6 +180,15 @@ const ChartPanel = ({
                             <span className="ohlc-item"><span className="ohlc-label">L</span><span style={{ color: pnlColor }}>{formatPrice(priceData.low, priceDecimals)}</span></span>
                             <span className="ohlc-item"><span className="ohlc-label">C</span><span style={{ color: pnlColor }}>{formatPrice(priceData.close, priceDecimals)}</span></span>
                             <span style={{ color: pnlColor, fontWeight: 'bold' }}>{formatPercent(pnl)}</span>
+                        </div>
+                    )}
+                    {/* Visible-scale range: lowest/highest price in view and
+                        the spread between both in percent. */}
+                    {rangeStats && (
+                        <div className="legend-ohlc">
+                            <span className="ohlc-item"><span className="ohlc-label">L</span><span style={{ color: '#ef5350' }}>{formatPrice(rangeStats.low, priceDecimals)}</span></span>
+                            <span className="ohlc-item"><span className="ohlc-label">H</span><span style={{ color: '#26a69a' }}>{formatPrice(rangeStats.high, priceDecimals)}</span></span>
+                            <span className="ohlc-item"><span className="ohlc-label">Δ</span><span>{formatPercent(rangeStats.percent)}</span></span>
                         </div>
                     )}
                 </div>
