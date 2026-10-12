@@ -1,4 +1,4 @@
-export const INTRADAY_INTERVALS = ['1m', '5m', '15m', '1h', '4h'];
+export const INTRADAY_INTERVALS = ['1m', '5m', '15m', '30m', '1h', '4h'];
 
 // Crosshair time-scale label: weekday name + date (UTC, matching the library's rendering)
 export function formatCrosshairTime(time, interval) {

@@ -1,6 +1,6 @@
 export const AVERAGE_VOLUME_BARS = 20;
 
-const INTRADAY_INTERVALS = ['1m', '5m', '15m', '1h', '4h'];
+const INTRADAY_INTERVALS = ['1m', '5m', '15m', '30m', '1h', '4h'];
 
 // Mean volume over the most recent daily+ bars; null on intraday intervals
 // (their loaded range is too short to average whole days).

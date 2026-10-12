@@ -102,8 +102,10 @@ const Chart = ({
     const activeToolRef = useRef(activeTool);
     const isActiveRef = useRef(isActive);
     const intervalRef = useRef(interval);
+    const magnetEnabledRef = useRef(magnetEnabled);
     useEffect(() => { onRangeChangeRef.current = onVisibleLogicalRangeChange; }, [onVisibleLogicalRangeChange]);
     useEffect(() => { intervalRef.current = interval; }, [interval]);
+    useEffect(() => { magnetEnabledRef.current = magnetEnabled; }, [magnetEnabled]);
     useEffect(() => { onCrosshairMoveRef.current = onCrosshairMove; }, [onCrosshairMove]);
     useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
     useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
@@ -155,6 +157,9 @@ const Chart = ({
             }
             engineRef.current = engine;
             setEngineReady(true);
+            // The engine defaults to a magnet crosshair; apply the app-level
+            // default (off) — the magnet effect ran before the engine existed.
+            engine.setMagnet(magnetEnabledRef.current);
 
             // Sync peers see an engine-agnostic entry: logical range for
             // zoom/pan, nearest-bar snapping for the crosshair.

@@ -27,7 +27,7 @@ const mergeBars = (bars) =>
 
 const initialRangeFor = (interval) => {
     if (['1m', '5m', '15m'].includes(interval)) return '5d';
-    if (['1h', '4h'].includes(interval)) return '1mo';
+    if (['30m', '1h', '4h'].includes(interval)) return '1mo';
     return '1y';
 };
 
@@ -37,13 +37,13 @@ const refreshRangeFor = (interval) =>
 const historyOffsetFor = (interval) => {
     if (interval === '1m') return 2 * 24 * 60 * 60;
     if (['5m', '15m'].includes(interval)) return 7 * 24 * 60 * 60;
-    if (['1h', '4h'].includes(interval)) return 30 * 24 * 60 * 60;
+    if (['30m', '1h', '4h'].includes(interval)) return 30 * 24 * 60 * 60;
     return 365 * 24 * 60 * 60;
 };
 
 const refreshMsFor = (interval) => {
     if (['1m', '5m', '15m'].includes(interval)) return 10000;
-    if (['1h', '4h'].includes(interval)) return 30000;
+    if (['30m', '1h', '4h'].includes(interval)) return 30000;
     return 60000;
 };
 
