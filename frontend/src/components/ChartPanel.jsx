@@ -10,7 +10,7 @@ import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { averageVolume } from '../chart/averageVolume';
 import { volumeBarTotals, volumeSmaDiffAt } from '../chart/volumeInfo';
 import { visiblePriceRange } from '../chart/visiblePriceRange';
-import { priceDiffPercent } from '../chart/priceDiff';
+import { priceDiffPercent, adjacentChangePercent } from '../chart/priceDiff';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
@@ -209,11 +209,23 @@ const ChartPanel = ({
                                 // units, so they are not comparable to the price.
                                 const showsPriceDiff = (ind.type === 'sma' || ind.type === 'ema')
                                     && ind.source !== 'volume' && ind.source !== 'volume_ma';
+                                // The line's own rate of change also applies to
+                                // the benchmark lines: the rebased line moves
+                                // proportionally to the index's own closes.
+                                const showsBarChange = showsPriceDiff || ind.type === 'benchmark';
                                 return (
                                     <div key={ind.id} className="chart-legend-indicators price-indicators">
                                         {plots.map((p, pi) => {
                                             const priceDiff = showsPriceDiff
                                                 ? priceDiffPercent(priceData?.close, p.value)
+                                                : null;
+                                            // The line's own rate of change:
+                                            // hovered value vs the previous
+                                            // bar's value.
+                                            const barChange = showsBarChange
+                                                ? adjacentChangePercent(
+                                                    indicatorResults.resultsById[ind.id]?.plots[pi]?.series,
+                                                    hoveredData?.price?.time ?? null)
                                                 : null;
                                             return (
                                             <div key={pi} className="legend-item">
@@ -228,6 +240,15 @@ const ChartPanel = ({
                                                         style={{ color: priceDiff >= 0 ? '#26a69a' : '#ef5350' }}
                                                     >
                                                         {formatPercent(priceDiff)}
+                                                    </span>
+                                                )}
+                                                {barChange != null && (
+                                                    <span
+                                                        className="legend-volume-change"
+                                                        title="Line change vs the previous bar"
+                                                        style={{ color: barChange >= 0 ? '#26a69a' : '#ef5350' }}
+                                                    >
+                                                        Δ{formatPercent(barChange)}
                                                     </span>
                                                 )}
                                                 {p.change != null && p.value != null && (
