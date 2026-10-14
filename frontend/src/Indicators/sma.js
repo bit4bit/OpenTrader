@@ -17,16 +17,16 @@ export const SMA_SOURCES = [
 ];
 
 export const SMA_COLORS = [
-    '#2962ff', // blue
-    '#ff9800', // orange
-    '#e91e63', // pink
-    '#4caf50', // green
-    '#9c27b0', // purple
-    '#ffeb3b', // yellow
-    '#00bcd4', // cyan
-    '#673ab7', // deep purple
-    '#8bc34a', // light green
-    '#f44336', // red
+    'rgba(41, 98, 255, 0.8)', // blue
+    'rgba(255, 152, 0, 0.8)', // orange
+    'rgba(233, 30, 99, 0.8)', // pink
+    'rgba(76, 175, 80, 0.8)', // green
+    'rgba(156, 39, 176, 0.8)', // purple
+    'rgba(255, 235, 59, 0.8)', // yellow
+    'rgba(0, 188, 212, 0.8)', // cyan
+    'rgba(103, 58, 183, 0.8)', // deep purple
+    'rgba(139, 195, 74, 0.8)', // light green
+    'rgba(244, 67, 54, 0.8)', // red
 ];
 
 /**

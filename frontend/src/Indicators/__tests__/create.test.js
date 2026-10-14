@@ -70,7 +70,7 @@ describe('indicator creation', () => {
             buyColor: '#26a69a', sellColor: '#ef5350', visible: true,
         }]);
         expect(addIndicators([], 'vol_sma')).toEqual([{
-            id: 'vol-sma-main', type: 'vol_sma', length: 20, color: '#ff9800', visible: true,
+            id: 'vol-sma-main', type: 'vol_sma', length: 20, color: 'rgba(255, 152, 0, 0.8)', visible: true,
         }]);
         expect(addIndicators([], 'vol_ema')).toEqual([{
             id: 'vol-ema-main', type: 'vol_ema', length: 21, color: '#9c27b0', visible: true,

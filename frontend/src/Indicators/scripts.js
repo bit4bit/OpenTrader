@@ -86,7 +86,7 @@ const SCRIPTS = {
         paneType: 'volume',
         fields: [
             { key: 'length', label: 'Length', type: 'int', default: 20, min: 1, max: 500 },
-            { key: 'color', label: 'Color', type: 'color', default: '#ff9800' },
+            { key: 'color', label: 'Color', type: 'color', default: 'rgba(255, 152, 0, 0.8)' },
         ],
         // Plots in the units of the Volume bars: turnover % when the volume
         // indicator is in % of shares mode (the pane y-scale demands it),

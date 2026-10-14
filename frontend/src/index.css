@@ -971,6 +971,11 @@ div[class*="tradingview"] {
   left: 8px;
 }
 
+/* Pane legends (volume, RSI, ...): smaller than the price-chart legends */
+.chart-tile-body > .chart-legend-indicators {
+  font-size: 11px;
+}
+
 /* Empty state */
 .chart-grid-empty {
   flex: 1;
