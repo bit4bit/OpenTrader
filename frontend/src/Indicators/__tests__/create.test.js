@@ -16,6 +16,17 @@ describe('indicator creation', () => {
         expect(created[0].id).toBe('sma-0');
     });
 
+    it('vwap seeds session/month/year anchors, only the session one visible', () => {
+        const created = addIndicators([], 'vwap');
+        expect(created).toHaveLength(3);
+        expect(created.map(i => i.anchor)).toEqual(['session', 'month', 'year']);
+        expect(created.map(i => i.visible)).toEqual([true, false, false]);
+        expect(created.map(i => i.source).every(s => s === 'hlc3')).toBe(true);
+        expect(created[0].id).toBe('vwap-0');
+        // Adding again seeds three more (non-singleton).
+        expect(addIndicators(created, 'vwap')).toHaveLength(6);
+    });
+
     it('registry defaults match the old factory configs', () => {
         expect(addIndicators([], 'rsi')).toEqual([{
             id: 'rsi-main', type: 'rsi',

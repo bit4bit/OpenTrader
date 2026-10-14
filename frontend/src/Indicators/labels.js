@@ -15,6 +15,11 @@ export function indicatorLabel(groupType, ind, idx) {
         case 'ichimoku': return 'Ichimoku Cloud';
         case 'tsi': return `TSI (${ind.longLength}, ${ind.shortLength}, ${ind.signalLength})`;
         case 'ad': return 'Accum/Dist';
+        case 'vwap': return ind.anchor === 'session' ? 'VWAP'
+            : ind.anchor === 'week' ? 'VWAP WTD'
+            : ind.anchor === 'month' ? 'VWAP MTD'
+            : ind.anchor === 'year' ? 'VWAP YTD'
+            : `AVWAP ${ind.anchorDate}`;
         case 'smi': return `SMI (${(ind.constituents || []).length} symbols)`;
         case 'benchmark': return `Benchmark (${(ind.indexes || []).filter(ix => ix.enabled !== false).length} indexes)`;
         case 'w52': return `52W High/Low (${ind.basis === 'close' ? 'Close' : 'Highs/Lows'})`;

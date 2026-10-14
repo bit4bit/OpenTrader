@@ -15,6 +15,7 @@ import { computeStochastic } from '../stoch';
 import { computeSuperTrend } from '../supertrend';
 import { computeATR } from '../atr';
 import { computeADL } from '../adl';
+import { computeVWAP } from '../vwap';
 import { computeW52 } from '../w52';
 import { computePriceLevel } from '../priceLevel';
 import { computeTSI } from '../tsi';
@@ -126,6 +127,30 @@ describe('script equivalence', () => {
 
     it('ad', () => {
         expectSameBars(plotOf(run('ad', {}), 'Accum'), computeADL(DATA));
+    });
+
+    it('vwap', () => {
+        // Golden data is daily, so every bar sits in its own session and
+        // session VWAP is each bar's hlc3.
+        const session = run('vwap', { anchor: 'session', source: 'hlc3', color: '#123456' });
+        const expectedSession = DATA.map(d => ({ time: d.time, value: (d.high + d.low + d.close) / 3 }));
+        expectSameBars(plotOf(session, 'VWAP'), expectedSession);
+
+        // Calendar anchors reset on the period's first bar (weeks start Monday).
+        const week = run('vwap', { anchor: 'week', source: 'hlc3' });
+        expectSameBars(plotOf(week, 'VWAP WTD'), computeVWAP(DATA, { anchor: 'week' }));
+
+        // Date anchor: line starts at the first bar of 2023-11-20 (index 6)
+        // and never resets afterwards.
+        const date = run('vwap', { anchor: 'date', anchorDate: '2023-11-20', source: 'hlc3' });
+        const plot = plotOf(date, 'AVWAP 2023-11-20');
+        expect(plot).toHaveLength(DATA.length - 6);
+        expect(plot[0].time).toBe(DATA[6].time);
+        expectSameBars(plot, computeVWAP(DATA, { anchorTime: Date.parse('2023-11-20T00:00:00Z') / 1000 }));
+
+        // Date anchor without a parseable date plots an empty series.
+        const noDate = run('vwap', { anchor: 'date', anchorDate: '', source: 'hlc3' });
+        expect(plotOf(noDate, 'AVWAP')).toHaveLength(0);
     });
 
     it('w52', () => {

@@ -254,6 +254,35 @@ const SCRIPTS = {
         ],
         body: "plot(ta.adl(), { title: 'Accum/Dist', color, overlay: false })",
     },
+    vwap: {
+        title: 'VWAP',
+        singleton: false,
+        fields: [
+            { key: 'anchor', label: 'Anchor', type: 'string', options: ['session', 'week', 'month', 'year', 'date'], default: 'session' },
+            { key: 'anchorDate', label: 'Anchor Date (YYYY-MM-DD)', type: 'string', default: '' },
+            { key: 'source', label: 'Source', type: 'string', options: ['hlc3', 'hl2', 'ohlc4', 'hlcc4', 'close', 'open', 'high', 'low'], default: 'hlc3' },
+            { key: 'color', label: 'Color', type: 'color', default: '#2962ff' },
+        ],
+        // TradingView-style seeding: adding VWAP seeds the chart with
+        // session/month/year anchors, only the session one visible.
+        create: () => ['session', 'month', 'year'].map((anchor, i) => ({
+            id: `vwap-${i}`,
+            type: 'vwap',
+            anchor,
+            anchorDate: '',
+            source: 'hlc3',
+            visible: i === 0,
+            color: SMA_COLORS[i],
+        })),
+        // String source (not input.source) so the title can name it; the
+        // registry anchor 'date' turns the Anchor Date field into the
+        // anchorTime the line starts from.
+        body: [
+            "const at = anchor === 'date' && anchorDate ? Date.parse(anchorDate + 'T00:00:00Z') / 1000 : null",
+            "const title = anchor === 'session' ? 'VWAP' : anchor === 'week' ? 'VWAP WTD' : anchor === 'month' ? 'VWAP MTD' : anchor === 'year' ? 'VWAP YTD' : 'AVWAP ' + anchorDate",
+            "plot(ta.vwap(source, anchor, at), { title, color, lineWidth: 2 })",
+        ].join('\n'),
+    },
     w52: {
         title: '52 Week High/Low',
         id: 'w52-main',

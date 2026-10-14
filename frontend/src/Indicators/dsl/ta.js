@@ -13,6 +13,7 @@ import { computeBollingerBands } from '../bollinger';
 import { computeStochastic } from '../stoch';
 import { computeSuperTrend } from '../supertrend';
 import { computeADL } from '../adl';
+import { computeVWAP } from '../vwap';
 import { computeW52 } from '../w52';
 import { computePriceLevel } from '../priceLevel';
 import { computeTSI } from '../tsi';
@@ -162,6 +163,10 @@ export function buildTa(data, barsBySymbol = {}) {
             return { actual, estimate, colors };
         },
         adl: () => align(computeADL(data)),
+        // VWAP with calendar anchors (session/week/month/year) or
+        // anchored at the first bar at/after a bar time (anchored VWAP).
+        vwap: (source = 'hlc3', anchor = 'session', anchorTime = null) =>
+            align(computeVWAP(data, { source, anchor, anchorTime })),
         tsi: (longLength = 25, shortLength = 13, signalLength = 13) => {
             const res = computeTSI(data, { longLength, shortLength, signalLength });
             return { tsi: align(res.tsi), signal: align(res.signal) };
