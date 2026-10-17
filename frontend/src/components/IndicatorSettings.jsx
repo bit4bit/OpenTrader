@@ -11,7 +11,7 @@ import { useIndexMembership } from '../hooks/useIndexMembership';
  */
 const ScriptSettings = ({ fields, values = {}, disabled = false, onChange, scriptError }) => (
     <div className="indicator-settings rsi-grid">
-        {fields.filter(f => f.type !== 'symbols').map(field => (
+        {fields.filter(f => f.type !== 'symbols' && (!f.showIf || f.showIf(values))).map(field => (
             <div key={field.key} className="setting-item">
                 <label>{field.label}</label>
                 {(field.type === 'int' || field.type === 'float') && (
@@ -49,6 +49,14 @@ const ScriptSettings = ({ fields, values = {}, disabled = false, onChange, scrip
                     >
                         {field.options.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
+                )}
+                {field.type === 'date' && (
+                    <input
+                        type="date"
+                        disabled={disabled}
+                        value={values[field.key] ?? field.default}
+                        onChange={(e) => onChange(field.key, e.target.value)}
+                    />
                 )}
                 {field.type === 'color' && (
                     <input

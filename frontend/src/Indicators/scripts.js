@@ -259,7 +259,7 @@ const SCRIPTS = {
         singleton: false,
         fields: [
             { key: 'anchor', label: 'Anchor', type: 'string', options: ['session', 'week', 'month', 'year', 'date'], default: 'session' },
-            { key: 'anchorDate', label: 'Anchor Date (YYYY-MM-DD)', type: 'string', default: '' },
+            { key: 'anchorDate', label: 'Anchor Date', type: 'date', default: '', showIf: (v) => v?.anchor === 'date' },
             { key: 'source', label: 'Source', type: 'string', options: ['hlc3', 'hl2', 'ohlc4', 'hlcc4', 'close', 'open', 'high', 'low'], default: 'hlc3' },
             { key: 'color', label: 'Color', type: 'color', default: '#2962ff' },
         ],

@@ -44,6 +44,7 @@ function makeInput(declaring, values, sources) {
         float: (label, def = 1.0, opts = {}) => declare('float', label, def, opts),
         bool: (label, def = false, opts = {}) => declare('bool', label, def, opts),
         string: (label, def = '', opts = {}) => declare('string', label, def, opts),
+        date: (label, def = '', opts = {}) => declare('date', label, def, opts),
         color: (label, def = '#2962ff', opts = {}) => declare('color', label, def, opts),
         source: (label, def = 'close', opts = {}) => sources[declare('source', label, def, opts)] ?? sources.close,
         symbols: (label, def = [], opts = {}) => declare('symbols', label, def, opts),
