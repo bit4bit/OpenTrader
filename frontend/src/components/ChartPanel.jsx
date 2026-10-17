@@ -10,7 +10,7 @@ import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { averageVolume } from '../chart/averageVolume';
 import { volumeBarTotals, volumeSmaDiffAt } from '../chart/volumeInfo';
 import { visiblePriceRange } from '../chart/visiblePriceRange';
-import { priceDiffPercent, adjacentChangePercent } from '../chart/priceDiff';
+import { priceDiffPercent, adjacentChangePercent, closeChangePercent } from '../chart/priceDiff';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
@@ -121,6 +121,8 @@ const ChartPanel = ({
     const priceData = hoveredData?.price;
     const pnl = priceData ? ((priceData.close - priceData.open) / priceData.open * 100) : null;
     const pnlColor = pnl >= 0 ? '#26a69a' : '#ef5350';
+    const closeChange = priceData ? closeChangePercent(data, priceData.time) : null;
+    const closeChangeColor = closeChange >= 0 ? '#26a69a' : '#ef5350';
 
     const indicatorResults = useIndicatorResults(data, adFullData, indicators, scriptsById, smiData, symbolInfo, earnings, overlayAnchorTime);
 
@@ -181,6 +183,12 @@ const ChartPanel = ({
                             <span className="ohlc-item"><span className="ohlc-label">L</span><span style={{ color: pnlColor }}>{formatPrice(priceData.low, priceDecimals)}</span></span>
                             <span className="ohlc-item"><span className="ohlc-label">C</span><span style={{ color: pnlColor }}>{formatPrice(priceData.close, priceDecimals)}</span></span>
                             <span style={{ color: pnlColor, fontWeight: 'bold' }}>{formatPercent(pnl)}</span>
+                            {closeChange != null && (
+                                <span className="ohlc-item">
+                                    <span className="ohlc-label">CC</span>
+                                    <span style={{ color: closeChangeColor }}>{formatPercent(closeChange)}</span>
+                                </span>
+                            )}
                         </div>
                     )}
                     {/* Visible-scale range: lowest/highest price in view and
@@ -480,6 +488,7 @@ const ChartPanel = ({
                         onVisibleLogicalRangeChange={onVisibleRangeChange}
                         onCrosshairMove={setHoveredData}
                         indicatorResults={indicatorResults}
+                        symbolInfo={symbolInfo}
                     />
                 )}
             </div>

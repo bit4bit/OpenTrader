@@ -13,6 +13,7 @@ import { isDrawingTool, buildPreviewDrawing } from '../chart/drawingTools';
 import { applyDrawingClick, edgeRange } from '../chart/drawingInteraction';
 import { buildLegendResults } from '../chart/crosshairLegend';
 import { volumeChangeAt, volumeSplitAt, volumeSplitTotal } from '../chart/volumeInfo';
+import { measureContains } from '../chart/measureStats';
 import {
     computeActivePaneTypes,
     paneIndexOf as paneIndexOfType,
@@ -49,7 +50,8 @@ const Chart = ({
     chartId,
     isActive = false,
     syncEnabled = false,
-    indicatorResults = {}
+    indicatorResults = {},
+    symbolInfo = null
 }) => {
     const containerRef = useRef();
     const engineRef = useRef(null);
@@ -65,6 +67,8 @@ const Chart = ({
     const [noteDrag, setNoteDrag] = useState(null);
     const [notePositions, setNotePositions] = useState({});
     const [engineReady, setEngineReady] = useState(false);
+    const [hoveredMeasureId, setHoveredMeasureId] = useState(null);
+    const hoveredMeasureRef = useRef(null);
     const priceDecimalsByProvider = useProviderPriceDecimals();
     const [engineError, setEngineError] = useState(null);
     const currentCrosshairColor = useRef('#758696');
@@ -103,6 +107,8 @@ const Chart = ({
     const isActiveRef = useRef(isActive);
     const intervalRef = useRef(interval);
     const magnetEnabledRef = useRef(magnetEnabled);
+    const drawingsRef = useRef(drawings);
+    useEffect(() => { drawingsRef.current = drawings; }, [drawings]);
     useEffect(() => { onRangeChangeRef.current = onVisibleLogicalRangeChange; }, [onVisibleLogicalRangeChange]);
     useEffect(() => { intervalRef.current = interval; }, [interval]);
     useEffect(() => { magnetEnabledRef.current = magnetEnabled; }, [magnetEnabled]);
@@ -113,7 +119,7 @@ const Chart = ({
     useEffect(() => { dataRef.current = data; }, [data]);
 
     // Converter context shared by the overlay geometry builders.
-    const geometryCtx = () => {
+    const geometryCtx = React.useCallback(() => {
         const engine = engineRef.current;
         const { width, height } = engine.size();
         return {
@@ -122,8 +128,10 @@ const Chart = ({
             width,
             height,
             data: dataRef.current,
+            interval: intervalRef.current,
+            symbolInfo,
         };
-    };
+    }, [symbolInfo]);
 
     // Price rows actually displayed: gap-filled when the weekend toggle is
     // on (indicators below still run on the raw data).
@@ -191,6 +199,20 @@ const Chart = ({
                     const currentTool = activeToolRef.current;
                     if (evt && isDrawingTool(currentTool) && drawingPointsRef.current.length > 0) {
                         setPreviewDrawing(buildPreviewDrawing(currentTool, drawingPointsRef.current, { time: evt.time, price: evt.price }));
+                    }
+
+                    // Measure legends show on hover only: track which measure
+                    // rect (if any) contains the crosshair; a change re-renders
+                    // the drawings layer. Overlapping rects: topmost wins.
+                    let hoveredId = null;
+                    if (evt) {
+                        drawingsRef.current.forEach(d => {
+                            if (measureContains(d, evt.time, evt.price)) hoveredId = d.id;
+                        });
+                    }
+                    if (hoveredId !== hoveredMeasureRef.current) {
+                        hoveredMeasureRef.current = hoveredId;
+                        setHoveredMeasureId(hoveredId);
                     }
 
                     if (chartId && !isApplyingSync() && syncEnabledRef.current) {
@@ -309,25 +331,27 @@ const Chart = ({
             ? buildWeekendShapes(displayPriceRows, interval, geometryCtx())
             : [];
         layerRenderer('weekends')?.drawShapes(shapes);
-    }, [engineReady, displayPriceRows, showWeekendCandles, interval, chartTick]);
+    }, [engineReady, displayPriceRows, showWeekendCandles, interval, chartTick, geometryCtx]);
 
     // Script indicator fills (BB band shade, Ichimoku cloud, ...).
     useEffect(() => {
         if (!engineReady) return;
         layerRenderer('fills')?.drawShapes(buildFillShapes(fillsData, geometryCtx()));
-    }, [engineReady, fillsData, indicators, data]); // Redraw on data change as well to sync with timeScale
+    }, [engineReady, fillsData, indicators, data, geometryCtx]); // Redraw on data change as well to sync with timeScale
 
     // Script histogram overlays (Volume Profile-style price-by-volume)
     useEffect(() => {
         if (!engineReady) return;
         layerRenderer('volumeProfile')?.drawShapes(buildVolumeProfileShapes(histogramsData, geometryCtx()));
-    }, [engineReady, histogramsData, indicators]);
+    }, [engineReady, histogramsData, indicators, geometryCtx]);
 
     // Render Drawings and Annotations
     useEffect(() => {
         if (!engineReady) return;
-        layerRenderer('drawings')?.drawScene(buildDrawingScene(drawings, previewDrawing, geometryCtx()));
-    }, [engineReady, drawings, previewDrawing, data, chartTick]);
+        layerRenderer('drawings')?.drawScene(
+            buildDrawingScene(drawings, previewDrawing, { ...geometryCtx(), hoveredDrawingId: hoveredMeasureId })
+        );
+    }, [engineReady, drawings, previewDrawing, data, chartTick, hoveredMeasureId, geometryCtx]);
 
     // Erase single drawing: click a <g data-drawing-id> to remove it
     useEffect(() => {

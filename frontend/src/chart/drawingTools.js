@@ -47,6 +47,7 @@ export const REQUIRED_POINTS = {
     forecast: 2,
     priceRange: 2,
     dateRange: 2,
+    measure: 2,
     ghostFeed: 2,
     fibRetracement: 2,
     fibExtension: 3,

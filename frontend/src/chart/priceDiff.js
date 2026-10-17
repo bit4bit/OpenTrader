@@ -6,6 +6,22 @@ export function priceDiffPercent(price, value) {
     return ((price - value) / value) * 100;
 }
 
+// Close-to-close change of the hovered bar vs the previous bar's close,
+// in percent of the previous close.
+export function closeChangePercent(bars, time) {
+    if (!bars?.length || time == null) return null;
+    let lo = 0, hi = bars.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (bars[mid].time < time) lo = mid + 1; else hi = mid;
+    }
+    if (bars[lo].time !== time || lo === 0) return null;
+    const current = bars[lo].close;
+    const previous = bars[lo - 1].close;
+    if (current == null || previous == null || previous === 0) return null;
+    return (current / previous - 1) * 100;
+}
+
 // Rate of change of an overlay line bar-over-bar: its value at the hovered
 // bar vs the previous bar's value, in percent.
 export function adjacentChangePercent(series, time) {

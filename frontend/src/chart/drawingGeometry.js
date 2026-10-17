@@ -8,6 +8,8 @@
 //   width, height,          // overlay size in px
 //   data,                   // bars, for regression/bar-count tools
 //   hasPreview,             // a preview drawing exists (anchor behavior)
+//   hoveredDrawingId,       // measure legend visibility (hover-only)
+//   symbolInfo,             // fundamentals (sharesOutstanding) for the measure legend
 // }
 //
 // Shape kinds: line, polyline, polygon, rect, circle, ellipse, path, text.
@@ -16,6 +18,7 @@
 
 import { linearRegression, maxDeviation, stdError, timeWindowIndices } from './regression';
 import { getNoteCoordinates } from './noteGeometry';
+import { measureStats, formatMeasureVolume, formatMeasureDate } from './measureStats';
 
 export const DEFAULT_STROKE = '#2962ff';
 export const DEFAULT_FILL = 'rgba(41, 98, 255, 0.1)';
@@ -288,6 +291,97 @@ function dateRangeShapes(d, ctx, x1, y1, x2) {
         rect(Math.min(x1, x2), 0, Math.abs(x2 - x1), ctx.height, { fill: DEFAULT_FILL }),
         text((x1 + x2) / 2, 20, `${bars} bars`, { fill: LABEL_FILL, fontSize: '12px', anchor: 'middle' }),
     ];
+}
+
+// Measure tool legend layout. The value column is right-aligned; OHLC rows
+// carry a mini histogram bar sized by the avg value's fraction of the
+// [avgLow, avgHigh] range.
+const MEASURE_BOX_FILL = 'rgba(19, 23, 34, 0.85)';
+const MEASURE_LEGEND_WIDTH = 250;
+const MEASURE_ROW_HEIGHT = 15;
+const MEASURE_PAD = 8;
+const MEASURE_LABEL_WIDTH = 64;
+const MEASURE_BAR_WIDTH = 40;
+
+function measureLegendRows(stats, ctx) {
+    const ohlc = [
+        { label: 'Avg open', value: stats.avgOpen, color: '#787b86' },
+        { label: 'Avg high', value: stats.avgHigh, color: '#089981' },
+        { label: 'Avg low', value: stats.avgLow, color: '#f23645' },
+        { label: 'Avg close', value: stats.avgClose, color: '#2962ff' },
+    ];
+    const min = Math.min(...ohlc.map(r => r.value));
+    const max = Math.max(...ohlc.map(r => r.value));
+    const rows = ohlc.map(r => ({
+        label: r.label,
+        value: r.value.toFixed(2),
+        bar: { color: r.color, fraction: max === min ? 1 : (r.value - min) / (max - min) },
+    }));
+    rows.push({ label: 'Avg price', value: stats.avgPrice.toFixed(2) });
+    rows.push({ label: 'Bars', value: String(stats.barCount) });
+    if (stats.avgVolume != null) {
+        // Turnover vs shares outstanding rides on the volume lines: what
+        // fraction of the company each figure represents.
+        const sharesOutstanding = ctx.symbolInfo?.sharesOutstanding;
+        const pctOfShares = (value) => sharesOutstanding > 0
+            ? ` · ${((value / sharesOutstanding) * 100).toFixed(2)}% of ${formatMeasureVolume(sharesOutstanding)}`
+            : '';
+        rows.push({ label: 'Avg vol', value: formatMeasureVolume(stats.avgVolume) + pctOfShares(stats.avgVolume) });
+        rows.push({ label: 'Total vol', value: formatMeasureVolume(stats.totalVolume) + pctOfShares(stats.totalVolume) });
+        const buyPercent = (stats.boughtVolume / stats.totalVolume) * 100;
+        rows.push({
+            label: 'Buy/Sell vol',
+            value: `${formatMeasureVolume(stats.boughtVolume)} (${Math.round(buyPercent)}%) / ${formatMeasureVolume(stats.soldVolume)} (${Math.round(100 - buyPercent)}%)`,
+        });
+    }
+    if (stats.maxVolume) {
+        rows.push({ label: 'Max vol', value: `${formatMeasureVolume(stats.maxVolume.volume)} (${formatMeasureDate(stats.maxVolume.time, ctx.interval)})` });
+    }
+    if (stats.minVolume) {
+        rows.push({ label: 'Min vol', value: `${formatMeasureVolume(stats.minVolume.volume)} (${formatMeasureDate(stats.minVolume.time, ctx.interval)})` });
+    }
+    return rows;
+}
+
+function measureLegendShapes(stats, ctx, left, top) {
+    const rows = measureLegendRows(stats, ctx);
+    const legendHeight = (rows.length + 1) * MEASURE_ROW_HEIGHT + MEASURE_PAD * 2;
+    const clamp = (v, hi) => Math.max(2, Math.min(hi, v));
+    const x = clamp(left + MEASURE_PAD, ctx.width - MEASURE_LEGEND_WIDTH - 2);
+    const y = clamp(top + MEASURE_PAD, ctx.height - legendHeight - 2);
+    const valueX = x + MEASURE_LEGEND_WIDTH - MEASURE_PAD;
+    const barX = x + MEASURE_PAD + MEASURE_LABEL_WIDTH;
+    const font = { fill: LABEL_FILL, fontSize: '11px', fontFamily: 'Inter, sans-serif' };
+
+    const shapes = [rect(x, y, MEASURE_LEGEND_WIDTH, legendHeight, { fill: MEASURE_BOX_FILL, rx: 6 })];
+    rows.forEach((row, i) => {
+        const baseline = y + MEASURE_PAD + i * MEASURE_ROW_HEIGHT + 11;
+        shapes.push(text(x + MEASURE_PAD, baseline, row.label, font));
+        if (row.bar) {
+            shapes.push(rect(barX, baseline - 9, Math.max(2, MEASURE_BAR_WIDTH * row.bar.fraction), 8, { fill: row.bar.color }));
+        }
+        shapes.push(text(valueX, baseline, row.value, { ...font, anchor: 'end' }));
+    });
+    const countBaseline = y + MEASURE_PAD + rows.length * MEASURE_ROW_HEIGHT + 11;
+    const countFont = { fontSize: '11px', fontWeight: 'bold', fontFamily: 'Inter, sans-serif' };
+    shapes.push(text(x + MEASURE_PAD, countBaseline, `Green ${stats.greenBars}`, { ...countFont, fill: '#089981' }));
+    shapes.push(text(valueX, countBaseline, `Red ${stats.redBars}`, { ...countFont, fill: '#f23645', anchor: 'end' }));
+    return shapes;
+}
+
+function measureShapes(d, ctx, x1, y1, x2, y2) {
+    const left = Math.min(x1, x2);
+    const top = Math.min(y1, y2);
+    const shapes = [
+        rect(left, top, Math.abs(x2 - x1), Math.abs(y2 - y1), strokeOf(d, { fill: d.fillColor || DEFAULT_FILL })),
+    ];
+    // The legend shows on hover only (ctx.hoveredDrawingId); preview
+    // drawings carry no id and keep the legend while being drawn.
+    if (!d.id || d.id === ctx.hoveredDrawingId) {
+        const stats = measureStats(ctx.data, d.p1.time, d.p2.time);
+        if (stats) shapes.push(...measureLegendShapes(stats, ctx, left, top));
+    }
+    return shapes;
 }
 
 function badgeShapes(x, y, label, color, { rectX, rectY, rectW, textY }) {
@@ -618,6 +712,7 @@ export function buildDrawingShapes(d, ctx) {
     else if (d.type === 'shortPosition' && hasBoth) shapes = positionShapes(d, x1, y1, x2, y2, { stopDist: 50, targetDist: 100, profitFirst: false });
     else if (d.type === 'priceRange' && hasBoth) shapes = priceRangeShapes(d, x1, y1, x2, y2);
     else if (d.type === 'dateRange' && hasBoth) shapes = dateRangeShapes(d, ctx, x1, y1, x2);
+    else if (d.type === 'measure' && hasBoth) shapes = measureShapes(d, ctx, x1, y1, x2, y2);
     else if (d.type === 'forecast' && hasBoth) shapes = [
         line(x1, y1, x2, y2, strokeOf(d, { dash: '4,4' })),
         text(x2 + 5, y2 - 5, 'Forecast', { fill: d.color, fontSize: '10px' }),

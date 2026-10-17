@@ -261,10 +261,7 @@ function App() {
     activeSession,
     activeFolderId,
     onSwitchSession: switchSession,
-    onCreateSession: () => {
-      const name = window.prompt('Session name:');
-      if (name?.trim()) createSession(name.trim(), activeFolderId);
-    },
+    onCreateSession: (name, folderId) => createSession(name.trim(), folderId === undefined ? activeFolderId : folderId),
     onRenameSession: (id, name) => renameSession(id, name),
     onDeleteSession: (id) => {
       const session = sessions.find(s => s.id === id);
@@ -274,10 +271,7 @@ function App() {
     },
     onToggleFavorite: (id) => toggleFavoriteSession(id),
     onTogglePortfolio: (id) => togglePortfolioSession(id),
-    onCreateFolder: () => {
-      const name = window.prompt('Folder name:');
-      if (name?.trim()) createFolder(name.trim());
-    },
+    onCreateFolder: (name) => createFolder(name.trim()),
     onRenameFolder: (id, name) => renameFolder(id, name),
     onDeleteFolder: (id) => {
       const folder = folders.find(f => f.id === id);

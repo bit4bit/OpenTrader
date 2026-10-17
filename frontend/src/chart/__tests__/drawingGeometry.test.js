@@ -315,3 +315,83 @@ describe('buildVolumeProfileShapes', () => {
         expect(shapes[0].x).toBeCloseTo(800 - 800 * 0.3 * 0.5);
     });
 });
+
+describe('measure', () => {
+    const data = [
+        { time: 100, open: 10, high: 12, low: 9, close: 11, volume: 100 },
+        { time: 200, open: 11, high: 13, low: 10, close: 12, volume: 500 },
+        { time: 300, open: 12, high: 14, low: 8, close: 9, volume: 300 },
+    ];
+    const drawing = makeDrawing('measure', { time: 100, price: 14 }, { time: 300, price: 8 });
+    const hoveredCtx = (overrides = {}) => makeCtx({ data, hoveredDrawingId: '1', ...overrides });
+
+    it('shows the legend only while the drawing is hovered', () => {
+        const hidden = buildDrawingShapes(drawing, makeCtx({ data }));
+        expect(hidden.filter(s => s.kind === 'text')).toHaveLength(0);
+        expect(hidden.filter(s => s.kind === 'rect')).toHaveLength(1);
+
+        const shapes = buildDrawingShapes(drawing, hoveredCtx());
+        const rects = shapes.filter(s => s.kind === 'rect');
+        // selection rect + legend box + 4 histogram bars
+        expect(rects).toHaveLength(6);
+        expect(rects[0]).toMatchObject({ x: 100, y: 8, width: 200, height: 6 });
+        const texts = shapes.filter(s => s.kind === 'text').map(s => s.text);
+        ['Avg open', 'Avg high', 'Avg low', 'Avg close', 'Avg price', 'Bars', 'Avg vol', 'Total vol', 'Buy/Sell vol', 'Max vol', 'Min vol']
+            .forEach(label => expect(texts).toContain(label));
+        expect(texts).toContain('3');
+        expect(texts).toContain('Green 2');
+        expect(texts).toContain('Red 1');
+    });
+
+    it('always shows the legend for preview drawings (no id)', () => {
+        const preview = { type: 'measure', points: drawing.points, p1: drawing.p1, p2: drawing.p2 };
+        const shapes = buildDrawingShapes(preview, makeCtx({ data }));
+        expect(shapes.some(s => s.kind === 'text' && s.text === 'Avg price')).toBe(true);
+    });
+
+    it('sizes histogram bars by the avg value fraction of the OHLC range', () => {
+        const shapes = buildDrawingShapes(drawing, hoveredCtx());
+        const bars = shapes.filter(s => s.kind === 'rect' && s.style?.rx === undefined && s.height === 8);
+        // avg open 11, high 13, low 9, close 32/3 over the [9, 13] range
+        expect(bars.map(b => b.width)).toEqual([
+            40 * 0.5, 40, 2, 40 * ((32 / 3 - 9) / 4),
+        ]);
+    });
+
+    it('labels volume stats with compact values and dates', () => {
+        const texts = buildDrawingShapes(drawing, hoveredCtx())
+            .filter(s => s.kind === 'text').map(s => s.text);
+        expect(texts).toContain('300');
+        expect(texts).toContain('900');
+        expect(texts).toContain('450 (50%) / 450 (50%)');
+        expect(texts).toContain('500 (01 Jan 70)');
+        expect(texts).toContain('100 (01 Jan 70)');
+    });
+
+    it('omits volume rows when the bars carry no volume', () => {
+        const noVolume = data.map(({ time, open, high, low, close }) => ({ time, open, high, low, close }));
+        const texts = buildDrawingShapes(drawing, hoveredCtx({ data: noVolume }))
+            .filter(s => s.kind === 'text').map(s => s.text);
+        expect(texts).not.toContain('Avg vol');
+        expect(texts).not.toContain('Max vol');
+        expect(texts).not.toContain('Min vol');
+    });
+
+    it('appends the turnover vs shares outstanding to the volume lines', () => {
+        const withShares = buildDrawingShapes(drawing, hoveredCtx({ symbolInfo: { sharesOutstanding: 90000 } }))
+            .filter(s => s.kind === 'text').map(s => s.text);
+        expect(withShares).toContain('300 · 0.33% of 90.00K');
+        expect(withShares).toContain('900 · 1.00% of 90.00K');
+
+        const withoutShares = buildDrawingShapes(drawing, hoveredCtx())
+            .filter(s => s.kind === 'text').map(s => s.text);
+        expect(withoutShares).toContain('300');
+        expect(withoutShares.some(t => t.includes('% of'))).toBe(false);
+    });
+
+    it('shows only the selection rect when the window has no bars', () => {
+        const shapes = buildDrawingShapes(drawing, hoveredCtx({ data: [] }));
+        expect(shapes.filter(s => s.kind === 'rect')).toHaveLength(1);
+        expect(shapes.some(s => s.kind === 'text' && s.text.startsWith('Avg'))).toBe(false);
+    });
+});

@@ -299,16 +299,37 @@ describe('script equivalence', () => {
     });
 
     it('trading_activity', () => {
-        const result = run('trading_activity', { buyColor: '#0f0', sellColor: '#f00' });
+        const result = run('trading_activity', { mode: 'both', buyColor: '#0f0', sellColor: '#f00' });
         expect(result.plots).toHaveLength(2);
         expect(result.plots[0].style).toBe('histogram');
         expect(result.plots[1].style).toBe('histogram');
+        // The sell base bar is unlabeled; the split row beneath it already
+        // names both sides.
+        expect(result.plots[0].title).toBe('');
+        expect(result.plots[1].title).toBe('Buy Volume');
         expect(result.plots[0].color).toBe('#f00');
         expect(result.plots[1].color).toBe('#0f0');
         // Sell Volume base bar carries the full volume; Buy Volume overlays
         // the estimated split.
         expectSameBars(result.plots[0].series, DATA.map(d => ({ time: d.time, value: d.volume ?? 0 })));
         expectSameBars(result.plots[1].series, computeBuyVolume(DATA));
+    });
+
+    it('trading_activity buys mode plots only the estimated buy volume', () => {
+        const result = run('trading_activity', { mode: 'buys', buyColor: '#0f0', sellColor: '#f00' });
+        expect(result.plots).toHaveLength(1);
+        expect(result.plots[0].color).toBe('#0f0');
+        expectSameBars(result.plots[0].series, computeBuyVolume(DATA));
+    });
+
+    it('trading_activity sells mode plots only the sold remainder', () => {
+        const result = run('trading_activity', { mode: 'sells', buyColor: '#0f0', sellColor: '#f00' });
+        expect(result.plots).toHaveLength(1);
+        expect(result.plots[0].color).toBe('#f00');
+        const bought = computeBuyVolume(DATA);
+        const sold = DATA.map((d, i) => d.volume != null && bought[i].value != null
+            ? { time: d.time, value: d.volume - bought[i].value } : null).filter(Boolean);
+        expectSameBars(result.plots[0].series, sold);
     });
 
     it('pe', () => {

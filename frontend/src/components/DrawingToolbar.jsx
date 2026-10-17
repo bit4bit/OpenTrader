@@ -77,6 +77,7 @@ const DrawingToolbar = ({ activeTool, onSelectTool, magnetEnabled = false, onTog
             label: 'Prediction & Risk',
             icon: '📏',
             tools: [
+                { id: 'measure', icon: '📊', label: 'Measure' },
                 { id: 'longPosition', icon: '📈', label: 'Long Position' },
                 { id: 'shortPosition', icon: '📉', label: 'Short Position' },
                 { id: 'riskReward', icon: '⚖️', label: 'Risk/Reward Tool' },

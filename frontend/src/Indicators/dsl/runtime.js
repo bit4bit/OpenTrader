@@ -175,7 +175,9 @@ export function runScript(code, data, values = {}, barsBySymbol = {}, symbolInfo
         const { plots, fills, histograms } = execute(code, data, values, barsBySymbol, symbolInfo, anchorTime, true);
         const times = data.map(d => d.time);
         const rendered = plots.map((p, i) => ({
-            title: p.title || `Plot ${i + 1}`,
+            // An explicitly empty title means an unlabeled plot; only a
+            // missing one gets the fallback name.
+            title: p.title ?? `Plot ${i + 1}`,
             color: p.color || '#2962ff',
             style: p.style === 'histogram' ? 'histogram' : 'line',
             lineStyle: p.lineStyle === 'dashed' ? 2 : 0,
