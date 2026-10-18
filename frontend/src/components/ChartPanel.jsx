@@ -13,6 +13,7 @@ import { visiblePriceRange } from '../chart/visiblePriceRange';
 import { priceDiffPercent, adjacentChangePercent, closeChangePercent } from '../chart/priceDiff';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
+import { addAnchoredVwap, removeIndicator as removeIndicatorIn } from '../Indicators/actions';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
 import { qoqEpsChangeAt, nextEarningsReport } from '../chart/earningsLegend';
 
@@ -116,6 +117,14 @@ const ChartPanel = ({
         }));
     }, [chart.id, onUpdate]);
 
+    const addAnchorIndicator = useCallback((inputs) => {
+        onUpdate(chart.id, c => ({ indicators: addAnchoredVwap(c.indicators, inputs) }));
+    }, [chart.id, onUpdate]);
+
+    const removeIndicator = useCallback((id) => {
+        onUpdate(chart.id, c => ({ indicators: removeIndicatorIn(c.indicators, id) }));
+    }, [chart.id, onUpdate]);
+
     const avgVolume = useMemo(() => averageVolume(data, interval), [data, interval]);
 
     const priceData = hoveredData?.price;
@@ -131,6 +140,7 @@ const ChartPanel = ({
     const scriptLegendIndicators = [...SCRIPT_TYPES, 'custom'];
     const volumeIndicator = indicators.find(i => i.type === 'volume' && i.visible);
     const volumePctShares = volumeIndicator?.pctShares === true;
+    const extendedLegend = volumeIndicator?.extendedLegend === true;
     // Divisor that re-expresses count-based legend decorations as turnover
     // % while the volume bars are in % of shares mode.
     const turnoverDivisor = volumePctShares ? symbolInfo?.sharesOutstanding : null;
@@ -335,7 +345,7 @@ const ChartPanel = ({
                                                 </span>
                                             )}
                                         </div>
-                                        {volumeSplit && value != null && (
+                                        {extendedLegend && volumeSplit && value != null && (
                                             <div className="legend-item">
                                                 <span className="legend-label">
                                                     {turnoverDivisor != null
@@ -350,7 +360,7 @@ const ChartPanel = ({
                                                 </span>
                                             </div>
                                         )}
-                                        {splitTotal && value != null && (
+                                        {extendedLegend && splitTotal && value != null && (
                                             <div className="legend-item">
                                                 <span className="legend-label">
                                                     {turnoverDivisor != null
@@ -408,14 +418,18 @@ const ChartPanel = ({
                                 <span className="legend-label">
                                     {formatWindowTime(visibleWindow.fromTime, interval)} → {formatWindowTime(visibleWindow.toTime, interval)}
                                 </span>
-                                <span className="legend-bullet" style={{ backgroundColor: volumeUpColor }}></span>
-                                <span className="legend-label">
-                                    Buy {visibleVolumeTotals.buyBars} bars · {formatWindowVolume(visibleVolumeTotals.buyVolume)}
-                                </span>
-                                <span className="legend-bullet" style={{ backgroundColor: volumeDownColor }}></span>
-                                <span className="legend-label">
-                                    Sell {visibleVolumeTotals.sellBars} bars · {formatWindowVolume(visibleVolumeTotals.sellVolume)}
-                                </span>
+                                {extendedLegend && (
+                                    <>
+                                        <span className="legend-bullet" style={{ backgroundColor: volumeUpColor }}></span>
+                                        <span className="legend-label">
+                                            Buy {visibleVolumeTotals.buyBars} bars · {formatWindowVolume(visibleVolumeTotals.buyVolume)}
+                                        </span>
+                                        <span className="legend-bullet" style={{ backgroundColor: volumeDownColor }}></span>
+                                        <span className="legend-label">
+                                            Sell {visibleVolumeTotals.sellBars} bars · {formatWindowVolume(visibleVolumeTotals.sellVolume)}
+                                        </span>
+                                    </>
+                                )}
                                 <span
                                     className="legend-volume-change"
                                     style={{ color: visibleVolumeTotals.percent >= 0 ? volumeUpColor : volumeDownColor }}
@@ -484,6 +498,8 @@ const ChartPanel = ({
                         setDrawings={setDrawings}
                         activeTool={activeTool}
                         setActiveTool={setActiveTool}
+                        onAddAnchorIndicator={addAnchorIndicator}
+                        onRemoveIndicator={removeIndicator}
                         magnetEnabled={magnetEnabled}
                         onVisibleLogicalRangeChange={onVisibleRangeChange}
                         onCrosshairMove={setHoveredData}

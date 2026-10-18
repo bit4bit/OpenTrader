@@ -3,7 +3,7 @@
  * produce the same default configs the old hardcoded factories did.
  */
 import { describe, it, expect } from 'vitest';
-import { addIndicators } from '../actions';
+import { addIndicators, addAnchoredVwap, AVWAP_COLORS } from '../actions';
 import { INDICATOR_TYPES, indicatorTitle, isSingleton } from '../scripts';
 
 describe('indicator creation', () => {
@@ -25,6 +25,26 @@ describe('indicator creation', () => {
         expect(created[0].id).toBe('vwap-0');
         // Adding again seeds three more (non-singleton).
         expect(addIndicators(created, 'vwap')).toHaveLength(6);
+    });
+
+    it('addAnchoredVwap appends a date-anchored vwap from a clicked bar', () => {
+        const created = addAnchoredVwap([], { anchorDate: '2023-11-20', anchorBar: 1700495400 });
+        expect(created).toHaveLength(1);
+        expect(created[0]).toMatchObject({
+            type: 'vwap',
+            anchor: 'date',
+            anchorDate: '2023-11-20',
+            anchorBar: 1700495400,
+            source: 'ohlc4',
+            visible: true,
+        });
+    });
+
+    it('addAnchoredVwap cycles colors per existing date-anchored vwap', () => {
+        const [, second, third] = addAnchoredVwap(addAnchoredVwap(addAnchoredVwap([], { anchorBar: 1700495400 }), { anchorBar: 1700581800 }), { anchorBar: 1700668200 });
+        expect(second.color).not.toBe(third.color);
+        expect(second.color).not.toBe(AVWAP_COLORS[0]);
+        expect(third.color).toBe(AVWAP_COLORS[2]);
     });
 
     it('registry defaults match the old factory configs', () => {

@@ -7,6 +7,21 @@ export function addIndicators(list, type) {
     return [...list, ...(Array.isArray(created) ? created : [created])];
 }
 
+export const AVWAP_COLORS = ['#f57c00', '#26a69a', '#ab47bc', '#ec407a', '#7e57c2', '#66bb6a', '#ffee58', '#ef5350', '#29b6f6', '#8d6e63'];
+
+export function addAnchoredVwap(list, inputs) {
+    const anchorCount = list.filter(i => i.type === 'vwap' && i.anchor === 'date').length;
+    return [...list, {
+        id: `vwap-${Math.random().toString(36).slice(2, 8)}`,
+        type: 'vwap',
+        anchor: 'date',
+        ...inputs,
+        source: 'ohlc4',
+        color: AVWAP_COLORS[anchorCount % AVWAP_COLORS.length],
+        visible: true,
+    }];
+}
+
 export function addCustomIndicator(list, script) {
     return [...list, {
         id: `custom-${script.id}-${Math.random().toString(36).slice(2, 8)}`,

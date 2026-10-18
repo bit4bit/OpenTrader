@@ -19,6 +19,7 @@ export function indicatorLabel(groupType, ind, idx) {
             : ind.anchor === 'week' ? 'VWAP WTD'
             : ind.anchor === 'month' ? 'VWAP MTD'
             : ind.anchor === 'year' ? 'VWAP YTD'
+            : ind.anchorBar > 0 ? `AVWAP ${new Date(ind.anchorBar * 1000).toISOString().slice(0, 16).replace('T', ' ')}`
             : `AVWAP ${ind.anchorDate}`;
         case 'smi': return `SMI (${(ind.constituents || []).length} symbols)`;
         case 'benchmark': return `Benchmark (${(ind.indexes || []).filter(ix => ix.enabled !== false).length} indexes)`;

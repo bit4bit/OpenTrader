@@ -65,6 +65,7 @@ const SCRIPTS = {
             { key: 'upColor', label: 'Up Color', type: 'color', default: '#26a69a' },
             { key: 'downColor', label: 'Down Color', type: 'color', default: '#ef5350' },
             { key: 'pctShares', label: '% of Shares Outstanding', type: 'bool', default: false },
+            { key: 'extendedLegend', label: 'Extended Buy/Sell Legend', type: 'bool', default: false },
             { key: 'missingColor', label: 'No Shares Data', type: 'color', default: 'rgba(128, 128, 128, 0.5)' },
         ],
         // % of Shares mode re-expresses each bar as turnover: volume /
@@ -266,8 +267,9 @@ const SCRIPTS = {
         singleton: false,
         fields: [
             { key: 'anchor', label: 'Anchor', type: 'string', options: ['session', 'week', 'month', 'year', 'date'], default: 'session' },
-            { key: 'anchorDate', label: 'Anchor Date', type: 'date', default: '', showIf: (v) => v?.anchor === 'date' },
-            { key: 'source', label: 'Source', type: 'string', options: ['hlc3', 'hl2', 'ohlc4', 'hlcc4', 'close', 'open', 'high', 'low'], default: 'hlc3' },
+            { key: 'anchorDate', label: 'Anchor Date', type: 'date', default: '', showIf: (v) => v?.anchor === 'date' && !(v?.anchorTime > 0) },
+            { key: 'anchorBar', label: 'Anchor Time (unix)', type: 'int', default: null, showIf: (v) => v?.anchor === 'date' && v?.anchorBar > 0 },
+            { key: 'source', label: 'Source', type: 'string', options: ['hlc3', 'hl2', 'ohlc4', 'hlcc4', 'close', 'open', 'high', 'low'], default: 'ohlc4' },
             { key: 'color', label: 'Color', type: 'color', default: '#2962ff' },
         ],
         // TradingView-style seeding: adding VWAP seeds the chart with
@@ -282,11 +284,13 @@ const SCRIPTS = {
             color: SMA_COLORS[i],
         })),
         // String source (not input.source) so the title can name it; the
-        // registry anchor 'date' turns the Anchor Date field into the
-        // anchorTime the line starts from.
+        // registry anchor 'date' turns the anchor fields into the anchorTime
+        // the line starts from: anchorTime (exact bar, set by clicking a
+        // candle) wins over the date-only anchorDate fallback.
         body: [
-            "const at = anchor === 'date' && anchorDate ? Date.parse(anchorDate + 'T00:00:00Z') / 1000 : null",
-            "const title = anchor === 'session' ? 'VWAP' : anchor === 'week' ? 'VWAP WTD' : anchor === 'month' ? 'VWAP MTD' : anchor === 'year' ? 'VWAP YTD' : 'AVWAP ' + anchorDate",
+            "const at = anchor === 'date' ? (anchorBar > 0 ? anchorBar : anchorDate ? Date.parse(anchorDate + 'T00:00:00Z') / 1000 : null) : null",
+            "const label = anchorBar > 0 ? new Date(anchorBar * 1000).toISOString().slice(0, 16).replace('T', ' ') : anchorDate",
+            "const title = anchor === 'session' ? 'VWAP' : anchor === 'week' ? 'VWAP WTD' : anchor === 'month' ? 'VWAP MTD' : anchor === 'year' ? 'VWAP YTD' : 'AVWAP ' + label",
             "plot(ta.vwap(source, anchor, at), { title, color, lineWidth: 2 })",
         ].join('\n'),
     },

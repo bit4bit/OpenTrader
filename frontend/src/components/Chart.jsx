@@ -10,6 +10,7 @@ import { fillGapRows } from '../chart/gapFill';
 import { buildWeekendShapes } from '../chart/weekendShapes';
 import { findNearestBar } from '../chart/barSearch';
 import { isDrawingTool, buildPreviewDrawing } from '../chart/drawingTools';
+import { anchoredVwapInputs, erasableVwapAt } from '../chart/anchorVwap';
 import { applyDrawingClick, edgeRange } from '../chart/drawingInteraction';
 import { buildLegendResults } from '../chart/crosshairLegend';
 import { volumeChangeAt, volumeSplitAt, volumeSplitTotal } from '../chart/volumeInfo';
@@ -46,6 +47,8 @@ const Chart = ({
     setDrawings,
     activeTool,
     setActiveTool,
+    onAddAnchorIndicator,
+    onRemoveIndicator,
     magnetEnabled = true,
     chartId,
     isActive = false,
@@ -298,10 +301,10 @@ const Chart = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [setDrawings, setActiveTool]);
 
-    // Handle Clicks for Drawing
+    // Handle Clicks for Drawing and the Anchored VWAP picker tool
     useEffect(() => {
         const engine = engineRef.current;
-        if (!engine || !isDrawingTool(activeTool)) {
+        if (!engine || (!isDrawingTool(activeTool) && activeTool !== 'avwapAnchor')) {
             drawingPointsRef.current = [];
             setPreviewDrawing(null);
             return;
@@ -309,6 +312,11 @@ const Chart = ({
 
         const offClick = engine.onClick((evt) => {
             if (!evt) return;
+            if (activeTool === 'avwapAnchor') {
+                if (evt.time != null) onAddAnchorIndicator(anchoredVwapInputs(evt.time));
+                setActiveTool('cursor');
+                return;
+            }
             const { drawing, pendingPoints, finished } = applyDrawingClick(
                 activeTool, { time: evt.time, price: evt.price }, drawingPointsRef.current, Date.now().toString()
             );
@@ -321,7 +329,7 @@ const Chart = ({
         });
 
         return offClick;
-    }, [activeTool, setDrawings, setActiveTool]);
+    }, [activeTool, setDrawings, setActiveTool, onAddAnchorIndicator]);
 
     // Weekend/holiday placeholder candles (gray overlay; the chart library
     // cannot color candlesticks per bar).
@@ -362,9 +370,22 @@ const Chart = ({
             return;
         }
         surface.style.pointerEvents = 'auto';
+        const eraseAnchorVwap = (e) => {
+            const engine = engineRef.current;
+            if (!engine) return;
+            const rect = containerRef.current.getBoundingClientRect();
+            const time = engine.xToTime(e.clientX - rect.left);
+            const price = engine.yToPrice(e.clientY - rect.top);
+            const id = erasableVwapAt(indicators, indicatorResults.resultsById,
+                { time, price }, { priceToY: p => engine.priceToY(p) });
+            if (id) onRemoveIndicator(id);
+        };
         const handleErase = (e) => {
             const g = e.target.closest?.('[data-drawing-id]');
-            if (!g) return;
+            if (!g) {
+                eraseAnchorVwap(e);
+                return;
+            }
             const id = g.getAttribute('data-drawing-id');
             setDrawings(prev => deleteDrawing(prev, id));
         };
@@ -373,7 +394,7 @@ const Chart = ({
             surface.style.pointerEvents = 'none';
             surface.removeEventListener('click', handleErase);
         };
-    }, [activeTool, setDrawings]);
+    }, [activeTool, setDrawings, indicators, indicatorResults, onRemoveIndicator]);
 
     // Reset FirstLoad tracking on Symbol or Interval change
     useEffect(() => {

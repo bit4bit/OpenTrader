@@ -12,6 +12,11 @@ const DrawingToolbar = ({ activeTool, onSelectTool, magnetEnabled = false, onTog
             tool: { id: 'cursor', icon: '↖️', label: 'Cursor' }
         },
         {
+            id: 'avwap_cat',
+            type: 'single',
+            tool: { id: 'avwapAnchor', icon: '⚓', label: 'Anchored VWAP (click a bar)' }
+        },
+        {
             id: 'trend_cat',
             type: 'group',
             label: 'Trend Line Tools',
