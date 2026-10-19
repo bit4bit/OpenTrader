@@ -18,7 +18,7 @@ import { useIndicatorResults } from '../hooks/useIndicatorResults';
 import { qoqEpsChangeAt, nextEarningsReport } from '../chart/earningsLegend';
 
 const formatPrice = (price, decimals) => formatPriceValue(price, decimals);
-const formatPercent = (val) => (val != null ? (val >= 0 ? '+' : '') + val.toFixed(2) + '%' : '');
+const formatPercent = (val) => (val != null ? (val >= 0 ? '+' : '') + val.toFixed(4) + '%' : '');
 const formatVolumeValue = (val) => {
     if (val >= 1e9) return (val / 1e9).toFixed(2) + 'B';
     if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M';

@@ -102,7 +102,7 @@ describe('line family', () => {
     it('infoLine labels price and percent change', () => {
         const shapes = buildDrawingShapes(makeDrawing('infoLine', P1, P2), makeCtx());
         const label = shapes.find(s => s.kind === 'text');
-        expect(label.text).toBe('100.00 (100.00%)');
+        expect(label.text).toBe('100.00 (100.0000%)');
     });
 });
 

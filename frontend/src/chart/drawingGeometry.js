@@ -210,7 +210,7 @@ function infoLineShapes(d, ctx, x1, y1, x2, y2) {
     const percDiff = (priceDiff / d.p1.price) * 100;
     return [
         line(x1, y1, x2, y2, strokeOf(d)),
-        text(x2 + 10, y2 - 10, `${priceDiff.toFixed(2)} (${percDiff.toFixed(2)}%)`, {
+        text(x2 + 10, y2 - 10, `${priceDiff.toFixed(2)} (${percDiff.toFixed(4)}%)`, {
             fill: LABEL_FILL, fontSize: '12px', fontFamily: 'Inter, sans-serif',
         }),
     ];
@@ -278,7 +278,7 @@ function priceRangeShapes(d, x1, y1, x2, y2) {
         rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1), {
             fill: DEFAULT_FILL, stroke: d.color || DEFAULT_STROKE,
         }),
-        text(x2 + 5, (y1 + y2) / 2, `${priceDiff.toFixed(2)} (${percentChange.toFixed(2)}%)`, {
+        text(x2 + 5, (y1 + y2) / 2, `${priceDiff.toFixed(2)} (${percentChange.toFixed(4)}%)`, {
             fill: LABEL_FILL, fontSize: '12px',
         }),
     ];
