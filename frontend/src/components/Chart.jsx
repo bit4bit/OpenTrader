@@ -4,7 +4,7 @@ import { formatADLValue } from '../Indicators/adl';
 import { registerChart, broadcastRange, broadcastCrosshair, isApplyingSync } from '../sync/chartSync';
 import { formatCrosshairTime, crosshairLineColor } from '../chart/timeFormat';
 import { priceSeriesData } from '../chart/heikinAshi';
-import { priceFormatForDecimals, DEFAULT_PRICE_DECIMALS } from '../chart/priceFormat';
+import { priceFormatForDecimals, formatPriceValue, DEFAULT_PRICE_DECIMALS } from '../chart/priceFormat';
 import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { fillGapRows } from '../chart/gapFill';
 import { buildWeekendShapes } from '../chart/weekendShapes';
@@ -25,6 +25,7 @@ import {
     sliceToWindow,
 } from '../chart/paneLayout';
 import { getNoteCoordinates, noteBoxOffset, updateTextNote, deleteDrawing } from '../chart/noteGeometry';
+import { positionsForSymbol, positionScreenPos, positionLabelRect, buildPositionShapes, positionTime, positionColor } from '../chart/positions';
 import {
     buildDrawingScene,
     buildFillShapes,
@@ -49,12 +50,14 @@ const Chart = ({
     setActiveTool,
     onAddAnchorIndicator,
     onRemoveIndicator,
+    onPositionDatePick,
     magnetEnabled = true,
     chartId,
     isActive = false,
     syncEnabled = false,
     indicatorResults = {},
-    symbolInfo = null
+    symbolInfo = null,
+    positions = []
 }) => {
     const containerRef = useRef();
     const engineRef = useRef(null);
@@ -73,6 +76,9 @@ const Chart = ({
     const [hoveredMeasureId, setHoveredMeasureId] = useState(null);
     const hoveredMeasureRef = useRef(null);
     const priceDecimalsByProvider = useProviderPriceDecimals();
+    const priceDecimals = priceDecimalsByProvider[provider] ?? DEFAULT_PRICE_DECIMALS;
+    const chartPositions = positionsForSymbol(positions, symbol);
+    const [positionPos, setPositionPos] = useState({});
     const [engineError, setEngineError] = useState(null);
     const currentCrosshairColor = useRef('#758696');
 
@@ -301,10 +307,11 @@ const Chart = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [setDrawings, setActiveTool]);
 
-    // Handle Clicks for Drawing and the Anchored VWAP picker tool
+    // Handle Clicks for Drawing, the Anchored VWAP picker tool, and the
+    // position-date picker tool
     useEffect(() => {
         const engine = engineRef.current;
-        if (!engine || (!isDrawingTool(activeTool) && activeTool !== 'avwapAnchor')) {
+        if (!engine || (!isDrawingTool(activeTool) && activeTool !== 'avwapAnchor' && activeTool !== 'positionDatePick')) {
             drawingPointsRef.current = [];
             setPreviewDrawing(null);
             return;
@@ -314,6 +321,11 @@ const Chart = ({
             if (!evt) return;
             if (activeTool === 'avwapAnchor') {
                 if (evt.time != null) onAddAnchorIndicator(anchoredVwapInputs(evt.time));
+                setActiveTool('cursor');
+                return;
+            }
+            if (activeTool === 'positionDatePick') {
+                if (evt.time != null && onPositionDatePick) onPositionDatePick(evt.time);
                 setActiveTool('cursor');
                 return;
             }
@@ -329,7 +341,7 @@ const Chart = ({
         });
 
         return offClick;
-    }, [activeTool, setDrawings, setActiveTool, onAddAnchorIndicator]);
+    }, [activeTool, setDrawings, setActiveTool, onAddAnchorIndicator, onPositionDatePick]);
 
     // Weekend/holiday placeholder candles (gray overlay; the chart library
     // cannot color candlesticks per bar).
@@ -434,7 +446,6 @@ const Chart = ({
         const paneIndexOf = (type) => paneIndexOfType(activePaneTypes, type);
 
         engine.applyPriceScaleMargins({ top: 0.02, bottom: 0.02 });
-        const priceDecimals = priceDecimalsByProvider[provider] ?? DEFAULT_PRICE_DECIMALS;
         engine.setPriceSeries(chartType, displayPriceRows, priceFormatForDecimals(priceDecimals));
 
         // Indicator Management
@@ -541,7 +552,7 @@ const Chart = ({
             }
             pendingScrollRef.current = null;
         }
-    }, [data, chartType, displayPriceRows, indicators, symbol, provider, interval, indicatorResults, engineReady, priceDecimalsByProvider]);
+    }, [data, chartType, displayPriceRows, indicators, symbol, provider, interval, indicatorResults, engineReady, priceDecimals, priceDecimalsByProvider]);
 
     const updateNoteRef = useRef(updateNote);
     useEffect(() => { updateNoteRef.current = updateNote; }, [updateNote]);
@@ -604,6 +615,42 @@ const Chart = ({
         });
         setNotePositions(positions);
     }, [engineReady, drawings, chartTick]);
+
+    // Position markers: SVG circle + dashed price line on the positions
+    // layer, redrawn on every pan/zoom tick. Candles come from the
+    // displayed rows (heikin/gap-filled) so the marker yields to what is
+    // actually drawn.
+    useEffect(() => {
+        if (!engineReady) return;
+        layerRenderer('positions')?.drawShapes(buildPositionShapes(chartPositions, {
+            ...geometryCtx(),
+            candles: displayPriceRows,
+            formatPrice: p => formatPriceValue(p, priceDecimals),
+        }));
+    }, [engineReady, chartPositions, chartTick, geometryCtx, displayPriceRows, priceDecimals]);
+
+    // Hover targets for the position tooltips track the same redraw tick:
+    // the circle (entry bar on screen) and the axis price label (always).
+    useEffect(() => {
+        const engine = engineRef.current;
+        if (!engine) return;
+        const hoverCtx = {
+            timeToX: t => engine.timeToX(t),
+            priceToY: pr => engine.priceToY(pr),
+            width: engine.size().width,
+            interval: intervalRef.current,
+            formatPrice: pr => formatPriceValue(pr, priceDecimals),
+            candles: displayPriceRows,
+        };
+        const next = {};
+        chartPositions.forEach(p => {
+            next[p.id] = {
+                circle: positionScreenPos(p, hoverCtx),
+                label: positionLabelRect(p, hoverCtx),
+            };
+        });
+        setPositionPos(next);
+    }, [engineReady, chartPositions, chartTick, priceDecimals, displayPriceRows]);
 
     const startNoteBoxDrag = (note, e) => {
         if (note.editing) return;
@@ -682,6 +729,48 @@ const Chart = ({
         });
     };
 
+    const renderPositionMarkers = () => {
+        return chartPositions.map(p => {
+            const pos = positionPos[p.id];
+            if (!pos) return null;
+            const time = positionTime(p.opened_at, interval);
+            const color = positionColor(p);
+            const tooltip = (
+                <div className="chart-position-tooltip" style={{ borderColor: color }}>
+                    {p.note && <div className="chart-position-note">{p.note}</div>}
+                    <div className="chart-position-meta">
+                        <span style={{ color, fontWeight: 'bold' }}>{p.side === 'sell' ? 'SELL' : 'BUY'}</span>
+                        {' '}{p.shares} @ {formatPriceValue(p.price, priceDecimals)}
+                        {time != null ? ` · ${formatCrosshairTime(time, interval)}` : ''}
+                    </div>
+                </div>
+            );
+            const targets = [];
+            if (pos.circle) {
+                targets.push(
+                    <div key={`${p.id}-circle`} className="chart-position-marker" style={{ left: pos.circle.x, top: pos.circle.y }}>
+                        {tooltip}
+                    </div>
+                );
+            }
+            if (pos.label) {
+                targets.push(
+                    <div
+                        key={`${p.id}-label`}
+                        className="chart-position-marker at-label"
+                        style={{
+                            left: pos.label.x, top: pos.label.y,
+                            width: pos.label.width, height: pos.label.height, margin: 0,
+                        }}
+                    >
+                        {tooltip}
+                    </div>
+                );
+            }
+            return targets;
+        });
+    };
+
     if (engineError) {
         const message = engineError === 'WEBGPU_NO_ADAPTER'
             ? 'WebGPU is present but no GPU adapter was found (Vulkan driver issue on Linux). For Chrome, try launching with --enable-features=Vulkan or update GPU drivers.'
@@ -717,6 +806,7 @@ const Chart = ({
             ))}
             <div className="chart-notes-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: LAYERS.notes.zIndex }}>
                 {renderNotes()}
+                {renderPositionMarkers()}
             </div>
         </div>
     );

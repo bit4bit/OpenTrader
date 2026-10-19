@@ -70,6 +70,8 @@ const ChartPanel = ({
     onClose,
     onUpdate,
     scriptsById,
+    positions = [],
+    onPositionDatePick,
 }) => {
     const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles } = chart;
     const symbol = chartSymbol?.symbol || '';
@@ -225,7 +227,7 @@ const ChartPanel = ({
                                 // Price vs SMA/EMA in percent at the hovered
                                 // bar; volume-sourced MAs plot in volume
                                 // units, so they are not comparable to the price.
-                                const showsPriceDiff = (ind.type === 'sma' || ind.type === 'ema')
+                                const showsPriceDiff = (ind.type === 'sma' || ind.type === 'ema' || ind.type === 'vwap')
                                     && ind.source !== 'volume' && ind.source !== 'volume_ma';
                                 // The line's own rate of change also applies to
                                 // the benchmark lines: the rebased line moves
@@ -500,11 +502,13 @@ const ChartPanel = ({
                         setActiveTool={setActiveTool}
                         onAddAnchorIndicator={addAnchorIndicator}
                         onRemoveIndicator={removeIndicator}
+                        onPositionDatePick={onPositionDatePick}
                         magnetEnabled={magnetEnabled}
                         onVisibleLogicalRangeChange={onVisibleRangeChange}
                         onCrosshairMove={setHoveredData}
                         indicatorResults={indicatorResults}
                         symbolInfo={symbolInfo}
+                        positions={positions}
                     />
                 )}
             </div>

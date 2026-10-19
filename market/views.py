@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 import math
 from datetime import datetime, timezone
-from .models import Session, CustomIndicator, Folder, UserPreference
+from .models import Session, CustomIndicator, Folder, UserPreference, Position
 from .providers import registry
 from .providers import index_membership
 from .providers import symbol_info
@@ -169,6 +169,32 @@ class PreferenceView(APIView):
         return Response({'active_folder': preference.active_folder_id, 'note': preference.note})
 
 
+def serialize_position(position):
+    return {
+        'id': position.id,
+        'symbol': position.symbol,
+        'side': position.side,
+        'shares': position.shares,
+        'price': position.price,
+        'opened_at': position.opened_at.isoformat() if position.opened_at else None,
+        'note': position.note,
+        'created_at': position.created_at.isoformat(),
+    }
+
+
+def parse_opened_at(value):
+    """ISO datetime string from the client; None when absent/invalid."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 def serialize_indicator(indicator):
     return {
         'id': indicator.id,
@@ -218,6 +244,64 @@ class IndicatorDetail(APIView):
 
     def delete(self, request, pk):
         self.get_indicator(request, pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PositionListCreate(APIView):
+    """Global per-user tracked positions, rendered as chart markers on any
+    chart of the same symbol."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response([serialize_position(p) for p in request.user.positions.all()])
+
+    def post(self, request):
+        symbol = (request.data.get('symbol') or '').strip()
+        if not symbol:
+            return Response({'error': 'Symbol is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            shares = float(request.data.get('shares'))
+            price = float(request.data.get('price'))
+        except (TypeError, ValueError):
+            return Response({'error': 'Shares and price are required numbers'}, status=status.HTTP_400_BAD_REQUEST)
+        position = Position.objects.create(
+            user=request.user,
+            symbol=symbol,
+            side='sell' if request.data.get('side') == 'sell' else 'buy',
+            shares=shares,
+            price=price,
+            opened_at=parse_opened_at(request.data.get('opened_at')),
+            note=request.data.get('note') or '',
+        )
+        return Response(serialize_position(position), status=status.HTTP_201_CREATED)
+
+
+class PositionDetail(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_position(self, request, pk):
+        return get_object_or_404(Position, pk=pk, user=request.user)
+
+    def patch(self, request, pk):
+        position = self.get_position(request, pk)
+        if 'side' in request.data:
+            position.side = 'sell' if request.data['side'] == 'sell' else 'buy'
+        try:
+            if 'shares' in request.data:
+                position.shares = float(request.data['shares'])
+            if 'price' in request.data:
+                position.price = float(request.data['price'])
+        except (TypeError, ValueError):
+            return Response({'error': 'Shares and price must be numbers'}, status=status.HTTP_400_BAD_REQUEST)
+        if 'opened_at' in request.data:
+            position.opened_at = parse_opened_at(request.data['opened_at'])
+        if 'note' in request.data:
+            position.note = request.data['note'] or ''
+        position.save()
+        return Response(serialize_position(position))
+
+    def delete(self, request, pk):
+        self.get_position(request, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

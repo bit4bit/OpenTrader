@@ -10,8 +10,9 @@ export const LAYERS = {
     volumeProfile: { zIndex: 1 },         // price-by-volume histogram bars
     weekends: { zIndex: 2 },              // gray weekend/holiday placeholder candles
     drawings: { zIndex: 100 },            // user drawings, preview, anchors
+    positions: { zIndex: 150 },           // tracked position markers
     notes: { zIndex: 200 },               // text-note boxes (React DOM)
 };
 
 // Layers rendered as SVG surfaces (notes are DOM, not shapes).
-export const SVG_LAYER_NAMES = ['fills', 'volumeProfile', 'weekends', 'drawings'];
+export const SVG_LAYER_NAMES = ['fills', 'volumeProfile', 'weekends', 'drawings', 'positions'];

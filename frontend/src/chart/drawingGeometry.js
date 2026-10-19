@@ -34,6 +34,8 @@ const ellipse = (cx, cy, rx, ry, style = {}) => ({ kind: 'ellipse', cx, cy, rx, 
 const path = (d, style = {}) => ({ kind: 'path', d, style });
 const text = (x, y, content, style = {}) => ({ kind: 'text', x, y, text: content, style });
 
+export { line, polyline, polygon, rect, circle, ellipse, path, text };
+
 const strokeOf = (d, extra = {}) => ({
     stroke: d.color || DEFAULT_STROKE,
     strokeWidth: d.lineWidth || 2,

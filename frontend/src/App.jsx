@@ -7,16 +7,18 @@ import SymbolCatalogModal from './components/SymbolCatalogModal';
 import DrawingToolbar from './components/DrawingToolbar';
 import LoginScreen from './components/LoginScreen';
 import CustomIndicatorModal from './components/CustomIndicatorModal';
+import PositionsModal from './components/PositionsModal';
 import SessionNote from './components/SessionNote';
 import { useAuth } from './hooks/useAuth';
 import { useSessions } from './hooks/useSessions';
 import { useCharts } from './hooks/useCharts';
 import { useCustomIndicators } from './hooks/useCustomIndicators';
+import { usePositions } from './hooks/usePositions';
 import { addIndicators, addCustomIndicator, updateIndicator as updateIndicatorIn, removeIndicator as removeIndicatorIn, toggleIndicator as toggleIndicatorIn } from './Indicators/actions';
 
 const FIRST_VISIT_KEY = 'opentrader_first_visit';
 
-function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customIndicators }) {
+function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customIndicators, positionsState }) {
   const {
     charts,
     activeChartId,
@@ -38,6 +40,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
   const [showCustomIndicators, setShowCustomIndicators] = useState(false);
   const [showSymbolCatalog, setShowSymbolCatalog] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [showPositions, setShowPositions] = useState(false);
+  const [pendingPositionTime, setPendingPositionTime] = useState(null);
   const [symbolSearchMode, setSymbolSearchMode] = useState(null);
   const [activeTool, setActiveTool] = useState('cursor');
   const [magnetEnabled, setMagnetEnabled] = useState(false);
@@ -85,6 +89,22 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
     }
   };
 
+  // Position-date pick flow: hide the modal, arm the picker tool, and the
+  // clicked candle's time re-opens the modal with the datetime prefilled.
+  const openPositions = () => {
+    setPendingPositionTime(null);
+    setActiveTool('cursor');
+    setShowPositions(true);
+  };
+  const pickPositionDate = () => {
+    setShowPositions(false);
+    setActiveTool('positionDatePick');
+  };
+  const handlePositionDatePicked = (time) => {
+    setPendingPositionTime(time);
+    setShowPositions(true);
+  };
+
   return (
     <>
       {toolbarVisible ? (
@@ -111,6 +131,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         }}
         noteOpen={showNotes}
         onToggleNotes={() => setShowNotes(v => !v)}
+        onOpenPositions={openPositions}
         {...sessionProps}
       />
       ) : (
@@ -160,7 +181,27 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
           onUpdate={updateChart}
           onAddChart={() => setSymbolSearchMode('add')}
           scriptsById={customIndicators.scriptsById}
+          positions={positionsState.positions}
+          onPositionDatePick={handlePositionDatePicked}
         />
+
+        {activeTool === 'positionDatePick' && (
+          <div className="date-pick-hint">
+            Click a candle to set the position date &amp; time · Esc to cancel
+          </div>
+        )}
+
+        {(showPositions || activeTool === 'positionDatePick') && (
+          <PositionsModal
+            hidden={activeTool === 'positionDatePick'}
+            positionsState={positionsState}
+            defaultSymbol={activeChart?.symbol?.symbol || ''}
+            initialTime={pendingPositionTime}
+            canPickDate={!!activeChart}
+            onPickDate={pickPositionDate}
+            onClose={() => setShowPositions(false)}
+          />
+        )}
 
         {showCustomIndicators && (
           <CustomIndicatorModal
@@ -250,6 +291,7 @@ function App() {
   const [showGlobalNote, setShowGlobalNote] = useState(false);
 
   const customIndicators = useCustomIndicators(!!token);
+  const positionsState = usePositions(!!token);
 
   if (!token) {
     return <LoginScreen onLogin={login} />;
@@ -360,6 +402,7 @@ function App() {
           saveLayout={saveLayout}
           sessionProps={sessionProps}
           customIndicators={customIndicators}
+          positionsState={positionsState}
         />
       ) : (
         <>

@@ -34,6 +34,7 @@ const TopBar = ({
     onTogglePortfolio,
     noteOpen = false, onToggleNotes,
     globalNoteOpen = false, onToggleGlobalNote,
+    onOpenPositions,
     username,
     onLogout,
 }) => {
@@ -104,6 +105,14 @@ const TopBar = ({
                 >
                     <span style={{ fontSize: '14px', marginRight: '4px' }}>🌍</span>
                     Note
+                </button>
+                <button
+                    className="toolbar-btn"
+                    onClick={onOpenPositions}
+                    title="Tracked positions (markers show on charts of the same symbol)"
+                >
+                    <span style={{ fontSize: '14px', marginRight: '4px' }}>💼</span>
+                    Positions
                 </button>
             </div>
 
