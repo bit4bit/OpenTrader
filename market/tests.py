@@ -18,6 +18,7 @@ from market.providers import index_membership
 from market.providers import symbol_info
 from market.providers import earnings
 from market.providers.kraken import KrakenMarketProvider
+from market.providers.kraken_futures import KrakenFuturesMarketProvider
 from market.providers.yahoo import YahooMarketProvider
 
 
@@ -44,6 +45,38 @@ def kraken_ohlc():
                 [1600000060, '105.0', '115.0', '100.0', '112.0', '112.0', '8.0', 60],
             ],
         },
+    }
+
+
+def kraken_futures_instruments():
+    return {
+        'result': 'success',
+        'instruments': [
+            {'symbol': 'PF_XBTUSD', 'type': 'flexible_futures', 'pair': 'BTC:USD',
+             'tradeable': True, 'suspended': False, 'isExpired': False},
+            {'symbol': 'PI_XBTUSD', 'type': 'futures_inverse', 'pair': 'BTC:USD',
+             'tradeable': True, 'suspended': False, 'isExpired': False},
+            {'symbol': 'PF_ETHUSD', 'type': 'flexible_futures', 'pair': 'ETH:USD',
+             'tradeable': True, 'suspended': False, 'isExpired': False},
+            {'symbol': 'FF_XBTUSD_261225', 'type': 'flexible_futures', 'pair': 'BTC:USD',
+             'tradeable': True, 'suspended': False, 'isExpired': False},
+            {'symbol': 'PF_SUSPUSD', 'type': 'flexible_futures', 'pair': 'SUSP:USD',
+             'tradeable': True, 'suspended': True, 'isExpired': False},
+            {'symbol': 'PF_OLDUSD', 'type': 'flexible_futures', 'pair': 'OLD:USD',
+             'tradeable': True, 'suspended': False, 'isExpired': True},
+        ],
+    }
+
+
+def kraken_futures_candles():
+    return {
+        'candles': [
+            {'time': 1600000000000, 'open': '100.5', 'high': '110.0', 'low': '95.0',
+             'close': '105.0', 'volume': '12.5'},
+            {'time': 1600003600000, 'open': '105.0', 'high': '115.0', 'low': '100.0',
+             'close': '112.0', 'volume': '8.0'},
+        ],
+        'more_candles': False,
     }
 
 
@@ -75,6 +108,21 @@ def kraken_http(asset_pairs=None, ohlc=None):
         raise AssertionError(f'Unexpected Kraken URL: {url}')
 
     return mock.patch('market.providers.kraken.requests.get', side_effect=fake_get)
+
+
+def kraken_futures_http(instruments=None, candles=None):
+    """Stub the external Kraken Futures REST API, dispatching by URL path."""
+    instruments = instruments if instruments is not None else kraken_futures_instruments()
+    candles = candles if candles is not None else kraken_futures_candles()
+
+    def fake_get(url, params=None, timeout=None):
+        if url.endswith('/instruments'):
+            return fake_response(instruments)
+        if '/api/charts/v1/trade/' in url:
+            return fake_response(candles)
+        raise AssertionError(f'Unexpected Kraken Futures URL: {url}')
+
+    return mock.patch('market.providers.kraken_futures.requests.get', side_effect=fake_get)
 
 
 def yahoo_screen(quotes):
@@ -128,13 +176,15 @@ class ProviderScenarioTestCase(TestCase):
 
 
 class ConfigBehavior(ProviderScenarioTestCase):
-    def test_no_config_file_configures_kraken_and_yahoo(self):
-        self.assertEqual(registry.get_configured_provider_names(), ['kraken', 'yahoo'])
+    def test_no_config_file_configures_kraken_futures_and_yahoo(self):
+        self.assertEqual(registry.get_configured_provider_names(),
+                         ['kraken', 'kraken_futures', 'yahoo'])
 
     def test_malformed_config_falls_back_to_defaults(self):
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         self.config_path.write_text('{ not valid json')
-        self.assertEqual(registry.get_configured_provider_names(), ['kraken', 'yahoo'])
+        self.assertEqual(registry.get_configured_provider_names(),
+                         ['kraken', 'kraken_futures', 'yahoo'])
 
     def test_unknown_provider_names_are_ignored(self):
         self.given_config({'yahoo': {}, 'bogus': {}}, provider_order=['bogus', 'yahoo'])
@@ -219,6 +269,60 @@ class KrakenCatalogBehavior(ProviderScenarioTestCase):
             self.assertTrue(registry.get_provider('kraken').get_history('XBT/USD', '1mo').empty)
 
 
+class KrakenFuturesCatalogBehavior(ProviderScenarioTestCase):
+    def setUp(self):
+        super().setUp()
+        self.given_config({'kraken_futures': {}})
+
+    def test_catalog_lists_online_perpetuals_with_uniform_metadata(self):
+        with kraken_futures_http():
+            catalog = registry.get_catalog('kraken_futures')
+        symbols = [e['symbol'] for e in catalog]
+        self.assertIn('PF_XBTUSD', symbols)
+        self.assertIn('PI_XBTUSD', symbols)
+        # Dated futures, suspended and expired contracts are not listed.
+        self.assertNotIn('FF_XBTUSD_261225', symbols)
+        self.assertNotIn('PF_SUSPUSD', symbols)
+        self.assertNotIn('PF_OLDUSD', symbols)
+        entry = next(e for e in catalog if e['symbol'] == 'PF_XBTUSD')
+        self.assertEqual(entry, {
+            'symbol': 'PF_XBTUSD', 'name': 'BTC/USD Perp', 'fullname': 'BTC/USD Perp',
+            'type': 'CRYPTOCURRENCY', 'exchange': 'Kraken Futures',
+            'sector': 'Cryptocurrency', 'provider': 'kraken_futures',
+        })
+
+    def test_search_filters_the_real_catalog(self):
+        with kraken_futures_http():
+            results = registry.get_provider('kraken_futures').search('PF_ETH')
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['symbol'], 'PF_ETHUSD')
+
+    def test_history_maps_kraken_futures_candles_to_ohlcv(self):
+        with kraken_futures_http() as api:
+            df = registry.get_provider('kraken_futures').get_history('PF_XBTUSD', '1h')
+            self.assertIn('/api/charts/v1/trade/PF_XBTUSD/1h', api.call_args[0][0])
+        self.assertEqual(list(df.columns), ['Date', 'Open', 'High', 'Low', 'Close', 'Volume'])
+        self.assertAlmostEqual(df.iloc[0]['Close'], 105.0)
+        self.assertAlmostEqual(df.iloc[1]['Volume'], 8.0)
+        # Candle times arrive as epoch milliseconds and are served as UTC datetimes.
+        self.assertEqual(df.iloc[0]['Date'].timestamp(), 1600000000)
+
+    def test_history_end_trims_candles_from_the_future(self):
+        with kraken_futures_http():
+            df = registry.get_provider('kraken_futures').get_history(
+                'PF_XBTUSD', '1h', start=1599990000, end=1600000000)
+        self.assertEqual(len(df), 1)
+        self.assertAlmostEqual(df.iloc[0]['Close'], 105.0)
+
+    def test_unsupported_interval_returns_no_candles(self):
+        with kraken_futures_http():
+            self.assertTrue(registry.get_provider('kraken_futures').get_history('PF_XBTUSD', '1mo').empty)
+
+    def test_market_without_candles_returns_no_rows(self):
+        with kraken_futures_http(candles={'candles': [], 'more_candles': False}):
+            self.assertTrue(registry.get_provider('kraken_futures').get_history('PF_NOPEUSD', '1h').empty)
+
+
 class YahooCatalogBehavior(ProviderScenarioTestCase):
     def setUp(self):
         super().setUp()
@@ -288,6 +392,14 @@ class SymbolRoutingBehavior(ProviderScenarioTestCase):
         self.assertIsInstance(provider, KrakenMarketProvider)
         self.assertEqual(meta['provider'], 'kraken')
 
+    def test_perpetual_symbols_route_to_kraken_futures(self):
+        self.given_config({'kraken': {}, 'kraken_futures': {}},
+                          provider_order=['kraken', 'kraken_futures'])
+        with kraken_http(), kraken_futures_http():
+            provider, meta = registry.resolve_provider('PF_XBTUSD')
+        self.assertIsInstance(provider, KrakenFuturesMarketProvider)
+        self.assertEqual(meta['provider'], 'kraken_futures')
+
     def test_symbol_missing_from_the_first_provider_falls_to_the_next(self):
         with kraken_http(), yahoo_search([yahoo_quote('AAPL', 'Apple')]):
             registry.search_all('Apple')
@@ -327,6 +439,7 @@ class HistoryApiBehavior(ProviderScenarioTestCase):
         # The SMI constituent editor submits bare free-text symbols; the user
         # never searches first. An unknown symbol must self-heal: search once,
         # merge the result into the catalogs, then resolve.
+        self.given_config({'kraken': {}, 'yahoo': {}}, provider_order=['kraken', 'yahoo'])
         with kraken_http(), yahoo_search([yahoo_quote('JST-USD', 'JST', quote_type='CRYPTOCURRENCY')]):
             response = self.client.get('/api/history/',
                                        {'symbol': 'JST-USD', 'interval': '1d', 'range': 'max'})
@@ -347,6 +460,21 @@ class HistoryApiBehavior(ProviderScenarioTestCase):
                                        {'symbol': 'XBT/USD', 'interval': '1m', 'provider': 'kraken'})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()[0]['close'], 105.0)
+
+    def test_kraken_futures_candles_reach_the_client_as_lightweight_charts_bars(self):
+        self.given_config({'kraken_futures': {}})
+        with kraken_futures_http():
+            response = self.client.get('/api/history/',
+                                       {'symbol': 'PF_XBTUSD', 'interval': '1h', 'provider': 'kraken_futures'})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]['time'], 1600000000)
+        self.assertEqual(data[0]['open'], 100.5)
+        self.assertEqual(data[0]['high'], 110.0)
+        self.assertEqual(data[0]['low'], 95.0)
+        self.assertEqual(data[0]['close'], 105.0)
+        self.assertEqual(data[0]['volume'], 12.5)
 
     def test_unknown_provider_param_returns_400(self):
         self.given_config({'kraken': {}})
@@ -400,12 +528,14 @@ class ProviderConfigBehavior(ProviderScenarioTestCase):
     def test_price_decimals_default_to_the_provider_class(self):
         response = self.client.get('/api/providers/config/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {'price_decimals': {'kraken': 5, 'yahoo': 2}})
+        self.assertEqual(response.json(),
+                         {'price_decimals': {'kraken': 5, 'kraken_futures': 5, 'yahoo': 2}})
 
     def test_price_decimals_are_overridable_per_provider(self):
         self.given_config({'kraken': {'price_decimals': 3}, 'yahoo': {'price_decimals': 4}})
         response = self.client.get('/api/providers/config/')
-        self.assertEqual(response.json(), {'price_decimals': {'kraken': 3, 'yahoo': 4}})
+        self.assertEqual(response.json(),
+                         {'price_decimals': {'kraken': 3, 'kraken_futures': 5, 'yahoo': 4}})
 
 
 class IndexMembershipBehavior(TestCase):

@@ -7,6 +7,7 @@ import time
 from django.conf import settings
 
 from .kraken import KrakenMarketProvider
+from .kraken_futures import KrakenFuturesMarketProvider
 from .yahoo import YahooMarketProvider
 
 logger = logging.getLogger(__name__)
@@ -14,11 +15,12 @@ logger = logging.getLogger(__name__)
 PROVIDER_CLASSES = {
     'yahoo': YahooMarketProvider,
     'kraken': KrakenMarketProvider,
+    'kraken_futures': KrakenFuturesMarketProvider,
 }
 
 DEFAULT_CONFIG = {
-    'provider_order': ['kraken', 'yahoo'],
-    'providers': {'kraken': {}, 'yahoo': {}},
+    'provider_order': ['kraken', 'kraken_futures', 'yahoo'],
+    'providers': {'kraken': {}, 'kraken_futures': {}, 'yahoo': {}},
 }
 
 CONFIG_PATH = settings.WORKING_DIR / 'config.json'
