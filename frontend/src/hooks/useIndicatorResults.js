@@ -13,10 +13,10 @@ import { scriptCode, scriptValues, scriptPaneType, SCRIPT_TYPES, needsFullData }
  * pane legend layout in ChartPanel stays deterministic; custom indicators
  * get `custom-<indicator id>`.
  *
- * anchorTime (first visible bar) feeds visible-relative overlays like the
- * Benchmark Index comparison.
+ * visibleWindow ({ fromTime, toTime }, the visible bar window) feeds
+ * visible-relative overlays like the Benchmark Index comparison.
  */
-export function useIndicatorResults(data, adFullData, indicators, scriptsById, barsBySymbol = {}, symbolInfo = null, earnings = null, anchorTime = null) {
+export function useIndicatorResults(data, adFullData, indicators, scriptsById, barsBySymbol = {}, symbolInfo = null, earnings = null, visibleWindow = null) {
     return useMemo(() => {
         const resultsById = {};
         const errorsById = {};
@@ -38,7 +38,7 @@ export function useIndicatorResults(data, adFullData, indicators, scriptsById, b
             if (ind.type === 'custom') {
                 const script = scriptsById?.[ind.scriptId];
                 if (!script) return;
-                const result = runScript(script.code, data, ind.inputs || {}, {}, context, anchorTime);
+                const result = runScript(script.code, data, ind.inputs || {}, {}, context, visibleWindow);
                 resultsById[ind.id] = result;
                 if (result.error) errorsById[ind.id] = result.error;
                 if (result.plots.some(p => !p.overlay)) paneIds.push(`custom-${ind.id}`);
@@ -52,7 +52,7 @@ export function useIndicatorResults(data, adFullData, indicators, scriptsById, b
                     scriptValues(ind.type, ind),
                     barsBySymbol,
                     context,
-                    anchorTime,
+                    visibleWindow,
                 );
                 resultsById[ind.id] = result;
                 if (result.error) errorsById[ind.id] = result.error;
@@ -61,5 +61,5 @@ export function useIndicatorResults(data, adFullData, indicators, scriptsById, b
         });
 
         return { resultsById, paneIds, errorsById };
-    }, [data, adFullData, indicators, scriptsById, barsBySymbol, symbolInfo, earnings, anchorTime]);
+    }, [data, adFullData, indicators, scriptsById, barsBySymbol, symbolInfo, earnings, visibleWindow]);
 }

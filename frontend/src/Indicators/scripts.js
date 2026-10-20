@@ -455,27 +455,43 @@ const SCRIPTS = {
         fields: [
             { key: 'indexes', label: 'Indexes', type: 'symbols', default: [] },
         ],
-        // Overlay comparison on the price scale: each index is rebased to
-        // the stock's close at the first visible bar (anchorTime), so the
-        // lines read directly against the chart's own price axis instead
-        // of an abstract base-100 pane — and stay near the candles instead
-        // of stretching the price scale when the window is far from the
-        // data start. The legend shows the index's own price plus its
-        // change since the anchor (plot legend metadata).
+        // Overlay comparison on the price scale: each index's relative
+        // performance (rebased to 100 at the first visible bar) is fitted
+        // with one affine map into the visible candle band, so diverging
+        // benchmarks stretch the lines, never the price scale — the graph
+        // keeps its size and the lines read directly against the candles.
+        // The legend shows the index's own price plus its change since the
+        // anchor (plot legend metadata).
         body: [
             "const PALETTE = ['#4fc3f7', '#f4c542', '#9c27b0', '#26a69a', '#ef5350', '#ff9800', '#2962ff']",
-            "let start = 0",
-            "if (anchorTime != null) { for (let k = 0; k < time.length; k++) { if (time[k] >= anchorTime) { start = k; break } } }",
+            "const from = visibleWindow?.fromTime ?? null",
+            "const to = visibleWindow?.toTime ?? null",
+            "let start = 0, end = time.length - 1",
+            "if (from != null) { for (let k = 0; k < time.length; k++) { if (time[k] >= from) { start = k; break } } }",
+            "if (to != null) { for (let k = end; k >= 0; k--) { if (time[k] <= to) { end = k; break } } }",
+            "let cMin = null, cMax = null",
+            "for (let k = start; k <= end; k++) { if (close[k] == null) continue; if (cMin == null || close[k] < cMin) cMin = close[k]; if (cMax == null || close[k] > cMax) cMax = close[k] }",
+            "const lines = []",
             "indexes.filter(ix => ix.enabled !== false && ix.symbol).forEach((ix, i) => {",
             "    const b = ta.benchmark(ix.symbol)",
             "    const c = ta.foreignCloses(ix.symbol)",
             "    let anchor = -1",
             "    for (let k = start; k < b.length; k++) { if (b[k] != null && close[k] != null) { anchor = k; break } }",
-            "    const factor = anchor >= 0 ? close[anchor] / b[anchor] : null",
-            "    const line = b.map((v, k) => factor != null && k >= anchor && v != null ? v * factor : null)",
             "    const base = anchor >= 0 ? c[anchor] : null",
             "    const legend = c.map((v, k) => base != null && k >= anchor && v != null ? v : null)",
-            "    plot(line, { title: ix.name || ix.symbol, color: ix.color || PALETTE[i % PALETTE.length], lineWidth: 2, priceLineVisible: false, lastValueVisible: false, legend: { values: legend, base } })",
+            "    lines.push({ i, ix, b, anchor, base, legend })",
+            "})",
+            "let lMin = null, lMax = null",
+            "lines.forEach(L => { if (L.anchor < 0) return; for (let k = Math.max(start, L.anchor); k <= end; k++) { const v = L.b[k]; if (v != null) { if (lMin == null || v < lMin) lMin = v; if (lMax == null || v > lMax) lMax = v } } })",
+            "const fit = cMin != null && lMin != null && lMax > lMin",
+            "lines.forEach(L => {",
+            "    const factor = !fit && L.anchor >= 0 && L.b[L.anchor] != null ? close[L.anchor] / L.b[L.anchor] : null",
+            "    const line = L.b.map((v, k) => {",
+            "        if (L.anchor < 0 || k < L.anchor || v == null) return null",
+            "        if (fit) return cMin + (v - lMin) * (cMax - cMin) / (lMax - lMin)",
+            "        return factor != null ? v * factor : null",
+            "    })",
+            "    plot(line, { title: L.ix.name || L.ix.symbol, color: L.ix.color || PALETTE[L.i % PALETTE.length], lineWidth: 2, priceLineVisible: false, lastValueVisible: false, legend: { values: L.legend, base: L.base } })",
             '})',
         ].join('\n'),
     },

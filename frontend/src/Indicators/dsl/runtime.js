@@ -19,9 +19,9 @@
  * ta.volumeProfile). barsBySymbol feeds multi-symbol helpers like
  * ta.marketIndex. symbolInfo carries static fundamentals
  * (sharesOutstanding, marketCap) for turnover-style indicators — scripts
- * must defensively handle missing fields. anchorTime is the first visible
- * bar's time (null = data start) for overlay comparisons that rebase
- * relative to the visible window.
+ * must defensively handle missing fields. visibleWindow is the visible bar
+ * window ({ fromTime, toTime }, null = full data) for overlays that scale
+ * relative to the visible candles.
  */
 import { buildTa } from './ta';
 
@@ -74,13 +74,13 @@ function buildSources(data) {
 function compile(code) {
     const params = [
         'open', 'high', 'low', 'close', 'volume', 'time',
-        'ta', 'input', 'plot', 'fill', 'histogram', 'symbolInfo', 'anchorTime',
+        'ta', 'input', 'plot', 'fill', 'histogram', 'symbolInfo', 'visibleWindow',
         ...SHADOWED_GLOBALS,
     ];
     return new Function(...params, `'use strict';\n${code}`);
 }
 
-function execute(code, data, values, barsBySymbol, symbolInfo, anchorTime, collectPlots) {
+function execute(code, data, values, barsBySymbol, symbolInfo, visibleWindow, collectPlots) {
     const declaring = { schema: [] };
     const plots = [];
     const fills = [];
@@ -113,7 +113,7 @@ function execute(code, data, values, barsBySymbol, symbolInfo, anchorTime, colle
         fill,
         histogram,
         symbolInfo ?? {},
-        anchorTime ?? null,
+        visibleWindow ?? null,
     );
     return { schema: declaring.schema, plots, fills, histograms };
 }
@@ -151,8 +151,7 @@ function toBars(series, times, colors) {
  */
 export function discoverInputs(code) {
     try {
-        const { schema } = execute(code, null, null, null, null, null, false);
-        return { schema, error: null };
+        const { schema } = execute(code, null, null, null, null, null, false);        return { schema, error: null };
     } catch (e) {
         return { schema: [], error: e.message };
     }
@@ -170,9 +169,9 @@ export function discoverInputs(code) {
  * the display values keyed by bar time, base the value changes are
  * relative to.
  */
-export function runScript(code, data, values = {}, barsBySymbol = {}, symbolInfo = {}, anchorTime = null) {
+export function runScript(code, data, values = {}, barsBySymbol = {}, symbolInfo = {}, visibleWindow = null) {
     try {
-        const { plots, fills, histograms } = execute(code, data, values, barsBySymbol, symbolInfo, anchorTime, true);
+        const { plots, fills, histograms } = execute(code, data, values, barsBySymbol, symbolInfo, visibleWindow, true);
         const times = data.map(d => d.time);
         const rendered = plots.map((p, i) => ({
             // An explicitly empty title means an unlabeled plot; only a

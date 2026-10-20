@@ -84,15 +84,13 @@ const ChartPanel = ({
     const earnings = useSymbolEarnings(symbol, provider);
     const [hoveredData, setHoveredData] = useState(null);
 
-    // First visible bar's time, debounced until pan/zoom settles: the
-    // Benchmark Index overlay rebases against it so comparison lines stay
-    // near the candles instead of stretching the price scale. Keyed by
-    // the data source so a symbol/interval switch drops the stale anchor.
+    // Visible time window ({ key, fromTime, toTime }), debounced until
+    // pan/zoom settles: feeds the volume pane's buy/sell bar totals legend,
+    // the price-range legend, and the Benchmark Index overlay whose lines
+    // are fitted into the visible candle band. Keyed by the data source so
+    // a symbol/interval switch drops the stale window.
     const anchorTimerRef = useRef(null);
     const dataKey = `${symbol}-${provider}-${interval}`;
-    const [anchor, setAnchor] = useState(null); // { key, time }
-    // Visible time window ({ key, fromTime, toTime }), debounced with the
-    // anchor: feeds the volume pane's buy/sell bar totals legend.
     const [visibleWindow, setVisibleWindow] = useState(null);
     useEffect(() => () => clearTimeout(anchorTimerRef.current), []);
     const onVisibleRangeChange = useCallback((range) => {
@@ -103,7 +101,6 @@ const ChartPanel = ({
             if (data.length === 0) return;
             const firstVisibleIndex = Math.min(Math.max(Math.ceil(range.from), 0), data.length - 1);
             const lastVisibleIndex = Math.min(Math.max(Math.floor(range.to), 0), data.length - 1);
-            setAnchor({ key: dataKey, time: data[firstVisibleIndex].time });
             setVisibleWindow({
                 key: dataKey,
                 fromTime: data[firstVisibleIndex].time,
@@ -111,7 +108,7 @@ const ChartPanel = ({
             });
         }, 150);
     }, [handleVisibleLogicalRangeChange, data, dataKey]);
-    const overlayAnchorTime = anchor?.key === dataKey ? anchor.time : null;
+    const overlayWindow = visibleWindow?.key === dataKey ? visibleWindow : null;
 
     const setDrawings = useCallback((updater) => {
         onUpdate(chart.id, c => ({
@@ -135,7 +132,7 @@ const ChartPanel = ({
     const closeChange = priceData ? closeChangePercent(data, priceData.time) : null;
     const closeChangeColor = closeChange >= 0 ? '#26a69a' : '#ef5350';
 
-    const indicatorResults = useIndicatorResults(data, adFullData, indicators, scriptsById, smiData, symbolInfo, earnings, overlayAnchorTime);
+    const indicatorResults = useIndicatorResults(data, adFullData, indicators, scriptsById, smiData, symbolInfo, earnings, overlayWindow);
 
     const activePaneTypes = computeActivePaneTypes(indicators, indicatorResults.paneIds);
     const isPaneType = (type) => type === 'custom' || isScriptPane(type);

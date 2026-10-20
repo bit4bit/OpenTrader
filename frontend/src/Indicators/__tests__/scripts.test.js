@@ -450,20 +450,32 @@ describe('script equivalence', () => {
             barsBySymbol,
         );
         expect(result.error).toBeNull();
-        // Price-scale overlay: every line sits on the main pane and is
-        // rebased to the stock's close at the first shared bar.
+        // Price-scale overlay: every line sits on the main pane, jointly
+        // fitted into the visible candle band.
         expect(result.plots.length).toBe(2);
         expect(result.plots.every(p => p.overlay)).toBe(true);
         expect(result.plots[0].color).toBe('#4fc3f7');
         expect(result.plots[1].color).toBe('#f4c542');
-        // The first shared bar anchors the rebasing: stock close / index
-        // base value (100) is the scale factor for every point.
-        const factor = DATA[0].close / 100;
-        const expectedBars = (bars) => computeBenchmarkLine(bars, times, tolerance, 100)
-            .map((value, i) => ({ time: times[i], value: value == null ? null : value * factor }))
+        const closes = DATA.map(d => d.close);
+        const cMin = Math.min(...closes);
+        const cMax = Math.max(...closes);
+        const rebased = (bars) => computeBenchmarkLine(bars, times, tolerance, 100);
+        const gspc = rebased(barsBySymbol['^GSPC']);
+        const ndx = rebased(barsBySymbol['^NDX']);
+        const rebasedValues = [...gspc, ...ndx].filter(v => v != null);
+        const lMin = Math.min(...rebasedValues);
+        const lMax = Math.max(...rebasedValues);
+        const fit = (v) => cMin + (v - lMin) * (cMax - cMin) / (lMax - lMin);
+        const expectedBars = (reb) => reb
+            .map((value, i) => ({ time: times[i], value: value == null ? null : fit(value) }))
             .filter(b => b.value !== null);
-        expectSameBars(plotOf(result, 'S&P 500'), expectedBars(barsBySymbol['^GSPC']));
-        expectSameBars(plotOf(result, 'NASDAQ 100'), expectedBars(barsBySymbol['^NDX']));
+        expectSameBars(plotOf(result, 'S&P 500'), expectedBars(gspc));
+        expectSameBars(plotOf(result, 'NASDAQ 100'), expectedBars(ndx));
+        // The fit keeps both lines inside the candle band.
+        result.plots.forEach(p => p.series.forEach(b => {
+            expect(b.value).toBeGreaterThanOrEqual(cMin);
+            expect(b.value).toBeLessThanOrEqual(cMax);
+        }));
         // Legend metadata: each line displays the index's real closes plus
         // the change since the anchor bar (^GSPC closes are 100 + i).
         const gspcLegend = result.plots[0].legend;
@@ -472,7 +484,7 @@ describe('script equivalence', () => {
         expect(gspcLegend.byTime.size).toBe(times.length);
     });
 
-    it('benchmark rebases at the first visible bar (anchorTime)', () => {
+    it('benchmark starts at the first visible bar and fits the visible candles (visibleWindow)', () => {
         const times = DATA.map(d => d.time);
         const diffs = times.slice(1).map((t, i) => t - times[i]).sort((a, b) => a - b);
         const tolerance = diffs[diffs.length >> 1] / 2;
@@ -484,15 +496,22 @@ describe('script equivalence', () => {
         const result = runScript(
             scriptCode('benchmark'), DATA,
             scriptValues('benchmark', { indexes }),
-            barsBySymbol, {}, times[anchor],
+            barsBySymbol, {}, { fromTime: times[anchor], toTime: null },
         );
         expect(result.error).toBeNull();
+        // The line is null before the visible window and fitted with one
+        // affine map into the candle band over it.
         const b = computeBenchmarkLine(barsBySymbol['^GSPC'], times, tolerance, 100);
-        const factor = DATA[anchor].close / b[anchor];
-        // The line starts at the stock's close at the anchor bar and is
-        // null before it: the comparison is relative to the visible window.
+        const closes = DATA.slice(anchor).map(d => d.close);
+        const cMin = Math.min(...closes);
+        const cMax = Math.max(...closes);
+        const rebased = b.slice(anchor).filter(v => v != null);
+        const lMin = Math.min(...rebased);
+        const lMax = Math.max(...rebased);
         const expected = b
-            .map((v, i) => i >= anchor && v != null ? { time: times[i], value: v * factor } : null)
+            .map((v, i) => i >= anchor && v != null
+                ? { time: times[i], value: cMin + (v - lMin) * (cMax - cMin) / (lMax - lMin) }
+                : null)
             .filter(x => x != null);
         expectSameBars(plotOf(result, 'S&P 500'), expected);
         // Legend metadata anchors at the visible anchor bar too: base is
@@ -502,5 +521,32 @@ describe('script equivalence', () => {
         expect(legend.byTime.has(times[anchor - 1])).toBe(false);
         expect(legend.byTime.get(times[anchor])).toBe(100 + anchor);
         expect(legend.byTime.get(times[times.length - 1])).toBe(100 + times.length - 1);
+    });
+
+    it('benchmark lines fit the candles when the index diverges', () => {
+        const times = [0, 1, 2, 3].map(i => 1700000000 + i * 86400);
+        const data = times.map((t, i) => ({
+            time: t, open: 100 - 10 * i, high: 101 - 10 * i, low: 99 - 10 * i, close: 100 - 10 * i, volume: 1,
+        }));
+        const indexes = [{ symbol: '^GSPC', name: 'S&P 500', enabled: true }];
+        const runBench = (barsBySymbol) => runScript(
+            scriptCode('benchmark'), data,
+            scriptValues('benchmark', { indexes }),
+            barsBySymbol,
+        );
+
+        // Stock slides 100 -> 70 while the index rises: the old anchored
+        // line (100 -> 130) would stretch the price scale; the fitted line
+        // lies inside the candle band (index low maps to the lowest close,
+        // index high to the highest).
+        const rising = runBench({ '^GSPC': times.map((t, i) => ({ time: t, close: 100 + 10 * i })) });
+        expect(rising.error).toBeNull();
+        expectSameBars(plotOf(rising, 'S&P 500'), times.map((t, i) => ({ time: t, value: 70 + 10 * i })));
+
+        // Flat index: the fit degenerates, the line falls back to
+        // anchoring at the stock's close.
+        const flat = runBench({ '^GSPC': times.map(t => ({ time: t, close: 55 })) });
+        expect(flat.error).toBeNull();
+        expectSameBars(plotOf(flat, 'S&P 500'), times.map(t => ({ time: t, value: 100 })));
     });
 });
