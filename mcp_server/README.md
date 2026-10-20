@@ -32,8 +32,10 @@ internal network); nginx proxies `http://<host>/mcp` to it.
 ## Auth
 
 No passwords: call the `login` tool with a username once — the token is
-cached in-memory for subsequent calls. Optionally set `OPENTRADER_TOKEN`
-to skip `login`, and `OPENTRADER_URL` to point at the API
+remembered **per MCP connection**, so parallel clients each keep their own
+account; every connection should call `login` first. Optionally set
+`OPENTRADER_TOKEN` to share a default token with connections that skip
+`login` (e.g. single-user setups), and `OPENTRADER_URL` to point at the API
 (`http://backend:8000` inside Docker).
 
 ## Client configuration

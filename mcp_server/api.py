@@ -1,14 +1,14 @@
 """Thin httpx wrapper over the OpenTrader REST API.
 
 The API (market/views.py) is the source of truth: this module forwards the
-DRF token and surfaces error messages, adding no business logic.
+DRF token it is given and surfaces error messages, adding no business logic.
+Token storage lives in server.py (per MCP session).
 """
 import os
 
 import httpx
 
-base_url = os.environ.get('OPENTRADER_URL', 'http://localhost:8000').rstrip('/')
-_token = os.environ.get('OPENTRADER_TOKEN') or None
+base_url = os.environ.get('OPENTRADER_URL', 'http://localhost:8000').rstrip('')
 
 
 class ApiError(Exception):
@@ -24,21 +24,22 @@ class NotLoggedIn(ApiError):
 
 
 def _error_message(response):
+    body = {}
+    if response.headers.get('content-type', '').startswith('application/json'):
+        body = response.json()
     for key in ('error', 'detail'):
-        body = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
         if isinstance(body, dict) and body.get(key):
             return body[key]
     return response.text or f'HTTP {response.status_code}'
 
 
-async def _request(method, path, json=None, params=None):
-    global _token
-    if not _token:
+async def request(method, path, token, json=None, params=None):
+    if not token:
         raise NotLoggedIn()
     async with httpx.AsyncClient(base_url=base_url, timeout=30) as client:
         response = await client.request(
             method, path, json=json, params=params,
-            headers={'Authorization': f'Token {_token}'},
+            headers={'Authorization': f'Token {token}'},
         )
     if response.status_code >= 400:
         if response.status_code == 404:
@@ -50,39 +51,40 @@ async def _request(method, path, json=None, params=None):
 
 
 async def login(username):
-    global _token
+    """Passwordless username login; returns the API's {token, username}
+    payload. No token needed: the API creates users on first login."""
     async with httpx.AsyncClient(base_url=base_url, timeout=30) as client:
         response = await client.post('/api/auth/login/', json={'username': username})
     if response.status_code >= 400:
         raise ApiError(response.status_code, _error_message(response))
-    _token = response.json()['token']
-    return {'username': response.json()['username']}
+    return response.json()
 
 
-async def list_sessions():
-    return await _request('GET', '/api/sessions/')
+async def list_sessions(token):
+    return await request('GET', '/api/sessions/', token)
 
 
-async def get_session(session_id):
-    return await _request('GET', f'/api/sessions/{session_id}/')
+async def get_session(token, session_id):
+    return await request('GET', f'/api/sessions/{session_id}/', token)
 
 
-async def create_session(name, layout=None, folder_id=None):
+async def create_session(token, name, layout=None, folder_id=None):
     body = {'name': name, 'layout': layout or {}}
     if folder_id is not None:
         body['folder'] = folder_id
-    return await _request('POST', '/api/sessions/', json=body)
+    return await request('POST', '/api/sessions/', token, json=body)
 
 
-async def update_session(session_id, **fields):
-    return await _request('PATCH', f'/api/sessions/{session_id}/', json=fields)
+async def update_session(token, session_id, **fields):
+    return await request('PATCH', f'/api/sessions/{session_id}/', token, json=fields)
 
 
-async def delete_session(session_id):
-    return await _request('DELETE', f'/api/sessions/{session_id}/')
+async def delete_session(token, session_id):
+    return await request('DELETE', f'/api/sessions/{session_id}/', token)
 
 
-async def clone_session(session_id, name=None, new_symbol=None, from_symbol=None, folder_id=None):
+async def clone_session(token, session_id, name=None, new_symbol=None,
+                        from_symbol=None, folder_id=None):
     body = {}
     if name is not None:
         body['name'] = name
@@ -92,69 +94,72 @@ async def clone_session(session_id, name=None, new_symbol=None, from_symbol=None
         body['from_symbol'] = from_symbol
     if folder_id is not None:
         body['folder'] = folder_id
-    return await _request('POST', f'/api/sessions/{session_id}/clone/', json=body)
+    return await request('POST', f'/api/sessions/{session_id}/clone/', token, json=body)
 
 
-async def list_folders():
-    return await _request('GET', '/api/folders/')
+async def list_folders(token):
+    return await request('GET', '/api/folders/', token)
 
 
-async def create_folder(name):
-    return await _request('POST', '/api/folders/', json={'name': name})
+async def create_folder(token, name):
+    return await request('POST', '/api/folders/', token, json={'name': name})
 
 
-async def rename_folder(folder_id, name):
-    return await _request('PATCH', f'/api/folders/{folder_id}/', json={'name': name})
+async def rename_folder(token, folder_id, name):
+    return await request('PATCH', f'/api/folders/{folder_id}/', token, json={'name': name})
 
 
-async def delete_folder(folder_id):
-    return await _request('DELETE', f'/api/folders/{folder_id}/')
+async def delete_folder(token, folder_id):
+    return await request('DELETE', f'/api/folders/{folder_id}/', token)
 
 
-async def get_preferences():
-    return await _request('GET', '/api/preferences/')
+async def get_preferences(token):
+    return await request('GET', '/api/preferences/', token)
 
 
-async def update_preferences(**fields):
-    return await _request('PATCH', '/api/preferences/', json=fields)
+async def update_preferences(token, **fields):
+    return await request('PATCH', '/api/preferences/', token, json=fields)
 
 
-async def list_positions():
-    return await _request('GET', '/api/positions/')
+async def list_positions(token):
+    return await request('GET', '/api/positions/', token)
 
 
-async def create_position(symbol, side, shares, price, opened_at=None, note=None):
+async def create_position(token, symbol, side, shares, price,
+                          opened_at=None, note=None):
     body = {'symbol': symbol, 'side': side, 'shares': shares, 'price': price}
     if opened_at is not None:
         body['opened_at'] = opened_at
     if note is not None:
         body['note'] = note
-    return await _request('POST', '/api/positions/', json=body)
+    return await request('POST', '/api/positions/', token, json=body)
 
 
-async def update_position(position_id, **fields):
-    return await _request('PATCH', f'/api/positions/{position_id}/', json=fields)
+async def update_position(token, position_id, **fields):
+    return await request('PATCH', f'/api/positions/{position_id}/', token, json=fields)
 
 
-async def delete_position(position_id):
-    return await _request('DELETE', f'/api/positions/{position_id}/')
+async def delete_position(token, position_id):
+    return await request('DELETE', f'/api/positions/{position_id}/', token)
 
 
-async def list_indicators():
-    return await _request('GET', '/api/indicators/')
+async def list_indicators(token):
+    return await request('GET', '/api/indicators/', token)
 
 
-async def get_indicator(indicator_id):
-    return await _request('GET', f'/api/indicators/{indicator_id}/')
+async def get_indicator(token, indicator_id):
+    return await request('GET', f'/api/indicators/{indicator_id}/', token)
 
 
-async def create_indicator(name, code):
-    return await _request('POST', '/api/indicators/', json={'name': name, 'code': code})
+async def create_indicator(token, name, code):
+    return await request('POST', '/api/indicators/', token,
+                         json={'name': name, 'code': code})
 
 
-async def update_indicator(indicator_id, **fields):
-    return await _request('PATCH', f'/api/indicators/{indicator_id}/', json=fields)
+async def update_indicator(token, indicator_id, **fields):
+    return await request('PATCH', f'/api/indicators/{indicator_id}/',
+                         token, json=fields)
 
 
-async def delete_indicator(indicator_id):
-    return await _request('DELETE', f'/api/indicators/{indicator_id}/')
+async def delete_indicator(token, indicator_id):
+    return await request('DELETE', f'/api/indicators/{indicator_id}/', token)
