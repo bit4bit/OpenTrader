@@ -64,6 +64,8 @@ const SessionManagerModal = ({
     folders,
     activeSession,
     activeFolderId,
+    initialViewId,
+    onViewChange,
     onSwitchSession,
     onCreateSession,
     onRenameSession,
@@ -77,7 +79,7 @@ const SessionManagerModal = ({
     onTogglePortfolio,
     onClose,
 }) => {
-    const [viewId, setViewId] = useState('all');
+    const [viewId, setViewId] = useState(initialViewId ?? 'all');
     const [query, setQuery] = useState('');
     const [sort, setSort] = useState('recent');
     const [renaming, setRenaming] = useState(null); // { kind: 'session'|'folder', id }
@@ -119,8 +121,14 @@ const SessionManagerModal = ({
     const selectView = (id, folderId = null) => {
         setQuery('');
         setViewId(id);
+        onViewChange?.(id);
         if (id === 'uncategorized') onSetActiveFolder(null);
         else if (folderId != null) onSetActiveFolder(folderId);
+    };
+
+    const deleteFolder = (id) => {
+        onDeleteFolder(id);
+        if (folderIdFromView(viewId) === id) selectView('all');
     };
 
     const createSession = (name) => {
@@ -229,7 +237,7 @@ const SessionManagerModal = ({
                         <span className="sm-side-name">{folder.name}</span>
                         <span className="sm-side-count">{counts.byFolder.get(folder.id) || 0}</span>
                         <button className="sm-action" title="Rename folder" onClick={(e) => { e.stopPropagation(); setRenaming({ kind: 'folder', id: folder.id }); }}>✏️</button>
-                        <button className="sm-action" title="Delete folder (sessions are kept)" onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); }}>🗑</button>
+                        <button className="sm-action" title="Delete folder (sessions are kept)" onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }}>🗑</button>
                     </>
                 )}
             </div>

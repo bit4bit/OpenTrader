@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import SessionManagerModal from './SessionManagerModal';
+import { folderViewId } from '../sessions/sessionList';
 
 const SessionMenu = (props) => {
     const [open, setOpen] = useState(false);
-    const { activeSession } = props;
+    const [lastViewId, setLastViewId] = useState(null);
+    const { activeSession, folders, activeFolderId } = props;
+    const initialViewId = lastViewId
+        ?? (activeFolderId != null && folders.some(f => f.id === activeFolderId)
+            ? folderViewId(activeFolderId)
+            : 'all');
     return (
         <div style={{ position: 'relative' }}>
             <button
@@ -15,7 +21,14 @@ const SessionMenu = (props) => {
                 {activeSession?.name || 'No session'}
                 <span style={{ fontSize: '10px', marginLeft: '4px' }}>▾</span>
             </button>
-            {open && <SessionManagerModal {...props} onClose={() => setOpen(false)} />}
+            {open && (
+                <SessionManagerModal
+                    {...props}
+                    initialViewId={initialViewId}
+                    onViewChange={setLastViewId}
+                    onClose={() => setOpen(false)}
+                />
+            )}
         </div>
     );
 };
