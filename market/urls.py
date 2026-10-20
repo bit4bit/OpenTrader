@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import TickerSearch, TickerHistory, LoginView, SessionListCreate, SessionDetail, ProviderSymbols, ProviderConfig, IndicatorListCreate, IndicatorDetail, FolderListCreate, FolderDetail, PreferenceView, IndexMembership, SymbolInfo, SymbolEarnings, PositionListCreate, PositionDetail
+from .views import TickerSearch, TickerHistory, LoginView, SessionListCreate, SessionDetail, SessionClone, ProviderSymbols, ProviderConfig, IndicatorListCreate, IndicatorDetail, FolderListCreate, FolderDetail, PreferenceView, IndexMembership, SymbolInfo, SymbolEarnings, PositionListCreate, PositionDetail
 
 urlpatterns = [
     path('search/', TickerSearch.as_view(), name='ticker-search'),
@@ -12,6 +12,7 @@ urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),
     path('sessions/', SessionListCreate.as_view(), name='sessions'),
     path('sessions/<int:pk>/', SessionDetail.as_view(), name='session-detail'),
+    path('sessions/<int:pk>/clone/', SessionClone.as_view(), name='session-clone'),
     path('folders/', FolderListCreate.as_view(), name='folders'),
     path('folders/<int:pk>/', FolderDetail.as_view(), name='folder-detail'),
     path('preferences/', PreferenceView.as_view(), name='preferences'),

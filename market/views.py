@@ -5,6 +5,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
+import copy
 import math
 from datetime import datetime, timezone
 from .models import Session, CustomIndicator, Folder, UserPreference, Position
@@ -28,8 +29,14 @@ def serialize_session(session):
     }
 
 
-def serialize_folder(folder):
-    return {
+def chart_symbol_name(chart):
+    """Chart symbol is a {symbol, provider} dict in current layouts, a
+    plain string in older ones."""
+    field = chart.get('symbol')
+    return field.get('symbol') if isinstance(field, dict) else field
+
+
+def serialize_folder(folder):    return {
         'id': folder.id,
         'name': folder.name,
         'created_at': folder.created_at.isoformat(),
@@ -113,6 +120,56 @@ class SessionDetail(APIView):
     def delete(self, request, pk):
         self.get_session(request, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SessionClone(APIView):
+    """Copy a session's layout (charts, intervals, indicators, drawings)
+    into a new session. With `new_symbol`, cloned charts are re-pointed at
+    that symbol — restricted to those currently using `from_symbol` when
+    given — and the replaced charts' drawings are dropped (their anchors
+    reference the replaced symbol's bars). The chart symbol field is a
+    {symbol, provider} dict in current layouts and a plain string in
+    older ones."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        session = get_object_or_404(Session, pk=pk, user=request.user)
+        name = (request.data.get('name') or f'{session.name} (copy)').strip()
+        layout = copy.deepcopy(session.layout)
+        new_symbol = request.data.get('new_symbol')
+        from_symbol = request.data.get('from_symbol')
+        if new_symbol:
+            try:
+                _provider, meta = registry.resolve_provider(new_symbol)
+            except (registry.SymbolNotSupported, KeyError) as e:
+                return Response(
+                    {'error': f'Cannot resolve symbol {new_symbol}: {e}'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            charts = layout.get('charts', [])
+            current_symbols = sorted({chart_symbol_name(c) for c in charts})
+            if from_symbol is None and len(current_symbols) > 1:
+                return Response(
+                    {'error': f'Charts use multiple symbols {current_symbols}; specify '
+                              'from_symbol to re-point only the matching charts'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            for chart in charts:
+                current = chart_symbol_name(chart)
+                if from_symbol and current != from_symbol:
+                    continue
+                chart['symbol'] = {'symbol': new_symbol, 'provider': meta['provider']}
+                chart['drawings'] = []
+        clone = Session(user=request.user, name=name, layout=layout, notes=session.notes)
+        if 'folder' in request.data:
+            folder, error = validate_folder_id(request, request.data.get('folder'))
+            if error:
+                return error
+            clone.folder = folder
+        else:
+            clone.folder = session.folder
+        clone.save()
+        return Response(serialize_session(clone), status=status.HTTP_201_CREATED)
 
 
 class FolderListCreate(APIView):

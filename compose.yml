@@ -24,6 +24,21 @@ services:
         # router reload.
         ipv4_address: 172.28.0.10
 
+  mcp:
+    build: .
+    command: ["python", "-m", "mcp_server.server"]
+    expose:
+      - "8001"
+    environment:
+      - OPENTRADER_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      app:
+        # Fixed address: nginx resolves proxy_pass hosts once at startup
+        # (same reason backend has one).
+        ipv4_address: 172.28.0.11
+
   router:
     image: nginx:alpine
     ports:
