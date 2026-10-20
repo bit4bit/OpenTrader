@@ -277,6 +277,8 @@ function App() {
     saveNotes,
     saveGlobalNote,
     globalNote,
+    showSessionQuotes,
+    toggleSessionQuotes,
     createFolder,
     renameFolder,
     deleteFolder,
@@ -318,6 +320,8 @@ function App() {
     },
     onToggleFavorite: (id) => toggleFavoriteSession(id),
     onTogglePortfolio: (id) => togglePortfolioSession(id),
+    showQuotes: showSessionQuotes,
+    onToggleQuotes: toggleSessionQuotes,
     onCreateFolder: (name) => createFolder(name.trim()),
     onRenameFolder: (id, name) => renameFolder(id, name),
     onDeleteFolder: (id) => {

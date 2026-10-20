@@ -12,11 +12,13 @@ export function useSessions(enabled, onAuthFailed) {
     const [activeFolderId, setActiveFolderId] = useState(null);
     const [loaded, setLoaded] = useState(false);
     const [globalNote, setGlobalNote] = useState('');
+    const [showSessionQuotes, setShowSessionQuotes] = useState(false);
     const saveTimers = useRef(new Map());
     const pendingUpdates = useRef(new Map()); // sessionId -> { layout?, notes? }
     const globalNoteTimer = useRef(null);
     const pendingGlobalNote = useRef(false);
     const globalNoteRef = useRef('');
+    const showSessionQuotesRef = useRef(false);
 
     const flushSession = useCallback((sessionId) => {
         const timer = saveTimers.current.get(sessionId);
@@ -62,6 +64,10 @@ export function useSessions(enabled, onAuthFailed) {
     }, [globalNote]);
 
     useEffect(() => {
+        showSessionQuotesRef.current = showSessionQuotes;
+    }, [showSessionQuotes]);
+
+    useEffect(() => {
         if (!enabled) return;
         let cancelled = false;
         Promise.all([
@@ -75,6 +81,7 @@ export function useSessions(enabled, onAuthFailed) {
             setFolders(foldersRes.data);
             setActiveFolderId(preferencesRes.data.active_folder ?? null);
             setGlobalNote(preferencesRes.data.note ?? '');
+            setShowSessionQuotes(!!preferencesRes.data.show_session_quotes);
             setLoaded(true);
         }).catch(err => {
             console.warn('Failed to load sessions:', err);
@@ -216,6 +223,14 @@ export function useSessions(enabled, onAuthFailed) {
         }
     }, []);
 
+    const toggleSessionQuotes = useCallback(() => {
+        const next = !showSessionQuotesRef.current;
+        showSessionQuotesRef.current = next;
+        setShowSessionQuotes(next);
+        axios.patch('/api/preferences/', { show_session_quotes: next })
+            .catch(err => console.warn('Failed to save quote preference:', err));
+    }, []);
+
     const setActiveFolder = useCallback((folderId) => {
         setActiveFolderId(folderId);
         axios.patch('/api/preferences/', { active_folder: folderId })
@@ -230,6 +245,8 @@ export function useSessions(enabled, onAuthFailed) {
         activeFolderId,
         loaded,
         globalNote,
+        showSessionQuotes,
+        toggleSessionQuotes,
         createSession,
         renameSession,
         deleteSession,

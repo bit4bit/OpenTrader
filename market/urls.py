@@ -1,11 +1,12 @@
 from django.urls import path
-from .views import TickerSearch, TickerHistory, LoginView, SessionListCreate, SessionDetail, SessionClone, ProviderSymbols, ProviderConfig, IndicatorListCreate, IndicatorDetail, FolderListCreate, FolderDetail, PreferenceView, IndexMembership, SymbolInfo, SymbolEarnings, PositionListCreate, PositionDetail
+from .views import TickerSearch, TickerHistory, LoginView, SessionListCreate, SessionDetail, SessionClone, ProviderSymbols, ProviderConfig, IndicatorListCreate, IndicatorDetail, FolderListCreate, FolderDetail, PreferenceView, IndexMembership, SymbolInfo, SymbolQuote, SymbolEarnings, PositionListCreate, PositionDetail
 
 urlpatterns = [
     path('search/', TickerSearch.as_view(), name='ticker-search'),
     path('history/', TickerHistory.as_view(), name='ticker-history'),
     path('index-membership/', IndexMembership.as_view(), name='index-membership'),
     path('symbol/info/', SymbolInfo.as_view(), name='symbol-info'),
+    path('symbol/quote/', SymbolQuote.as_view(), name='symbol-quote'),
     path('symbol/earnings/', SymbolEarnings.as_view(), name='symbol-earnings'),
     path('symbols/', ProviderSymbols.as_view(), name='provider-symbols'),
     path('providers/config/', ProviderConfig.as_view(), name='provider-config'),

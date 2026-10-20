@@ -68,6 +68,7 @@ class UserPreference(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='preference')
     active_folder = models.ForeignKey(Folder, null=True, blank=True, on_delete=models.SET_NULL)
     note = models.TextField(blank=True, default='')
+    show_session_quotes = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{self.user.username}: preferences'

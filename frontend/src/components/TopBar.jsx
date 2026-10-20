@@ -32,6 +32,7 @@ const TopBar = ({
     onSetActiveFolder,
     onToggleFavorite,
     onTogglePortfolio,
+    showQuotes = false, onToggleQuotes,
     noteOpen = false, onToggleNotes,
     globalNoteOpen = false, onToggleGlobalNote,
     onOpenPositions,
@@ -88,6 +89,8 @@ const TopBar = ({
                     onSetActiveFolder={onSetActiveFolder}
                     onToggleFavorite={onToggleFavorite}
                     onTogglePortfolio={onTogglePortfolio}
+                    showQuotes={showQuotes}
+                    onToggleQuotes={onToggleQuotes}
                 />
                 <button
                     className={`toolbar-btn ${noteOpen ? 'active' : ''}`}

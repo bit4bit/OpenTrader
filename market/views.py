@@ -7,12 +7,16 @@ from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 import copy
 import math
+import logging
 from datetime import datetime, timezone
 from .models import Session, CustomIndicator, Folder, UserPreference, Position
 from .providers import registry
 from .providers import index_membership
 from .providers import symbol_info
+from .providers import quote as quote_provider
 from .providers import earnings as earnings_provider
+
+logger = logging.getLogger(__name__)
 
 
 def serialize_session(session):
@@ -211,7 +215,11 @@ class PreferenceView(APIView):
 
     def get(self, request):
         preference, _ = UserPreference.objects.get_or_create(user=request.user)
-        return Response({'active_folder': preference.active_folder_id, 'note': preference.note})
+        return Response({
+            'active_folder': preference.active_folder_id,
+            'note': preference.note,
+            'show_session_quotes': preference.show_session_quotes,
+        })
 
     def patch(self, request):
         preference, _ = UserPreference.objects.get_or_create(user=request.user)
@@ -222,8 +230,14 @@ class PreferenceView(APIView):
             preference.active_folder = folder
         if 'note' in request.data:
             preference.note = request.data['note'] or ''
+        if 'show_session_quotes' in request.data:
+            preference.show_session_quotes = bool(request.data['show_session_quotes'])
         preference.save()
-        return Response({'active_folder': preference.active_folder_id, 'note': preference.note})
+        return Response({
+            'active_folder': preference.active_folder_id,
+            'note': preference.note,
+            'show_session_quotes': preference.show_session_quotes,
+        })
 
 
 def serialize_position(position):
@@ -393,6 +407,43 @@ class SymbolInfo(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
         return Response({'symbol': symbol, 'provider': _meta['provider'], **info})
+
+
+class SymbolQuote(APIView):
+    """Live-ish quote batch (price, day change, volume change vs the 10-day
+    average, 52-week range) for the session manager's quote strips: one
+    request for every distinct symbol of the current view, served from a
+    short-TTL cache. Unresolvable or crypto symbols degrade to empty
+    fields instead of failing the whole batch."""
+    def get(self, request):
+        symbols = [
+            symbol
+            for chunk in request.query_params.getlist('symbols')
+            for symbol in chunk.split(',')
+            if symbol.strip()
+        ]
+        if not symbols:
+            return Response({'error': 'Symbols are required'}, status=status.HTTP_400_BAD_REQUEST)
+        response = []
+        for symbol in symbols:
+            try:
+                _provider, _meta = registry.resolve_provider(symbol)
+            except registry.SymbolNotSupported:
+                provider_name = None
+                entry_quote = {}
+            else:
+                provider_name = _meta['provider']
+                try:
+                    entry_quote = quote_provider.quote_for(symbol, provider_name)
+                except Exception as e:
+                    logger.warning('Quote batch entry failed for %s: %s', symbol, e)
+                    entry_quote = {}
+            response.append({
+                'symbol': symbol,
+                'provider': provider_name,
+                **{field: entry_quote.get(field) for field in quote_provider.QUOTE_FIELDS},
+            })
+        return Response(response)
 
 
 class ProviderConfig(APIView):

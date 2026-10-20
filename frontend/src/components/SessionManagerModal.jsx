@@ -7,6 +7,14 @@ import {
     sortSessions,
     countSessions,
 } from '../sessions/sessionList';
+import { useSymbolQuotes } from '../hooks/useSymbolQuotes';
+import {
+    sessionSymbols,
+    symbolsOfSessions,
+    quoteDisplayFields,
+} from '../quotes/quoteRow';
+import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
+import { DEFAULT_PRICE_DECIMALS } from '../chart/priceFormat';
 
 const SMART_VIEWS = [
     { id: 'all', label: 'All sessions', icon: '☰' },
@@ -15,8 +23,7 @@ const SMART_VIEWS = [
     { id: 'uncategorized', label: 'No folder', icon: '⬚' },
 ];
 
-const formatRelativeTime = (iso) => {
-    if (!iso) return '';
+const formatRelativeTime = (iso) => {    if (!iso) return '';
     const then = new Date(iso).getTime();
     if (Number.isNaN(then)) return '';
     const seconds = Math.max(0, (Date.now() - then) / 1000);
@@ -65,6 +72,8 @@ const SessionManagerModal = ({
     activeSession,
     activeFolderId,
     initialViewId,
+    showQuotes,
+    onToggleQuotes,
     onViewChange,
     onSwitchSession,
     onCreateSession,
@@ -104,6 +113,13 @@ const SessionManagerModal = ({
         const scoped = searching ? sessions : sessionsInView(sessions, viewId);
         return sortSessions(filterByQuery(scoped, folders, query), sort);
     }, [sessions, folders, viewId, query, sort, searching]);
+
+    const decimalsMap = useProviderPriceDecimals();
+    const quoteSymbols = useMemo(
+        () => (showQuotes ? symbolsOfSessions(visibleSessions) : []),
+        [showQuotes, visibleSessions],
+    );
+    const quotes = useSymbolQuotes(quoteSymbols);
 
     useEffect(() => { searchRef.current?.focus(); }, []);
 
@@ -162,10 +178,13 @@ const SessionManagerModal = ({
     const renderSession = (session) => {
         const isActive = session.id === activeSession?.id;
         const isRenaming = renaming?.kind === 'session' && renaming.id === session.id;
+        const stripSymbols = showQuotes ? sessionSymbols(session) : [];
+        const stripFields = stripSymbols.map(entry =>
+            quoteDisplayFields(quotes.get(entry.symbol), decimalsMap[entry.provider] ?? DEFAULT_PRICE_DECIMALS));
         return (
             <div
                 key={session.id}
-                className={`sm-row${isActive ? ' active' : ''}`}
+                className={`sm-row${isActive ? ' active' : ''}${showQuotes ? ' quotes-grid' : ''}`}
                 draggable={!isRenaming}
                 onDragStart={e => e.dataTransfer.setData('application/x-session-id', String(session.id))}
                 onClick={() => { onClose(); onSwitchSession(session.id); }}
@@ -189,25 +208,50 @@ const SessionManagerModal = ({
                             onClick={(e) => { e.stopPropagation(); onTogglePortfolio(session.id); }}
                         >💼</button>
                         <span className="sm-row-name">{session.name}</span>
-                        {folders.length > 0 && (
-                            <select
-                                className="sm-move-select"
-                                title="Move to folder"
-                                value={session.folder ?? ''}
-                                onClick={e => e.stopPropagation()}
-                                onChange={(e) => {
-                                    e.stopPropagation();
-                                    const folderId = e.target.value === '' ? null : Number(e.target.value);
-                                    if (folderId !== session.folder) onMoveSession(session.id, folderId);
-                                }}
-                            >
-                                <option value="">No folder</option>
-                                {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                            </select>
+                        {showQuotes ? (
+                            stripSymbols.length === 0 ? (
+                                <div className="sm-quotes-empty">—</div>
+                            ) : (
+                                <>
+                                    <div className="sm-quote-cell sym">
+                                        {stripSymbols.map(entry => <span key={entry.symbol} title={entry.provider || undefined}>{entry.symbol}</span>)}
+                                    </div>
+                                    <div className="sm-quote-cell num">
+                                        {stripFields.map((f, i) => <span key={i}>{f.price}</span>)}
+                                    </div>
+                                    {['dayChange', 'weekChange', 'monthChange', 'quarterChange', 'volumeChange'].map(field => (
+                                        <div className="sm-quote-cell num" key={field}>
+                                            {stripFields.map((f, i) => <span key={i} className={`sm-quote-change ${f[field].tone}`} title={field === 'volumeChange' ? 'Volume vs 10-day average' : undefined}>{f[field].text}</span>)}
+                                        </div>
+                                    ))}
+                                    <div className="sm-quote-cell num">
+                                        {stripFields.map((f, i) => <span key={i} title="52-week low — high">{f.yearRange.text}</span>)}
+                                    </div>
+                                </>
+                            )
+                        ) : (
+                            folders.length > 0 && (
+                                <select
+                                    className="sm-move-select"
+                                    title="Move to folder"
+                                    value={session.folder ?? ''}
+                                    onClick={e => e.stopPropagation()}
+                                    onChange={(e) => {
+                                        e.stopPropagation();
+                                        const folderId = e.target.value === '' ? null : Number(e.target.value);
+                                        if (folderId !== session.folder) onMoveSession(session.id, folderId);
+                                    }}
+                                >
+                                    <option value="">No folder</option>
+                                    {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                </select>
+                            )
                         )}
                         <span className="sm-updated">{formatRelativeTime(session.updated_at)}</span>
-                        <button className="sm-action" title="Rename session" onClick={(e) => { e.stopPropagation(); setRenaming({ kind: 'session', id: session.id }); }}>✏️</button>
-                        <button className="sm-action" title="Delete session" onClick={(e) => { e.stopPropagation(); onDeleteSession(session.id); }}>🗑</button>
+                        <div className="sm-row-actions">
+                            <button className="sm-action" title="Rename session" onClick={(e) => { e.stopPropagation(); setRenaming({ kind: 'session', id: session.id }); }}>✏️</button>
+                            <button className="sm-action" title="Delete session" onClick={(e) => { e.stopPropagation(); onDeleteSession(session.id); }}>🗑</button>
+                        </div>
                     </>
                 )}
             </div>
@@ -260,6 +304,11 @@ const SessionManagerModal = ({
                         <option value="recent">Recently updated</option>
                         <option value="name">Name</option>
                     </select>
+                    <button
+                        className={`session-manager-quotes-toggle${showQuotes ? ' on' : ''}`}
+                        title="Show quote data (price, day change, volume change, 52-week range) for the symbols in this view"
+                        onClick={onToggleQuotes}
+                    >📈 Quotes</button>
                     <button className="session-manager-close" onClick={onClose} title="Close (Esc)">✕</button>
                 </div>
                 <div className="session-manager-body">
@@ -306,6 +355,21 @@ const SessionManagerModal = ({
                             </div>
                         )}
                         <div className="session-manager-list">
+                            {showQuotes && (
+                                <div className="sm-quotes-head">
+                                    <span /><span />
+                                    <span>Name</span>
+                                    <span className="sm-col-sep">Symbol</span>
+                                    <span className="sm-col-sep">Price</span>
+                                    <span className="sm-col-sep">Day</span>
+                                    <span className="sm-col-sep">Week</span>
+                                    <span className="sm-col-sep">Month</span>
+                                    <span className="sm-col-sep">Quarter</span>
+                                    <span className="sm-col-sep">Vol Δ</span>
+                                    <span className="sm-col-sep" title="52-week low — high">52w range</span>
+                                    <span /><span />
+                                </div>
+                            )}
                             {visibleSessions.map(renderSession)}
                             {visibleSessions.length === 0 && !creatingSession && (
                                 <div className="sm-empty">{emptyMessage()}</div>
