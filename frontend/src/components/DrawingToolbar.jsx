@@ -14,7 +14,7 @@ const DrawingToolbar = ({ activeTool, onSelectTool, magnetEnabled = false, onTog
         {
             id: 'avwap_cat',
             type: 'single',
-            tool: { id: 'avwapAnchor', icon: '⚓', label: 'Anchored VWAP (click a bar)' }
+            tool: { id: 'avwapAnchor', icon: '⚓', label: 'Anchored VWAP (V, click a bar)' }
         },
         {
             id: 'trend_cat',
@@ -22,7 +22,7 @@ const DrawingToolbar = ({ activeTool, onSelectTool, magnetEnabled = false, onTog
             label: 'Trend Line Tools',
             icon: '╱',
             tools: [
-                { id: 'trend', icon: '╱', label: 'Trend Line' },
+                { id: 'trend', icon: '╱', label: 'Trend Line (T)' },
                 { id: 'arrow', icon: '↗', label: 'Arrow' },
                 { id: 'ray', icon: '→', label: 'Ray' },
                 { id: 'extendedLine', icon: '⟷', label: 'Extended Line' },
@@ -73,7 +73,7 @@ const DrawingToolbar = ({ activeTool, onSelectTool, magnetEnabled = false, onTog
                 { id: 'sellLabel', icon: '🏷️⬇️', label: 'Sell Label' },
                 { id: 'textLabel', icon: '🏷️✏️', label: 'Text Label' },
                 { id: 'arrowMark', icon: '➚', label: 'Arrow Mark' },
-                { id: 'textNote', icon: '📝', label: 'Text Note' },
+                { id: 'textNote', icon: '📝', label: 'Text Note (N)' },
             ]
         },
         {
@@ -87,7 +87,7 @@ const DrawingToolbar = ({ activeTool, onSelectTool, magnetEnabled = false, onTog
                 { id: 'shortPosition', icon: '📉', label: 'Short Position' },
                 { id: 'riskReward', icon: '⚖️', label: 'Risk/Reward Tool' },
                 { id: 'forecast', icon: '🔮', label: 'Forecast' },
-                { id: 'priceRange', icon: '↕', label: 'Price Range' },
+                { id: 'priceRange', icon: '↕', label: 'Price Range (P)' },
                 { id: 'dateRange', icon: '↔', label: 'Date Range' },
                 { id: 'ghostFeed', icon: '👻', label: 'Ghost Feed' },
             ]
@@ -154,7 +154,7 @@ const DrawingToolbar = ({ activeTool, onSelectTool, magnetEnabled = false, onTog
         {
             id: 'eraser_cat',
             type: 'single',
-            tool: { id: 'eraserOne', icon: '🧽', label: 'Erase Drawing' }
+            tool: { id: 'eraserOne', icon: '🧽', label: 'Erase Drawing (D)' }
         },
         {
             id: 'utils_cat',

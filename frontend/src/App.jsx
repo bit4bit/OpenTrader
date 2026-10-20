@@ -14,6 +14,7 @@ import { useSessions } from './hooks/useSessions';
 import { useCharts } from './hooks/useCharts';
 import { useCustomIndicators } from './hooks/useCustomIndicators';
 import { usePositions } from './hooks/usePositions';
+import useDrawingToolShortcuts from './hooks/useDrawingToolShortcuts';
 import { addIndicators, addCustomIndicator, updateIndicator as updateIndicatorIn, removeIndicator as removeIndicatorIn, toggleIndicator as toggleIndicatorIn } from './Indicators/actions';
 
 const FIRST_VISIT_KEY = 'opentrader_first_visit';
@@ -88,6 +89,10 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
       setActiveTool(tool);
     }
   };
+
+  useDrawingToolShortcuts(handleSelectTool,
+    !showIndicatorSearch && !showCustomIndicators && !showSymbolCatalog
+    && !showNotes && !showPositions && activeTool !== 'positionDatePick');
 
   // Position-date pick flow: hide the modal, arm the picker tool, and the
   // clicked candle's time re-opens the modal with the datetime prefilled.
