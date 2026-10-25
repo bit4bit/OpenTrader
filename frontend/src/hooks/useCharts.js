@@ -3,12 +3,15 @@ import { createIndicator } from '../Indicators/scripts';
 import { normalizeGridLayoutId } from '../chart/gridLayout';
 
 const normalizeSymbol = (symbol) =>
-    typeof symbol === 'string' ? { symbol, provider: null } : symbol;
+    typeof symbol === 'string'
+        ? { symbol, provider: null }
+        : { symbol: symbol.symbol, provider: symbol.provider ?? null };
 
-const createChartConfig = (symbol, interval = '1d') => ({
+const createChartConfig = (symbol, interval = '1d', description = '') => ({
     id: `chart-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     symbol: normalizeSymbol(symbol),
     interval,
+    description: description || '',
     chartType: 'candle',
     showWeekendCandles: false,
     indicators: [createIndicator('volume')],
@@ -24,7 +27,11 @@ const defaultLayout = () => {
 const normalizeLayout = (layout) => ({
     ...layout,
     gridLayout: normalizeGridLayoutId(layout.gridLayout),
-    charts: (layout.charts || []).map(c => ({ ...c, symbol: normalizeSymbol(c.symbol) })),
+    charts: (layout.charts || []).map(c => ({
+        ...c,
+        symbol: normalizeSymbol(c.symbol),
+        description: c.description || '',
+    })),
 });
 
 export function useCharts(initialLayout, onLayoutChange) {
@@ -47,8 +54,8 @@ export function useCharts(initialLayout, onLayoutChange) {
         onLayoutChange?.({ charts, activeChartId, locked, gridLayout });
     }, [charts, activeChartId, locked, gridLayout, onLayoutChange]);
 
-    const addChart = useCallback((symbol) => {
-        const chart = createChartConfig(symbol);
+    const addChart = useCallback((symbol, description = '') => {
+        const chart = createChartConfig(symbol, '1d', description);
         setCharts(prev => [...prev, chart]);
         setActiveChartId(chart.id);
     }, []);

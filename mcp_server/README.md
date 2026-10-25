@@ -7,16 +7,20 @@ forwarding to the Django REST API (`market/views.py`), exposed over MCP
 ## Tools
 
 `login`, `list_sessions`, `get_session`, `create_session`,
-`update_session`, `delete_session`, `clone_session`, `list_folders`,
+`update_session`, `delete_session`, `set_chart_description`,
+`clone_session`, `list_folders`,
 `create_folder`, `rename_folder`, `delete_folder`, `get_preferences`,
 `update_preferences`, `list_positions`, `create_position`,
 `update_position`, `delete_position`, `list_indicators`,
 `get_indicator`, `create_indicator`, `update_indicator`,
 `delete_indicator`
 
-Session tools return a `layout_summary` (chart symbols/intervals/types)
-instead of the full layout JSON; `get_session(..., include_layout=True)`
-returns the raw layout.
+Session tools return a `layout_summary` (chart ids, symbols/intervals/
+types and descriptions) instead of the full layout JSON;
+`get_session(..., include_layout=True)` returns the raw layout.
+Layout charts may carry an optional `description`, shown next to the
+symbol in the chart title: set it in the seeded layout passed to
+`create_session`, or edit existing charts with `set_chart_description`.
 
 ## Run
 

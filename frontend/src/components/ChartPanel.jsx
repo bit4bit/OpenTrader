@@ -73,7 +73,7 @@ const ChartPanel = ({
     positions = [],
     onPositionDatePick,
 }) => {
-    const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles } = chart;
+    const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles, description } = chart;
     const symbol = chartSymbol?.symbol || '';
     const provider = chartSymbol?.provider || null;
     const priceDecimals = useProviderPriceDecimals()[provider] ?? DEFAULT_PRICE_DECIMALS;
@@ -172,7 +172,7 @@ const ChartPanel = ({
             onMouseDown={onActivate}
         >
             <div className="chart-tile-header">
-                <span className="chart-tile-title">{symbol}{provider ? ` · ${provider}` : ''} · {interval}{avgVolume != null ? ` · Avg Vol ${formatVolumeValue(avgVolume)}` : ''}</span>
+                <span className="chart-tile-title">{symbol}{provider ? ` · ${provider}` : ''}{description ? ` · ${description}` : ''} · {interval}{avgVolume != null ? ` · Avg Vol ${formatVolumeValue(avgVolume)}` : ''}</span>
                 <button
                     className="chart-tile-close"
                     title="Close chart"

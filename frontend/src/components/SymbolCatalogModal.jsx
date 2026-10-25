@@ -5,6 +5,7 @@ const SymbolCatalogModal = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
     const [catalog, setCatalog] = useState([]);
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState('');
+    const [description, setDescription] = useState('');
     const [providerFilter, setProviderFilter] = useState('');
     const [sectorFilter, setSectorFilter] = useState('');
     const containerRef = useRef();
@@ -42,13 +43,13 @@ const SymbolCatalogModal = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
     }, [catalog, query, providerFilter, sectorFilter]);
 
     const select = (entry) => {
-        onSelectSymbol({ symbol: entry.symbol, provider: entry.provider || null });
+        onSelectSymbol({ symbol: entry.symbol, provider: entry.provider || null, description });
         onClose();
     };
 
     const openInNewChart = (e, entry) => {
         e.stopPropagation();
-        onOpenInNewChart({ symbol: entry.symbol, provider: entry.provider || null });
+        onOpenInNewChart({ symbol: entry.symbol, provider: entry.provider || null, description });
         onClose();
     };
 
@@ -120,6 +121,13 @@ const SymbolCatalogModal = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
                     <div className="indicator-search-no-results">No symbols match the filters</div>
                 )}
             </div>
+            <input
+                type="text"
+                placeholder="Chart description (optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                style={{ margin: '8px', padding: '6px 10px', background: '#111', color: '#ddd', border: '1px solid #333', borderRadius: '4px', fontSize: '13px', width: 'calc(100% - 16px)' }}
+            />
         </div>
     );
 };

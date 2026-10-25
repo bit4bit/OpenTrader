@@ -3,6 +3,7 @@ import axios from 'axios';
 
 const SymbolSearch = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
     const [query, setQuery] = useState('');
+    const [description, setDescription] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const containerRef = useRef();
@@ -40,13 +41,13 @@ const SymbolSearch = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
     }, [query]);
 
     const select = (res) => {
-        onSelectSymbol({ symbol: res.symbol, provider: res.provider || null });
+        onSelectSymbol({ symbol: res.symbol, provider: res.provider || null, description });
         onClose();
     };
 
     const openInNewChart = (e, res) => {
         e.stopPropagation();
-        onOpenInNewChart({ symbol: res.symbol, provider: res.provider || null });
+        onOpenInNewChart({ symbol: res.symbol, provider: res.provider || null, description });
         onClose();
     };
 
@@ -103,6 +104,13 @@ const SymbolSearch = ({ onSelectSymbol, onOpenInNewChart, onClose }) => {
                     <div className="indicator-search-no-results">Type symbol or name...</div>
                 )}
             </div>
+            <input
+                type="text"
+                placeholder="Chart description (optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                style={{ margin: '8px', padding: '6px 10px', background: '#111', color: '#ddd', border: '1px solid #333', borderRadius: '4px', fontSize: '13px', width: 'calc(100% - 16px)' }}
+            />
         </div>
     );
 };

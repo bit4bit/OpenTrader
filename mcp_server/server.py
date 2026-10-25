@@ -70,10 +70,12 @@ def layout_summary(layout):
         'chartCount': len(charts),
         'charts': [
             {
+                'id': c.get('id'),
                 'symbol': chart_symbol_name(c),
                 'provider': (c.get('symbol') or {}).get('provider') if isinstance(c.get('symbol'), dict) else None,
                 'interval': c.get('interval'),
                 'chartType': c.get('chartType'),
+                'description': c.get('description') or '',
             }
             for c in charts
         ],
@@ -95,6 +97,21 @@ def with_layout_summary(session):
 
 def given(**fields):
     return {key: value for key, value in fields.items() if value is not None}
+
+
+def charts_matching(charts, chart_id=None, symbol=None, interval=None):
+    """Charts whose stored fields match every given filter; None filters
+    are skipped, so callers choosing symbols for description edits get an
+    unambiguous selection."""
+    filters = given(chart_id=chart_id, symbol=symbol, interval=interval)
+    if not filters:
+        raise ToolError('Select charts to edit: pass chart_id, symbol or interval')
+    return [
+        chart for chart in charts
+        if ('chart_id' not in filters or chart.get('id') == chart_id)
+        and ('symbol' not in filters or chart_symbol_name(chart) == symbol)
+        and ('interval' not in filters or chart.get('interval') == interval)
+    ]
 
 
 @mcp.tool()
@@ -135,7 +152,8 @@ async def create_session(
     ctx: Context = None,
 ) -> dict:
     """Create a chart session, optionally seeding it with a layout JSON
-    and placing it in a folder."""
+    and placing it in a folder. Layout charts may include an optional
+    `description` shown next to the symbol in the chart title."""
     session = await api.create_session(
         session_token(ctx), name, layout, folder_id)
     return with_layout_summary(session)
@@ -173,6 +191,36 @@ async def update_session(
 async def delete_session(session_id: int, ctx: Context = None) -> None:
     """Delete a chart session (its layout is lost)."""
     await api.delete_session(session_token(ctx), session_id)
+
+
+@mcp.tool()
+@api_tool
+async def set_chart_description(
+    session_id: int,
+    description: str,
+    chart_id: str | None = None,
+    symbol: str | None = None,
+    interval: str | None = None,
+    ctx: Context = None,
+) -> dict:
+    """Set the description shown next to the symbol in a chart's title.
+    Selects charts from the session's layout by chart_id, symbol and/or
+    interval (AND-combined, at least one required) and writes the same
+    description to every match; pass "" to clear it."""
+    session = await api.get_session(session_token(ctx), session_id,
+                                    include_layout=True)
+    layout = session.get('layout') or {}
+    charts = layout.get('charts') or []
+    matched = charts_matching(charts, chart_id, symbol, interval)
+    matched_ids = {id(chart) for chart in matched}
+    updated_charts = [
+        {**chart, 'description': description} if id(chart) in matched_ids else chart
+        for chart in charts
+    ]
+    await api.update_session(
+        session_token(ctx), session_id,
+        layout={**layout, 'charts': updated_charts})
+    return {'updated': len(matched), **layout_summary({**layout, 'charts': updated_charts})}
 
 
 @mcp.tool()

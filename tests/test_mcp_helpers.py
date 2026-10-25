@@ -45,7 +45,8 @@ class LayoutSummaryTests(TestCase):
         summary = server.layout_summary(
             {'activeChartId': 'c1', 'locked': True, 'gridLayout': '2x2',
              'charts': [
-                 {'symbol': {'symbol': 'PF_SOLUSD', 'provider': 'kraken_futures'}, 'interval': '1d', 'chartType': 'candle'},
+                 {'id': 'a1', 'symbol': {'symbol': 'PF_SOLUSD', 'provider': 'kraken_futures'},
+                  'interval': '1d', 'chartType': 'candle', 'description': 'Perp'},
                  {'symbol': 'AAPL', 'interval': '1h', 'chartType': 'line'},
              ]})
         self.assertEqual(summary, {
@@ -54,14 +55,41 @@ class LayoutSummaryTests(TestCase):
             'gridLayout': '2x2',
             'chartCount': 2,
             'charts': [
-                {'symbol': 'PF_SOLUSD', 'provider': 'kraken_futures', 'interval': '1d', 'chartType': 'candle'},
-                {'symbol': 'AAPL', 'provider': None, 'interval': '1h', 'chartType': 'line'},
+                {'id': 'a1', 'symbol': 'PF_SOLUSD', 'provider': 'kraken_futures',
+                 'interval': '1d', 'chartType': 'candle', 'description': 'Perp'},
+                {'id': None, 'symbol': 'AAPL', 'provider': None,
+                 'interval': '1h', 'chartType': 'line', 'description': ''},
             ]})
 
     def test_empty_layout(self):
         empty = server.layout_summary({})
         self.assertEqual(empty['chartCount'], 0)
         self.assertEqual(empty['charts'], [])
+
+
+class ChartsMatchingTests(TestCase):
+    def setUp(self):
+        self.charts = [
+            {'id': 'a1', 'symbol': {'symbol': 'AAPL', 'provider': 'yahoo'}, 'interval': '1d'},
+            {'id': 'a2', 'symbol': 'AAPL', 'interval': '1h'},
+            {'id': 'a3', 'symbol': 'MSFT', 'interval': '1d'},
+        ]
+
+    def all_ids(self, chart_id=None, symbol=None, interval=None):
+        return [c['id'] for c in server.charts_matching(self.charts, chart_id, symbol, interval)]
+
+    def test_requires_at_least_one_filter(self):
+        with self.assertRaises(server.ToolError):
+            server.charts_matching(self.charts)
+
+    def test_filters_and_combine(self):
+        self.assertEqual(self.all_ids(symbol='AAPL'), ['a1', 'a2'])
+        self.assertEqual(self.all_ids(symbol='AAPL', interval='1h'), ['a2'])
+        self.assertEqual(self.all_ids(chart_id='a3'), ['a3'])
+        self.assertEqual(self.all_ids(chart_id='a1', symbol='AAPL'), ['a1'])
+
+    def test_legacy_string_symbol_charts_match(self):
+        self.assertEqual(self.all_ids(symbol='AAPL', interval='1h'), ['a2'])
 
 
 class WithLayoutSummaryTests(TestCase):

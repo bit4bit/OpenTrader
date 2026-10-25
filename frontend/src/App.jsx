@@ -71,13 +71,15 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
   };
 
   const handleSelectSymbol = (selection) => {
-    const next = typeof selection === 'string' ? { symbol: selection, provider: null } : selection;
+    const next = { symbol: selection.symbol, provider: selection.provider || null };
     if (symbolSearchMode === 'add') {
-      addChart(next);
+      addChart(next, selection.description || '');
     } else if (activeChart) {
       updateChart(activeChart.id, { symbol: next });
     }
   };
+
+  const handleOpenInNewChart = (selection) => addChart(selection, selection.description || '');
 
   const handleSelectTool = (tool) => {
     if (tool === 'eraser') {
@@ -235,7 +237,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         {showSymbolCatalog && (
           <SymbolCatalogModal
             onSelectSymbol={handleSelectSymbol}
-            onOpenInNewChart={addChart}
+            onOpenInNewChart={handleOpenInNewChart}
             onClose={() => setShowSymbolCatalog(false)}
           />
         )}
@@ -243,7 +245,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         {symbolSearchMode && (
           <SymbolSearch
             onSelectSymbol={handleSelectSymbol}
-            onOpenInNewChart={addChart}
+            onOpenInNewChart={handleOpenInNewChart}
             onClose={() => setSymbolSearchMode(null)}
           />
         )}
