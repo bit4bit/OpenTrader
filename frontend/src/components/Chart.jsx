@@ -12,6 +12,7 @@ import { findNearestBar } from '../chart/barSearch';
 import { isDrawingTool, buildPreviewDrawing } from '../chart/drawingTools';
 import { anchoredVwapInputs, erasableVwapAt } from '../chart/anchorVwap';
 import { applyDrawingClick, edgeRange } from '../chart/drawingInteraction';
+import { captureViewport, restoreViewport } from '../chart/viewport';
 import { buildLegendResults } from '../chart/crosshairLegend';
 import { volumeChangeAt, volumeSplitAt, volumeSplitTotal } from '../chart/volumeInfo';
 import { measureContains } from '../chart/measureStats';
@@ -41,6 +42,9 @@ const Chart = ({
     symbol,
     provider = null,
     interval,
+    viewport = null,
+    onViewportChange,
+    onNeedHistory,
     onVisibleLogicalRangeChange,
     onCrosshairMove,
     indicators = [],
@@ -104,11 +108,24 @@ const Chart = ({
         updateNote(id, d => ({ ...d, text: trimmed, editing: false }));
     };
 
+    // Price rows actually displayed: gap-filled when the weekend toggle is
+    // on (indicators below still run on the raw data).
+    const displayPriceRows = React.useMemo(() => {
+        const rows = priceSeriesData(data, chartType);
+        return showWeekendCandles ? fillGapRows(rows, interval) : rows;
+    }, [data, chartType, showWeekendCandles, interval]);
+
     const isFirstLoad = useRef(true);
     const pendingScrollRef = useRef(null);
     const lastSymbolInterval = useRef(`${symbol}-${provider}-${interval}`);
-
+    const displayRowsRef = useRef(displayPriceRows);
     const onRangeChangeRef = useRef(onVisibleLogicalRangeChange);
+    const onViewportChangeRef = useRef(onViewportChange);
+    const onNeedHistoryRef = useRef(onNeedHistory);
+    const viewportRef = useRef(viewport);
+    const awaitingViewportRef = useRef(null);
+    const viewportTimerRef = useRef(null);
+    const historyRequestKeyRef = useRef('');
     const onCrosshairMoveRef = useRef(onCrosshairMove);
     const syncEnabledRef = useRef(syncEnabled);
     const dataRef = useRef(data);
@@ -117,8 +134,13 @@ const Chart = ({
     const intervalRef = useRef(interval);
     const magnetEnabledRef = useRef(magnetEnabled);
     const drawingsRef = useRef(drawings);
+    const chartIdRef = useRef(chartId);
     useEffect(() => { drawingsRef.current = drawings; }, [drawings]);
     useEffect(() => { onRangeChangeRef.current = onVisibleLogicalRangeChange; }, [onVisibleLogicalRangeChange]);
+    useEffect(() => { onViewportChangeRef.current = onViewportChange; }, [onViewportChange]);
+    useEffect(() => { displayRowsRef.current = displayPriceRows; }, [displayPriceRows]);
+    useEffect(() => { onNeedHistoryRef.current = onNeedHistory; }, [onNeedHistory]);
+    useEffect(() => { viewportRef.current = viewport; }, [viewport]);
     useEffect(() => { intervalRef.current = interval; }, [interval]);
     useEffect(() => { magnetEnabledRef.current = magnetEnabled; }, [magnetEnabled]);
     useEffect(() => { onCrosshairMoveRef.current = onCrosshairMove; }, [onCrosshairMove]);
@@ -126,6 +148,7 @@ const Chart = ({
     useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
     useEffect(() => { syncEnabledRef.current = syncEnabled; }, [syncEnabled]);
     useEffect(() => { dataRef.current = data; }, [data]);
+    useEffect(() => { chartIdRef.current = chartId; }, [chartId]);
 
     // Converter context shared by the overlay geometry builders.
     const geometryCtx = React.useCallback(() => {
@@ -142,13 +165,6 @@ const Chart = ({
         };
     }, [symbolInfo]);
 
-    // Price rows actually displayed: gap-filled when the weekend toggle is
-    // on (indicators below still run on the raw data).
-    const displayPriceRows = React.useMemo(() => {
-        const rows = priceSeriesData(data, chartType);
-        return showWeekendCandles ? fillGapRows(rows, interval) : rows;
-    }, [data, chartType, showWeekendCandles, interval]);
-
     // Renderer entity for a named overlay layer (see render/layers.js).
     // Each renderer owns its surface: every draw clears the layer first.
     const layerRenderer = (name) => {
@@ -159,6 +175,11 @@ const Chart = ({
         }
         return layerRenderersRef.current[name];
     };
+
+    // Viewport (zoom + pan) changes are persisted to the layout; debounce
+    // so a pan produces one save instead of one per frame. While a saved
+    // viewport is still waiting for its history, keep the saved window.
+    useEffect(() => () => clearTimeout(viewportTimerRef.current), []);
 
     // Initialize Chart
     useEffect(() => {
@@ -193,9 +214,21 @@ const Chart = ({
             unsubscribers.push(
                 engine.onVisibleRangeChange((range) => {
                     if (onRangeChangeRef.current) onRangeChangeRef.current(range);
-                    if (chartId && !isApplyingSync()) broadcastRange(chartId, range, syncEnabledRef.current);
+                    const syncId = chartIdRef.current;
+                    if (syncId && !isApplyingSync()) broadcastRange(syncId, range, syncEnabledRef.current);
+                    // Persist the viewport to the layout; while a saved
+                    // viewport is still waiting for its history, keep it.
+                    if (awaitingViewportRef.current) return;
+                    clearTimeout(viewportTimerRef.current);
+                    viewportTimerRef.current = setTimeout(() => {
+                        const viewport = captureViewport(range, displayRowsRef.current);
+                        if (viewport) onViewportChangeRef.current?.(viewport);
+                    }, 300);
                 }),
                 engine.onCrosshairMove((evt) => {
+                    // Pointer interaction while a restore is pending ends the
+                    // restore wait: keep what the user lands on.
+                    awaitingViewportRef.current = null;
                     // Highlight the vertical crosshair line on weekend bars
                     if (evt?.time) {
                         const color = crosshairLineColor(evt.time);
@@ -413,6 +446,8 @@ const Chart = ({
         const key = `${symbol}-${provider}-${interval}`;
         if (lastSymbolInterval.current !== key) {
             isFirstLoad.current = true;
+            awaitingViewportRef.current = null;
+            historyRequestKeyRef.current = '';
             lastSymbolInterval.current = key;
         }
     }, [symbol, provider, interval]);
@@ -528,14 +563,29 @@ const Chart = ({
         setHistogramsData(nextHistograms);
         setFillsData(nextFills);
 
+        // Restore the persisted viewport (zoom + pan) on first load. The
+        // window is anchored on a bar time, so if the anchor bar is older
+        // than the loaded history, fetch it and retry on the next update;
+        // fitContent only when nothing is persisted.
         if (isFirstLoad.current && data.length > 0) {
-            // fitContent alone covers the engine's 20-bar right offset.
-            // Reading the range back synchronously returns the pre-fit
-            // state (the engine applies fit/setRange on the next frame),
-            // and re-applying that stale range kept the oldest bars
-            // off-screen until the user zoomed out.
-            engine.fitContent();
             isFirstLoad.current = false;
+            if (viewportRef.current) awaitingViewportRef.current = viewportRef.current;
+            // fitContent alone covers the engine's 20-bar right offset.
+            else engine.fitContent();
+        }
+        if (awaitingViewportRef.current && displayPriceRows.length > 0) {
+            const saved = awaitingViewportRef.current;
+            const restored = restoreViewport(saved, displayPriceRows);
+            if (restored) {
+                engine.setVisibleRange(restored);
+                awaitingViewportRef.current = null;
+            } else {
+                const requestKey = `${saved.fromTime}-${displayPriceRows[0].time}`;
+                if (historyRequestKeyRef.current !== requestKey) {
+                    historyRequestKeyRef.current = requestKey;
+                    onNeedHistoryRef.current?.(saved.fromTime);
+                }
+            }
         }
 
         // Re-anchor edge jumps after data updates so prepended/appended

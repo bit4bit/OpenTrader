@@ -10,6 +10,7 @@ import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { averageVolume } from '../chart/averageVolume';
 import { volumeBarTotals, volumeSmaDiffAt } from '../chart/volumeInfo';
 import { visiblePriceRange } from '../chart/visiblePriceRange';
+import { viewportKey, sameViewport } from '../chart/viewport';
 import { priceDiffPercent, adjacentChangePercent, closeChangePercent } from '../chart/priceDiff';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
@@ -77,7 +78,7 @@ const ChartPanel = ({
     const symbol = chartSymbol?.symbol || '';
     const provider = chartSymbol?.provider || null;
     const priceDecimals = useProviderPriceDecimals()[provider] ?? DEFAULT_PRICE_DECIMALS;
-    const { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange } = useChartData(symbol, provider, interval);
+    const { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange, loadUntil } = useChartData(symbol, provider, interval);
     const adFullData = useAdFullData(symbol, provider, interval, indicators);
     const { data: smiData } = useMarketIndexData(indicators, interval);
     const symbolInfo = useSymbolInfo(symbol, provider);
@@ -109,6 +110,25 @@ const ChartPanel = ({
         }, 150);
     }, [handleVisibleLogicalRangeChange, data, dataKey]);
     const overlayWindow = visibleWindow?.key === dataKey ? visibleWindow : null;
+
+    // Persisted viewport (zoom + pan) for the chart's current symbol,
+    // provider and interval; keyed so symbol switches keep their own.
+    const currentViewportKey = viewportKey(symbol, provider, interval);
+    const storedViewport = chart.viewports?.[currentViewportKey] || null;
+
+    const handleViewportChange = useCallback((viewport) => {
+        onUpdate(chart.id, c => {
+            const existing = c.viewports?.[currentViewportKey];
+            if (sameViewport(existing, viewport)) return c;
+            return { viewports: { ...(c.viewports || {}), [currentViewportKey]: viewport } };
+        });
+    }, [chart.id, onUpdate, currentViewportKey]);
+
+    // Older history requested while a saved viewport waits for its anchor
+    // bar; loadUntil fetches one window per data change until covered.
+    const handleNeedHistory = useCallback((fromTime) => {
+        loadUntil(fromTime);
+    }, [loadUntil]);
 
     const setDrawings = useCallback((updater) => {
         onUpdate(chart.id, c => ({
@@ -501,6 +521,9 @@ const ChartPanel = ({
                         onRemoveIndicator={removeIndicator}
                         onPositionDatePick={onPositionDatePick}
                         magnetEnabled={magnetEnabled}
+                        viewport={storedViewport}
+                        onViewportChange={handleViewportChange}
+                        onNeedHistory={handleNeedHistory}
                         onVisibleLogicalRangeChange={onVisibleRangeChange}
                         onCrosshairMove={setHoveredData}
                         indicatorResults={indicatorResults}

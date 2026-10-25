@@ -17,6 +17,7 @@ const createChartConfig = (symbol, interval = '1d', description = '') => ({
     indicators: [createIndicator('volume')],
     drawings: [],
     minimizedPanels: [],
+    viewports: {},
 });
 
 const defaultLayout = () => {
@@ -77,11 +78,19 @@ export function useCharts(initialLayout, onLayoutChange) {
     }, []);
 
     const updateChart = useCallback((id, patch) => {
-        setCharts(prev => prev.map(c => {
-            if (c.id !== id) return c;
-            const updates = typeof patch === 'function' ? patch(c) : patch;
-            return { ...c, ...updates };
-        }));
+        setCharts(prev => {
+            let changed = false;
+            const next = prev.map(c => {
+                if (c.id !== id) return c;
+                const updates = typeof patch === 'function' ? patch(c) : patch;
+                if (updates === c) {
+                    return c;
+                }
+                changed = true;
+                return { ...c, ...updates };
+            });
+            return changed ? next : prev;
+        });
     }, []);
 
     const toggleLock = useCallback(() => setLocked(prev => !prev), []);

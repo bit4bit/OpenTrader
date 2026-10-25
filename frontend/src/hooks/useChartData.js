@@ -68,6 +68,9 @@ export function useChartData(symbol, provider, interval) {
             setLoading(true);
             setError(null);
             setUnsupported(false);
+            // Drop the previous symbol/interval's bars at once: stale rows
+            // must never mix with (or be treated as) the new key's history.
+            setData([]);
         };
         const timer = setTimeout(start, 0);
         axios.get('/api/history/', {
@@ -137,7 +140,26 @@ export function useChartData(symbol, provider, interval) {
         if (range && range.from < 50) fetchMoreData();
     }, [fetchMoreData]);
 
-    return { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange };
+    // Fetch bars older than the loaded window until the history starts at
+    // or before `time`; one window per call, retried by the caller.
+    const loadUntil = useCallback(async (time) => {
+        const current = dataRef.current;
+        if (current.length === 0 || current[0].time <= time) return;
+        const first = current[0].time;
+        const start = Math.max(time, first - historyOffsetFor(interval));
+        try {
+            const response = await axios.get('/api/history/', {
+                params: historyParams(symbol, provider, interval, { start, end: first }),
+            });
+            if (response.data?.length > 0) {
+                setData(prev => mergeBars([...prev, ...response.data]));
+            }
+        } catch (err) {
+            console.error('History fetch error:', err);
+        }
+    }, [symbol, provider, interval]);
+
+    return { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange, loadUntil };
 }
 
 const MULTI_SYMBOL_TYPES = ['smi', 'benchmark'];
