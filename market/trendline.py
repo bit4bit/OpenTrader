@@ -25,7 +25,9 @@ def fetch_pad(interval):
     return history_service.SLOT_SECONDS.get(interval, 86400)
 
 
-def _anchor_index(rows, timestamp):
+def anchor_index(rows, timestamp):
+    """Candle carrying a timestamp: the last bar at or before it (the
+    anchor rule above)."""
     times = [row['time'] for row in rows]
     index = bisect.bisect_right(times, timestamp) - 1
     if index < 0:
@@ -33,7 +35,7 @@ def _anchor_index(rows, timestamp):
     return index
 
 
-def _average_volume(segment):
+def average_volume(segment):
     volumes = [row['volume'] for row in segment if row['volume'] is not None]
     return sum(volumes) / len(volumes) if volumes else None
 
@@ -49,8 +51,8 @@ def analyze_trendline(rows, start, end, anchor='close'):
     if not rows:
         raise ValueError('No candles in range')
 
-    first = _anchor_index(rows, start)
-    last = _anchor_index(rows, end)
+    first = anchor_index(rows, start)
+    last = anchor_index(rows, end)
     segment = rows[first:last + 1]
     candles = len(segment)
     price_start = segment[0][anchor]
@@ -75,5 +77,5 @@ def analyze_trendline(rows, start, end, anchor='close'):
         'change': change,
         'changePercent': change_percent,
         'angleDegrees': angle_degrees,
-        'avgVolume': _average_volume(segment),
+        'avgVolume': average_volume(segment),
     }

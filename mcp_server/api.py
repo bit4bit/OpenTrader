@@ -171,3 +171,11 @@ async def trendline(token, symbol, interval, start, end, anchor='close', provide
     if provider is not None:
         params['provider'] = provider
     return await request('GET', '/api/trendline/', token, params=params)
+
+
+async def candle_crossings(token, symbol, interval, price, start, end, provider=None):
+    params = {'symbol': symbol, 'interval': interval, 'price': price,
+              'start': start, 'end': end}
+    if provider is not None:
+        params['provider'] = provider
+    return await request('GET', '/api/line-crosses/', token, params=params)

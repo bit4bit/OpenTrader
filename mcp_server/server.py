@@ -420,6 +420,32 @@ async def measure_trendline(
         session_token(ctx), symbol, interval, start, end, anchor, provider)
 
 
+@mcp.tool()
+@api_tool
+async def find_candle_crossings(
+    symbol: str,
+    interval: str,
+    start: int,
+    end: int,
+    price: float,
+    provider: str | None = None,
+    ctx: Context = None,
+) -> dict:
+    """Find the candles that cross a horizontal price line drawn on a
+    chart. symbol and interval ('1m', '5m', '15m', '30m', '1h', '4h',
+    '1d', '5d', '1wk', '1mo', '3mo') select the chart; start and end are
+    epoch-second timestamps snapped to the candle containing them, price
+    is the horizontal line's level. Bars come from the same cached
+    history the UI charts use, not a fresh provider fetch. A candle
+    crosses when the line lies inside its span (low <= price <= high,
+    wick touches included). Returns the crossing candles with their
+    OHLCV, the count, the average volume over them, and the anchor
+    candle times of the measured window (possibly wider than the
+    crossings)."""
+    return await api.candle_crossings(
+        session_token(ctx), symbol, interval, price, start, end, provider)
+
+
 if __name__ == '__main__':
     mcp.run(
         transport='streamable-http',
