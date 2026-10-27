@@ -163,3 +163,11 @@ async def update_indicator(token, indicator_id, **fields):
 
 async def delete_indicator(token, indicator_id):
     return await request('DELETE', f'/api/indicators/{indicator_id}/', token)
+
+
+async def trendline(token, symbol, interval, start, end, anchor='close', provider=None):
+    params = {'symbol': symbol, 'interval': interval, 'start': start,
+              'end': end, 'anchor': anchor}
+    if provider is not None:
+        params['provider'] = provider
+    return await request('GET', '/api/trendline/', token, params=params)
