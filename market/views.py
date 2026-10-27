@@ -6,7 +6,6 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 import copy
-import math
 import logging
 from datetime import datetime, timezone
 from .models import Session, CustomIndicator, Folder, UserPreference, Position
@@ -15,6 +14,7 @@ from .providers import index_membership
 from .providers import symbol_info
 from .providers import quote as quote_provider
 from .providers import earnings as earnings_provider
+from . import history_service
 
 logger = logging.getLogger(__name__)
 
@@ -502,10 +502,6 @@ class ProviderSymbols(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-def clean_value(v):
-    return None if v is None or (isinstance(v, float) and math.isnan(v)) else v
-
-
 class TickerHistory(APIView):
     def get(self, request):
         symbol = request.query_params.get('symbol')
@@ -526,56 +522,12 @@ class TickerHistory(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            if start and end:
-                df = provider.get_history(symbol, interval, start=int(start), end=int(end))
-            else:
-                df = provider.get_history(symbol, interval, period=period)
-            
-            if df.empty:
-                return Response({'error': 'No data found'}, status=status.HTTP_404_NOT_FOUND)
-
-            # Reset index to get Date/Datetime as a column
-            df = df.reset_index()
-            
-            # Rename columns to match lightweight-charts expectations
-            # lightweight-charts uses Unix timestamps (seconds) or YYYY-MM-DD
-            data = []
-            for _, row in df.iterrows():
-                # Handle both Date (DatetimeIndex) and Datetime (DatetimeIndex with time)
-                if 'Date' in row:
-                    time = row['Date']
-                elif 'Datetime' in row:
-                    time = row['Datetime']
-                else:
-                    time = df.iloc[_]['index'] if 'index' in df.columns else None
-                
-                if time is None: continue
-
-                # Convert to unix timestamp (seconds). For daily-and-longer
-                # bars, yfinance stamps midnight in the exchange timezone
-                # (e.g. Milan = 22:00 UTC the prior day), which renders as a
-                # weekend bar. Use the exchange-local trading DATE at UTC
-                # midnight instead — the business-day convention charting
-                # libraries expect, and it aligns sessions across exchanges.
-                if interval in ('1d', '5d', '1wk', '1mo', '3mo'):
-                    timestamp = int(datetime.combine(
-                        time.date(), datetime.min.time(), tzinfo=timezone.utc
-                    ).timestamp())
-                else:
-                    timestamp = int(time.timestamp())
-                
-                row_data = {
-                    'time': timestamp,
-                    'open': clean_value(row['Open']),
-                    'high': clean_value(row['High']),
-                    'low': clean_value(row['Low']),
-                    'close': clean_value(row['Close']),
-                    'volume': clean_value(row['Volume']),
-                }
-                if row_data['close'] is None and row_data['open'] is None:
-                    continue
-                data.append(row_data)
-            
-            return Response(data)
-        except Exception as e:
+            rows = history_service.bars_for(
+                provider, _meta['provider'], symbol, interval,
+                period=period, start=start, end=end)
+        except history_service.ProviderFetchFailed as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        if not rows:
+            return Response({'error': 'No data found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(rows)
