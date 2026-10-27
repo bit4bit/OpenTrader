@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 import yfinance as yf
 from django.conf import settings
 
+from .. import history_service, history_store
 from . import registry
 from .symbol_info import normalize_symbol, _as_number
 from .kraken import KrakenMarketProvider
@@ -25,7 +26,9 @@ logger = logging.getLogger(__name__)
 CACHE_PATH = settings.WORKING_DIR / 'cache' / 'quote.json'
 DEFAULT_CACHE_TTL = 60
 REQUEST_TIMEOUT = 15
-HISTORY_PERIOD = '14mo'
+# Anchor lookback: ~14 months of daily bars covers the week/month/quarter
+# anchors (a quarter's anchor can sit a full quarter before today).
+ANCHOR_HISTORY_SECONDS = 426 * 86400
 # Bumped when the cached dict schema gains a field: entries written by an
 # older version are treated as expired so new fields don't stay missing
 # until the TTL lapses.
@@ -92,18 +95,35 @@ def _last_close_before(bars, start):
     return before[-1][1] if before else None
 
 
-def _period_changes(ticker, price, today=None):
-    try:
-        df = ticker.history(period=HISTORY_PERIOD, interval='1d', auto_adjust=False)
-    except Exception as e:
-        logger.warning('Quote history fetch failed: %s', e)
-        return _changes_from_bars([], price)
-    if df is None or df.empty:
-        return _changes_from_bars([], price)
+def _period_changes(provider_name, symbol, price):
+    """Week/month/quarter change vs the last close before each period.
 
-    bars = [(ts.date(), close) for ts, close in zip(df.index, df['Close'])
-            if close == close and abs(close) != float('inf')]
-    return _changes_from_bars(bars, price, today)
+    The anchors are past closes, so the daily bars come from the
+    permanent store: the lookback is fetched once per symbol (immutable
+    segments only — coverage decides, and a segment ends at the immutable
+    boundary so the still-moving bar is never absorbed), then the sweeps
+    ask the provider for nothing."""
+    try:
+        now = int(time.time())
+        boundary = history_service.immutable_boundary('1d', now)
+        lookback_start = now - ANCHOR_HISTORY_SECONDS
+        for seg_start, seg_end in history_store.uncovered_segments(
+                provider_name, symbol, '1d', lookback_start, boundary):
+            df = yf.Ticker(symbol).history(
+                start=seg_start, end=seg_end, interval='1d', auto_adjust=False)
+            history_store.upsert_bars(
+                provider_name, symbol, '1d', history_service.rows_from_history(df, '1d'))
+            history_store.record_coverage(provider_name, symbol, '1d', seg_start, seg_end)
+        rows = history_store.stored_bars(provider_name, symbol, '1d', lookback_start, boundary)
+    except Exception as e:
+        logger.warning('Quote anchor history for %s failed: %s', symbol, e)
+        rows = []
+
+    bars = [
+        (datetime.fromtimestamp(row['time'], tz=timezone.utc).date(), row['close'])
+        for row in rows if row['close'] is not None
+    ]
+    return _changes_from_bars(bars, price)
 
 
 class QuoteProvider:
@@ -139,7 +159,7 @@ class YahooQuoteProvider(QuoteProvider):
             'previous_close': previous_close,
             'day_change': day_change,
             'day_change_pct': _change_pct(previous_close, day_change),
-            **_period_changes(ticker, price),
+            **_period_changes('yahoo', symbol, price),
             'volume': volume,
             'volume_change_pct': _change_pct(avg_volume, _change(avg_volume, volume)),
             'year_high': _as_float(getattr(fast, 'year_high', None)),

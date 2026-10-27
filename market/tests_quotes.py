@@ -44,8 +44,16 @@ def last_close_before(dates, closes, start):
 
 
 def daily_frame(days=500):
+    """Yahoo-shaped daily frame: full OHLCV columns, DatetimeIndex named
+    Date (what ticker.history() returns and rows_from_history expects)."""
     dates, closes = daily_closes(days)
-    return pd.DataFrame({'Close': closes}, index=pd.DatetimeIndex(dates))
+    return pd.DataFrame({
+        'Open': [close - 1 for close in closes],
+        'High': [close + 1 for close in closes],
+        'Low': [close - 2 for close in closes],
+        'Close': closes,
+        'Volume': [1000.0] * len(closes),
+    }, index=pd.DatetimeIndex(dates, name='Date'))
 
 
 def period_starts(today):
@@ -245,9 +253,10 @@ class QuoteBehavior(ProviderScenarioTestCase):
         self.given_config({'yahoo': {}})
         with stub_yahoo() as ticker:
             quote.quote_for('AAPL', 'yahoo')
-            self.assertEqual(ticker.call_count, 1)
+            # fast_info refetch + the once-per-symbol anchor lookback.
+            self.assertEqual(ticker.call_count, 2)
             quote.quote_for('AAPL', 'yahoo')
-            self.assertEqual(ticker.call_count, 1)  # fresh cache: no refetch
+            self.assertEqual(ticker.call_count, 2)  # fresh cache: no refetch
 
     def test_yahoo_quote_for_refetches_after_the_ttl_lapses(self):
         self.given_config({'yahoo': {}})
@@ -257,9 +266,12 @@ class QuoteBehavior(ProviderScenarioTestCase):
         self.config_path.write_text(json.dumps(config))
         with stub_yahoo() as ticker:
             quote.quote_for('AAPL', 'yahoo')
-            self.assertEqual(ticker.call_count, 1)
+            self.assertEqual(ticker.return_value.history.call_count, 1)
             quote.quote_for('AAPL', 'yahoo')
-            self.assertEqual(ticker.call_count, 2)  # ttl=0: next call refetches
+            # ttl=0: the price refreshes (fast_info), but the anchor
+            # lookback is stored — history is never fetched again.
+            self.assertEqual(ticker.call_count, 3)
+            self.assertEqual(ticker.return_value.history.call_count, 1)
 
     def test_yahoo_quote_for_refetches_cache_entries_from_older_schema(self):
         self.given_config({'yahoo': {}})
@@ -272,7 +284,7 @@ class QuoteBehavior(ProviderScenarioTestCase):
         })
         with stub_yahoo() as ticker:
             entry = quote.quote_for('AAPL', 'yahoo')
-            self.assertEqual(ticker.call_count, 1)
+            self.assertEqual(ticker.return_value.history.call_count, 1)
         self.assertEqual(entry['price'], 151.25)
 
     def test_yahoo_fetch_failure_serves_stale_cache(self):
@@ -346,7 +358,9 @@ class QuoteApiBehavior(ProviderScenarioTestCase):
         with stub_yahoo() as ticker:
             self.client.get('/api/symbol/quote/', {'symbols': 'AAPL'})
             self.client.get('/api/symbol/quote/', {'symbols': 'AAPL'})
-            self.assertEqual(ticker.call_count, 1)  # cached across requests
+            # fast_info + the once-per-symbol anchor lookback; the cache
+            # answers the second request without a new Ticker call.
+            self.assertEqual(ticker.call_count, 2)
 
 
 class SessionQuotesPreferenceTests(TestCase):
