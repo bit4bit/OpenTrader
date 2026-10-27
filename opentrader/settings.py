@@ -91,6 +91,14 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': WORKING_DIR / 'db.sqlite3',
+        # Gunicorn workers write bars (quotes/pagination fill-ins) while
+        # others read: WAL keeps readers and the writer from blocking each
+        # other, and a 20s busy timeout turns lock contention into a wait
+        # instead of an OperationalError.
+        'OPTIONS': {
+            'timeout': 20,
+            'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
+        },
     }
 }
 
