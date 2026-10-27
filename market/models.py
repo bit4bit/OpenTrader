@@ -64,6 +64,58 @@ class Position(models.Model):
         return f'{self.user.username}: {self.symbol} {self.shares}@{self.price}'
 
 
+class Bar(models.Model):
+    """One provider-fetched market bar, permanently stored.
+
+    Past bars never change (raw OHLCV is not re-stated by later dividends
+    or splits), so once a window has been fetched it is answered from
+    here without touching the provider again.
+    """
+    provider = models.CharField(max_length=20)
+    symbol = models.CharField(max_length=50)
+    interval = models.CharField(max_length=10)
+    time = models.IntegerField()
+    open = models.FloatField(null=True)
+    high = models.FloatField(null=True)
+    low = models.FloatField(null=True)
+    close = models.FloatField(null=True)
+    volume = models.FloatField(null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['provider', 'symbol', 'interval', 'time'], name='unique_bar'),
+        ]
+
+    def __str__(self):
+        return f'{self.symbol} {self.interval} {self.time}'
+
+
+class BarCoverage(models.Model):
+    """A provider fetch window already absorbed into stored bars.
+
+    Coverage is tracked per request, not per bar: missing exchange days
+    (holidays, halts) are indistinguishable from fetch gaps in bar
+    timestamps, so "the provider was asked for this range" is the honest
+    record. Windows are union-merged so a request only re-fetches segments
+    of the immutable region that were truly never fetched.
+    """
+    provider = models.CharField(max_length=20)
+    symbol = models.CharField(max_length=50)
+    interval = models.CharField(max_length=10)
+    start = models.IntegerField()
+    end = models.IntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['provider', 'symbol', 'interval', 'start', 'end'], name='unique_coverage'),
+        ]
+
+    def __str__(self):
+        return f'{self.symbol} {self.interval} [{self.start}, {self.end})'
+
+
 class UserPreference(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='preference')
     active_folder = models.ForeignKey(Folder, null=True, blank=True, on_delete=models.SET_NULL)
