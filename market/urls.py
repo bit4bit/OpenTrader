@@ -1,11 +1,12 @@
 from django.urls import path
-from .views import TickerSearch, TickerHistory, TrendlineAnalysis, CandleCrossings, LoginView, SessionListCreate, SessionDetail, SessionClone, ProviderSymbols, ProviderConfig, IndicatorListCreate, IndicatorDetail, FolderListCreate, FolderDetail, PreferenceView, IndexMembership, SymbolInfo, SymbolQuote, SymbolEarnings, PositionListCreate, PositionDetail
+from .views import TickerSearch, TickerHistory, TrendlineAnalysis, CandleCrossings, SmaSeries, LoginView, SessionListCreate, SessionDetail, SessionClone, ProviderSymbols, ProviderConfig, IndicatorListCreate, IndicatorDetail, FolderListCreate, FolderDetail, PreferenceView, IndexMembership, SymbolInfo, SymbolQuote, SymbolEarnings, PositionListCreate, PositionDetail
 
 urlpatterns = [
     path('search/', TickerSearch.as_view(), name='ticker-search'),
     path('history/', TickerHistory.as_view(), name='ticker-history'),
     path('trendline/', TrendlineAnalysis.as_view(), name='trendline'),
     path('line-crosses/', CandleCrossings.as_view(), name='line-crosses'),
+    path('sma/', SmaSeries.as_view(), name='sma'),
     path('index-membership/', IndexMembership.as_view(), name='index-membership'),
     path('symbol/info/', SymbolInfo.as_view(), name='symbol-info'),
     path('symbol/quote/', SymbolQuote.as_view(), name='symbol-quote'),

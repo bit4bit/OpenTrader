@@ -446,6 +446,33 @@ async def find_candle_crossings(
         session_token(ctx), symbol, interval, price, start, end, provider)
 
 
+@mcp.tool()
+@api_tool
+async def measure_sma(
+    symbol: str,
+    interval: str,
+    period: int,
+    start: int,
+    end: int,
+    source: str = 'close',
+    provider: str | None = None,
+    ctx: Context = None,
+) -> dict:
+    """Simple moving average over a chart window: SMA of `period` candles
+    (window length, e.g. 20) ending at each candle between start and end
+    (epoch-second timestamps snapped to the candles containing them).
+    source picks the price rule: 'close' (default), 'open', 'high',
+    'low', or candle composites 'hl2' ((high+low)/2), 'hlc3'
+    ((high+low+close)/3), 'ohlc4', or 'volume' — the same rules the UI
+    uses. Bars come from the same cached history the UI charts use, not
+    a fresh provider fetch. Returns one {time, sma} per window candle
+    (sma is null while the warmup before the window is incomplete), the
+    period/source, the anchor candle times of the window, and the
+    latest {time, sma}."""
+    return await api.sma(
+        session_token(ctx), symbol, interval, period, start, end, source, provider)
+
+
 if __name__ == '__main__':
     mcp.run(
         transport='streamable-http',

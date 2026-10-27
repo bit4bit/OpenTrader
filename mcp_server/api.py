@@ -179,3 +179,11 @@ async def candle_crossings(token, symbol, interval, price, start, end, provider=
     if provider is not None:
         params['provider'] = provider
     return await request('GET', '/api/line-crosses/', token, params=params)
+
+
+async def sma(token, symbol, interval, period, start, end, source='close', provider=None):
+    params = {'symbol': symbol, 'interval': interval, 'period': period,
+              'start': start, 'end': end, 'source': source}
+    if provider is not None:
+        params['provider'] = provider
+    return await request('GET', '/api/sma/', token, params=params)

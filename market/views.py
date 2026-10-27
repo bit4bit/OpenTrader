@@ -17,6 +17,7 @@ from .providers import earnings as earnings_provider
 from . import history_service
 from . import trendline
 from . import candle_crossings
+from . import sma
 
 logger = logging.getLogger(__name__)
 
@@ -604,5 +605,67 @@ class CandleCrossings(APIView):
 
         try:
             return Response(candle_crossings.crossing_candles(rows, float(price), int(start), int(end)))
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _sma_rows(provider, provider_name, symbol, interval, period, start, end, source):
+    """SMA's warmup needs `period` candles ending at the window's first
+    candle; slot-based warmup underestimates that whenever candles skip
+    slots (weekends, holidays, session hours), so the fetch grows until
+    it stops gaining history (the store makes repeated rounds cheap)."""
+    warmup = (period - 1) * trendline.fetch_pad(interval)
+    first_seen = None
+    for _ in range(3):
+        rows = history_service.bars_for(
+            provider, provider_name, symbol, interval,
+            start=int(start) - warmup, end=int(end) + 1)
+        series = sma.sma_series(rows, period, start, end, source)
+        defined = all(value['sma'] is not None for value in series['values'])
+        oldest = rows[0]['time'] if rows else None
+        if defined or oldest == first_seen:
+            return series
+        first_seen = oldest
+        warmup *= 4
+    return series
+
+
+class SmaSeries(APIView):
+    """SMA per candle between two timestamps over the same cached chart
+    history /api/history/ serves, warmed up by the period's candles
+    before the window."""
+    def get(self, request):
+        symbol = request.query_params.get('symbol')
+        interval = request.query_params.get('interval', '1d')
+        period = request.query_params.get('period')
+        source = request.query_params.get('source', 'close')
+        start = request.query_params.get('start')
+        end = request.query_params.get('end')
+        provider_name = request.query_params.get('provider') or None
+
+        if not symbol or not period or not start or not end:
+            return Response(
+                {'error': 'Symbol, period, start and end are required (epoch seconds)'},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            period = int(period)
+        except ValueError:
+            return Response({'error': 'period is a number of candles'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            provider, _meta = registry.resolve_provider(symbol, provider_name)
+        except registry.SymbolNotSupported as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except KeyError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            return Response(_sma_rows(
+                provider, _meta['provider'], symbol, interval, period,
+                int(start), int(end), source))
+        except history_service.ProviderFetchFailed as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
