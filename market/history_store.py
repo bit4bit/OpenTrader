@@ -34,6 +34,11 @@ def stored_bars(provider, symbol, interval, start=None, end=None):
     ]
 
 
+def has_bars(provider, symbol, interval):
+    """Whether any bar is stored for the key."""
+    return Bar.objects.filter(provider=provider, symbol=symbol, interval=interval).exists()
+
+
 def upsert_bars(provider, symbol, interval, bars):
     """Persist bars; the newest fetch wins on duplicate timestamps.
 
