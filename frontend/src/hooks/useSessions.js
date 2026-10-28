@@ -165,6 +165,15 @@ export function useSessions(enabled, onAuthFailed) {
 
     const togglePortfolioSession = useCallback((id) => toggleSessionFlag(id, 'portfolio'), [toggleSessionFlag]);
 
+    const setSessionStage = useCallback(async (id, stage) => {
+        setSessions(prev => prev.map(s => s.id === id ? { ...s, stage } : s));
+        try {
+            await axios.patch(`/api/sessions/${id}/`, { stage });
+        } catch (err) {
+            console.warn('Failed to set session stage:', err);
+        }
+    }, []);
+
     const deleteSession = useCallback(async (id) => {
         clearTimeout(saveTimers.current.get(id));
         saveTimers.current.delete(id);
@@ -252,6 +261,7 @@ export function useSessions(enabled, onAuthFailed) {
         deleteSession,
         toggleFavoriteSession,
         togglePortfolioSession,
+        setSessionStage,
         switchSession,
         saveLayout,
         saveNotes,

@@ -1743,7 +1743,7 @@ div[class*="tradingview"] {
 }
 
 .session-manager-list {
-  --sm-quotes-cols: 26px 30px minmax(110px, 1fr) minmax(70px, 0.6fr) minmax(86px, 0.7fr) minmax(112px, 0.95fr) minmax(112px, 0.95fr) minmax(112px, 0.95fr) minmax(112px, 1fr) minmax(84px, 0.8fr) minmax(190px, 1.2fr) 72px 52px;
+  --sm-quotes-cols: 26px 30px minmax(110px, 1fr) 46px minmax(70px, 0.6fr) minmax(86px, 0.7fr) minmax(112px, 0.95fr) minmax(112px, 0.95fr) minmax(112px, 0.95fr) minmax(112px, 1fr) minmax(84px, 0.8fr) minmax(190px, 1.2fr) 72px 52px;
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
@@ -1822,7 +1822,7 @@ div[class*="tradingview"] {
 }
 
 .sm-quotes-empty {
-  grid-column: 4 / span 8;
+  grid-column: 5 / span 8;
   border-left: 1px solid rgba(255, 255, 255, 0.05);
   padding-left: 10px;
   color: var(--text-dim);
@@ -1933,6 +1933,12 @@ div[class*="tradingview"] {
 
 .sm-move-select:hover {
   color: var(--text-main);
+}
+
+.sm-stage-select {
+  min-width: 46px;
+  max-width: 46px;
+  text-align: center;
 }
 
 .sm-updated {

@@ -30,6 +30,7 @@ def serialize_session(session):
         'notes': session.notes,
         'favorite': session.favorite,
         'portfolio': session.portfolio,
+        'stage': session.stage,
         'folder': session.folder_id,
         'created_at': session.created_at.isoformat(),
         'updated_at': session.updated_at.isoformat(),
@@ -116,6 +117,18 @@ class SessionDetail(APIView):
             session.favorite = bool(request.data['favorite'])
         if 'portfolio' in request.data:
             session.portfolio = bool(request.data['portfolio'])
+        if 'stage' in request.data:
+            stage = request.data['stage']
+            if stage in (None, ''):
+                stage = None
+            else:
+                try:
+                    stage = int(stage)
+                except (TypeError, ValueError):
+                    return Response({'error': 'Stage must be 1-4'}, status=status.HTTP_400_BAD_REQUEST)
+                if stage not in (1, 2, 3, 4):
+                    return Response({'error': 'Stage must be 1-4'}, status=status.HTTP_400_BAD_REQUEST)
+            session.stage = stage
         if 'folder' in request.data:
             folder, error = validate_folder_id(request, request.data.get('folder'))
             if error:

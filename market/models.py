@@ -14,6 +14,9 @@ class Folder(models.Model):
         return f'{self.user.username}: {self.name}'
 
 
+STAGE_CHOICES = [(n, n) for n in range(1, 5)]
+
+
 class Session(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
     folder = models.ForeignKey(Folder, null=True, blank=True, on_delete=models.SET_NULL, related_name='sessions')
@@ -22,6 +25,7 @@ class Session(models.Model):
     notes = models.TextField(blank=True, default='')
     favorite = models.BooleanField(default=False)
     portfolio = models.BooleanField(default=False)
+    stage = models.PositiveSmallIntegerField(null=True, blank=True, choices=STAGE_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

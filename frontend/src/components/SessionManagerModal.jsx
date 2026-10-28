@@ -3,6 +3,8 @@ import {
     sessionsInView,
     folderViewId,
     folderIdFromView,
+    stageFromView,
+    STAGES,
     filterByQuery,
     sortSessions,
     countSessions,
@@ -22,6 +24,15 @@ const SMART_VIEWS = [
     { id: 'portfolio', label: 'Portfolio', icon: '💼' },
     { id: 'uncategorized', label: 'No folder', icon: '⬚' },
 ];
+
+const STAGE_ICONS = { 1: '①', 2: '②', 3: '③', 4: '④' };
+
+const STAGE_VIEWS = STAGES.map(stage => ({
+    id: `stage:${stage}`,
+    stage,
+    label: `Stage ${stage}`,
+    icon: STAGE_ICONS[stage],
+}));
 
 const formatRelativeTime = (iso) => {    if (!iso) return '';
     const then = new Date(iso).getTime();
@@ -86,6 +97,7 @@ const SessionManagerModal = ({
     onSetActiveFolder,
     onToggleFavorite,
     onTogglePortfolio,
+    onSetSessionStage,
     onClose,
 }) => {
     const [viewId, setViewId] = useState(initialViewId ?? 'all');
@@ -130,9 +142,13 @@ const SessionManagerModal = ({
     }, [onClose]);
 
     const viewFolderId = folderIdFromView(viewId);
+    const viewStage = stageFromView(viewId);
     const viewTitle = searching
         ? 'Search results'
-        : (smartViews.find(v => v.id === viewId)?.label ?? folderById.get(viewFolderId)?.name ?? 'Sessions');
+        : (smartViews.find(v => v.id === viewId)?.label
+            ?? (viewStage ? `Stage ${viewStage}` : null)
+            ?? folderById.get(viewFolderId)?.name
+            ?? 'Sessions');
 
     const selectView = (id, folderId = null) => {
         setQuery('');
@@ -171,6 +187,7 @@ const SessionManagerModal = ({
         if (searching) return 'No sessions match your search';
         if (viewId === 'favorites') return 'No favorite sessions — click ★ on a session';
         if (viewId === 'portfolio') return 'No portfolio sessions — click 💼 on a session';
+        if (viewStage) return `No sessions at stage ${viewStage} — pick one in a session's row`;
         if (viewId === 'uncategorized') return 'No sessions without a folder';
         return 'No sessions here yet';
     };
@@ -208,6 +225,20 @@ const SessionManagerModal = ({
                             onClick={(e) => { e.stopPropagation(); onTogglePortfolio(session.id); }}
                         >💼</button>
                         <span className="sm-row-name">{session.name}</span>
+                        <select
+                            className="sm-move-select sm-stage-select"
+                            title="Stage (1-4)"
+                            value={session.stage ?? ''}
+                            onClick={e => e.stopPropagation()}
+                            onChange={(e) => {
+                                e.stopPropagation();
+                                const stage = e.target.value === '' ? null : Number(e.target.value);
+                                if (stage !== session.stage) onSetSessionStage?.(session.id, stage);
+                            }}
+                        >
+                            <option value="">—</option>
+                            {STAGES.map(stage => <option key={stage} value={stage}>{stage}</option>)}
+                        </select>
                         {showQuotes ? (
                             stripSymbols.length === 0 ? (
                                 <div className="sm-quotes-empty">—</div>
@@ -325,6 +356,18 @@ const SessionManagerModal = ({
                                 <span className="sm-side-count">{view.count}</span>
                             </div>
                         ))}
+                        <div className="sm-side-label">Stages</div>
+                        {STAGE_VIEWS.map(view => (
+                            <div
+                                key={view.id}
+                                className={`sm-side-item${!searching && viewId === view.id ? ' active' : ''}`}
+                                onClick={() => selectView(view.id)}
+                            >
+                                <span className="sm-side-icon">{view.icon}</span>
+                                <span className="sm-side-name">{view.label}</span>
+                                <span className="sm-side-count">{counts.byStage.get(view.stage) || 0}</span>
+                            </div>
+                        ))}
                         <div className="sm-side-label">Folders</div>
                         {folders.map(renderFolder)}
                         {creatingFolder ? (
@@ -359,6 +402,7 @@ const SessionManagerModal = ({
                                 <div className="sm-quotes-head">
                                     <span /><span />
                                     <span>Name</span>
+                                    <span className="sm-col-sep">Stage</span>
                                     <span className="sm-col-sep">Symbol</span>
                                     <span className="sm-col-sep">Price</span>
                                     <span className="sm-col-sep">Day</span>

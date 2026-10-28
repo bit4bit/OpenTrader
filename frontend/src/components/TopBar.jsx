@@ -32,6 +32,7 @@ const TopBar = ({
     onSetActiveFolder,
     onToggleFavorite,
     onTogglePortfolio,
+    onSetSessionStage,
     showQuotes = false, onToggleQuotes,
     noteOpen = false, onToggleNotes,
     globalNoteOpen = false, onToggleGlobalNote,
@@ -89,6 +90,7 @@ const TopBar = ({
                     onSetActiveFolder={onSetActiveFolder}
                     onToggleFavorite={onToggleFavorite}
                     onTogglePortfolio={onTogglePortfolio}
+                    onSetSessionStage={onSetSessionStage}
                     showQuotes={showQuotes}
                     onToggleQuotes={onToggleQuotes}
                 />

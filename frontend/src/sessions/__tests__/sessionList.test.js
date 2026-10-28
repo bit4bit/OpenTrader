@@ -3,6 +3,9 @@ import {
     sessionsInView,
     folderViewId,
     folderIdFromView,
+    stageViewId,
+    stageFromView,
+    STAGES,
     filterByQuery,
     sortSessions,
     countSessions,
@@ -14,9 +17,9 @@ const folders = [
 ];
 
 const sessions = [
-    { id: 1, name: 'AAPL daily', folder: 1, favorite: true, portfolio: false, updated_at: '2026-01-01T00:00:00Z' },
-    { id: 2, name: 'BTC swing', folder: null, favorite: false, portfolio: true, updated_at: '2026-03-01T00:00:00Z' },
-    { id: 3, name: 'SPY macro', folder: 2, favorite: false, portfolio: false, updated_at: '2026-02-01T00:00:00Z' },
+    { id: 1, name: 'AAPL daily', folder: 1, favorite: true, portfolio: false, stage: 2, updated_at: '2026-01-01T00:00:00Z' },
+    { id: 2, name: 'BTC swing', folder: null, favorite: false, portfolio: true, stage: 4, updated_at: '2026-03-01T00:00:00Z' },
+    { id: 3, name: 'SPY macro', folder: 2, favorite: false, portfolio: false, stage: null, updated_at: '2026-02-01T00:00:00Z' },
 ];
 
 describe('sessionsInView', () => {
@@ -37,6 +40,12 @@ describe('sessionsInView', () => {
     it('falls back to all sessions for unknown views', () => {
         expect(sessionsInView(sessions, 'nonsense')).toEqual(sessions);
     });
+
+    it('filters stage views', () => {
+        expect(sessionsInView(sessions, stageViewId(2)).map(s => s.id)).toEqual([1]);
+        expect(sessionsInView(sessions, stageViewId(4)).map(s => s.id)).toEqual([2]);
+        expect(sessionsInView(sessions, stageViewId(1)).map(s => s.id)).toEqual([]);
+    });
 });
 
 describe('folderIdFromView', () => {
@@ -47,6 +56,19 @@ describe('folderIdFromView', () => {
     it('returns null for smart views', () => {
         expect(folderIdFromView('all')).toBeNull();
         expect(folderIdFromView('favorites')).toBeNull();
+    });
+});
+
+describe('stageFromView', () => {
+    it('round-trips stageViewId for every stage', () => {
+        for (const stage of STAGES) {
+            expect(stageFromView(stageViewId(stage))).toBe(stage);
+        }
+    });
+
+    it('returns null for smart and folder views', () => {
+        expect(stageFromView('all')).toBeNull();
+        expect(stageFromView(folderViewId(1))).toBeNull();
     });
 });
 
@@ -82,9 +104,10 @@ describe('sortSessions', () => {
 });
 
 describe('countSessions', () => {
-    it('counts sessions per folder and smart views', () => {
+    it('counts sessions per folder, stage and smart views', () => {
         expect(countSessions(sessions, folders)).toEqual({
             byFolder: new Map([[1, 1], [2, 1]]),
+            byStage: new Map([[1, 0], [2, 1], [3, 0], [4, 1]]),
             uncategorized: 1,
             favorites: 1,
             portfolio: 1,
