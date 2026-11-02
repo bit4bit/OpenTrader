@@ -1230,8 +1230,9 @@ div[class*="tradingview"] {
   background: rgba(41, 98, 255, 0.25);
 }
 
-/* Position markers: hover shows the tracked note over the chart circle */
-.chart-position-marker {
+/* Chart markers (positions, pinned notes): hover shows the tooltip over
+   the marker circle */
+.chart-marker {
   position: absolute;
   width: 14px;
   height: 14px;
@@ -1242,7 +1243,7 @@ div[class*="tradingview"] {
   cursor: default;
 }
 
-.chart-position-tooltip {
+.chart-marker-tooltip {
   display: none;
   position: absolute;
   bottom: 16px;
@@ -1262,28 +1263,45 @@ div[class*="tradingview"] {
   z-index: 1;
 }
 
-.chart-position-marker:hover .chart-position-tooltip {
+.chart-marker:hover .chart-marker-tooltip {
   display: block;
 }
 
 /* Label-anchored target: tooltip opens leftward above the axis label */
-.chart-position-marker.at-label .chart-position-tooltip {
+.chart-marker.at-label .chart-marker-tooltip {
   left: auto;
   right: 0;
   bottom: calc(100% + 6px);
   transform: none;
 }
 
-.chart-position-note {
+.chart-marker-note {
   margin-bottom: 4px;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
 
-.chart-position-meta {
+.chart-marker-meta {
   color: #787b86;
   font-size: 11px;
 }
+
+/* Notes modal */
+.notes-modal-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notes-modal-tag {
+  background: #1e222d;
+  color: #4fc3f7;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
 
 /* Session note: draggable, resizable floating note pad */
 .session-note {

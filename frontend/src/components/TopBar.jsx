@@ -35,7 +35,7 @@ const TopBar = ({
     onSetSessionStage,
     showQuotes = false, onToggleQuotes,
     noteOpen = false, onToggleNotes,
-    globalNoteOpen = false, onToggleGlobalNote,
+    onOpenNotes,
     onOpenPositions,
     username,
     onLogout,
@@ -104,12 +104,12 @@ const TopBar = ({
                     Note
                 </button>
                 <button
-                    className={`toolbar-btn ${globalNoteOpen ? 'active' : ''}`}
-                    onClick={onToggleGlobalNote}
-                    title="Global note (shared across all sessions)"
+                    className="toolbar-btn"
+                    onClick={onOpenNotes}
+                    title="Notes (pinned notes show markers on charts of the same symbol)"
                 >
-                    <span style={{ fontSize: '14px', marginRight: '4px' }}>🌍</span>
-                    Note
+                    <span style={{ fontSize: '14px', marginRight: '4px' }}>🗒</span>
+                    Notes
                 </button>
                 <button
                     className="toolbar-btn"

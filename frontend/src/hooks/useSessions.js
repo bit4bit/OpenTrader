@@ -15,9 +15,6 @@ export function useSessions(enabled, onAuthFailed) {
     const [showSessionQuotes, setShowSessionQuotes] = useState(false);
     const saveTimers = useRef(new Map());
     const pendingUpdates = useRef(new Map()); // sessionId -> { layout?, notes? }
-    const globalNoteTimer = useRef(null);
-    const pendingGlobalNote = useRef(false);
-    const globalNoteRef = useRef('');
     const showSessionQuotesRef = useRef(false);
 
     const flushSession = useCallback((sessionId) => {
@@ -39,29 +36,6 @@ export function useSessions(enabled, onAuthFailed) {
         clearTimeout(saveTimers.current.get(sessionId));
         saveTimers.current.set(sessionId, setTimeout(() => flushSession(sessionId), SAVE_DEBOUNCE_MS));
     }, [flushSession]);
-
-    const flushGlobalNote = useCallback(() => {
-        clearTimeout(globalNoteTimer.current);
-        if (!pendingGlobalNote.current) return;
-        pendingGlobalNote.current = false;
-        axios.patch('/api/preferences/', { note: globalNoteRef.current })
-            .catch(err => console.warn('Failed to save global note:', err));
-    }, []);
-
-    const scheduleGlobalNoteSave = useCallback(() => {
-        pendingGlobalNote.current = true;
-        clearTimeout(globalNoteTimer.current);
-        globalNoteTimer.current = setTimeout(flushGlobalNote, SAVE_DEBOUNCE_MS);
-    }, [flushGlobalNote]);
-
-    const saveGlobalNote = useCallback((note) => {
-        setGlobalNote(note);
-        scheduleGlobalNoteSave();
-    }, [scheduleGlobalNoteSave]);
-
-    useEffect(() => {
-        globalNoteRef.current = globalNote;
-    }, [globalNote]);
 
     useEffect(() => {
         showSessionQuotesRef.current = showSessionQuotes;
@@ -94,17 +68,6 @@ export function useSessions(enabled, onAuthFailed) {
 
     useEffect(() => () => {
         saveTimers.current.forEach((_, sessionId) => flushSession(sessionId));
-        if (pendingGlobalNote.current) {
-            fetch('/api/preferences/', {
-                method: 'PATCH',
-                keepalive: true,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': axios.defaults.headers.common['Authorization'] || '',
-                },
-                body: JSON.stringify({ note: globalNoteRef.current }),
-            });
-        }
     }, [flushSession]);
 
     useEffect(() => {
@@ -120,17 +83,6 @@ export function useSessions(enabled, onAuthFailed) {
                     body: JSON.stringify(update),
                 });
             });
-            if (pendingGlobalNote.current) {
-                fetch('/api/preferences/', {
-                    method: 'PATCH',
-                    keepalive: true,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': axios.defaults.headers.common['Authorization'] || '',
-                    },
-                    body: JSON.stringify({ note: globalNoteRef.current }),
-                });
-            }
         };
         window.addEventListener('beforeunload', flushOnUnload);
         return () => window.removeEventListener('beforeunload', flushOnUnload);
@@ -265,7 +217,6 @@ export function useSessions(enabled, onAuthFailed) {
         switchSession,
         saveLayout,
         saveNotes,
-        saveGlobalNote,
         createFolder,
         renameFolder,
         deleteFolder,

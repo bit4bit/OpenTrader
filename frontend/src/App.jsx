@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
 import TopBar from './components/TopBar';
 import ChartGrid from './components/ChartGrid';
 import IndicatorSearch from './components/IndicatorSearch';
@@ -8,18 +9,21 @@ import DrawingToolbar from './components/DrawingToolbar';
 import LoginScreen from './components/LoginScreen';
 import CustomIndicatorModal from './components/CustomIndicatorModal';
 import PositionsModal from './components/PositionsModal';
+import NotesModal from './components/NotesModal';
 import SessionNote from './components/SessionNote';
 import { useAuth } from './hooks/useAuth';
 import { useSessions } from './hooks/useSessions';
 import { useCharts } from './hooks/useCharts';
 import { useCustomIndicators } from './hooks/useCustomIndicators';
 import { usePositions } from './hooks/usePositions';
+import { useNotes } from './hooks/useNotes';
+import { legacyNotePayload } from './notes/importLegacy';
 import useDrawingToolShortcuts from './hooks/useDrawingToolShortcuts';
 import { addIndicators, addCustomIndicator, updateIndicator as updateIndicatorIn, removeIndicator as removeIndicatorIn, toggleIndicator as toggleIndicatorIn } from './Indicators/actions';
 
 const FIRST_VISIT_KEY = 'opentrader_first_visit';
 
-function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customIndicators, positionsState }) {
+function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customIndicators, positionsState, notesState }) {
   const {
     charts,
     activeChartId,
@@ -42,7 +46,9 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
   const [showSymbolCatalog, setShowSymbolCatalog] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showPositions, setShowPositions] = useState(false);
-  const [pendingPositionTime, setPendingPositionTime] = useState(null);
+  const [showNotesManager, setShowNotesManager] = useState(false);
+  const [pendingPickTime, setPendingPickTime] = useState(null);
+  const [pickTarget, setPickTarget] = useState(null); // 'position' | 'note'
   const [symbolSearchMode, setSymbolSearchMode] = useState(null);
   const [activeTool, setActiveTool] = useState('cursor');
   const [magnetEnabled, setMagnetEnabled] = useState(false);
@@ -94,22 +100,31 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
 
   useDrawingToolShortcuts(handleSelectTool,
     !showIndicatorSearch && !showCustomIndicators && !showSymbolCatalog
-    && !showNotes && !showPositions && activeTool !== 'positionDatePick');
+    && !showNotes && !showPositions && !showNotesManager && activeTool !== 'datePick');
 
-  // Position-date pick flow: hide the modal, arm the picker tool, and the
+  // Date-pick flow: hide the modal, arm the date picker tool, and the
   // clicked candle's time re-opens the modal with the datetime prefilled.
   const openPositions = () => {
-    setPendingPositionTime(null);
+    setPendingPickTime(null);
+    setPickTarget('position');
     setActiveTool('cursor');
     setShowPositions(true);
   };
-  const pickPositionDate = () => {
-    setShowPositions(false);
-    setActiveTool('positionDatePick');
+  const openNotes = () => {
+    setPendingPickTime(null);
+    setPickTarget('note');
+    setActiveTool('cursor');
+    setShowNotesManager(true);
   };
-  const handlePositionDatePicked = (time) => {
-    setPendingPositionTime(time);
-    setShowPositions(true);
+  const pickDate = () => {
+    setShowPositions(false);
+    setShowNotesManager(false);
+    setActiveTool('datePick');
+  };
+  const handleDatePicked = (time) => {
+    setPendingPickTime(time);
+    if (pickTarget === 'note') setShowNotesManager(true);
+    else setShowPositions(true);
   };
 
   return (
@@ -140,6 +155,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         onToggleNotes={() => setShowNotes(v => !v)}
         onOpenPositions={openPositions}
         {...sessionProps}
+        onOpenNotes={openNotes}
       />
       ) : (
       <div className="top-bar top-bar-collapsed">
@@ -189,24 +205,37 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
           onAddChart={() => setSymbolSearchMode('add')}
           scriptsById={customIndicators.scriptsById}
           positions={positionsState.positions}
-          onPositionDatePick={handlePositionDatePicked}
+          notes={notesState.notes}
+          onDatePick={handleDatePicked}
         />
 
-        {activeTool === 'positionDatePick' && (
+        {activeTool === 'datePick' && (
           <div className="date-pick-hint">
-            Click a candle to set the position date &amp; time · Esc to cancel
+            Click a candle to set the date &amp; time · Esc to cancel
           </div>
         )}
 
-        {(showPositions || activeTool === 'positionDatePick') && (
+        {(showPositions || activeTool === 'datePick') && (
           <PositionsModal
-            hidden={activeTool === 'positionDatePick'}
+            hidden={activeTool === 'datePick'}
             positionsState={positionsState}
             defaultSymbol={activeChart?.symbol?.symbol || ''}
-            initialTime={pendingPositionTime}
+            initialTime={pendingPickTime}
             canPickDate={!!activeChart}
-            onPickDate={pickPositionDate}
+            onPickDate={pickDate}
             onClose={() => setShowPositions(false)}
+          />
+        )}
+
+        {(showNotesManager || activeTool === 'datePick') && (
+          <NotesModal
+            hidden={activeTool === 'datePick'}
+            notesState={notesState}
+            defaultSymbol={activeChart?.symbol?.symbol || ''}
+            initialTime={pendingPickTime}
+            canPickDate={!!activeChart}
+            onPickDate={pickDate}
+            onClose={() => setShowNotesManager(false)}
           />
         )}
 
@@ -278,7 +307,6 @@ function App() {
     setSessionStage,
     saveLayout,
     saveNotes,
-    saveGlobalNote,
     globalNote,
     showSessionQuotes,
     toggleSessionQuotes,
@@ -290,6 +318,32 @@ function App() {
     loaded,
   } = useSessions(!!token, logout);
 
+  const customIndicators = useCustomIndicators(!!token);
+  const positionsState = usePositions(!!token);
+  const notesState = useNotes(!!token);
+
+  // One-time import of the retired 🌍 global note (UserPreference.note):
+  // it becomes an undated journal note tagged 'imported', then the
+  // preference note is cleared. Without a note there is nothing to do.
+  const { addNote } = notesState;
+  const importedLegacyNote = useRef(false);
+  useEffect(() => {
+    const text = (globalNote || '').trim();
+    if (!token || !loaded || !text || importedLegacyNote.current) return;
+    importedLegacyNote.current = true;
+    addNote(legacyNotePayload(text))
+      .catch(err => {
+        console.warn('Failed to import the legacy global note:', err);
+        importedLegacyNote.current = false;
+      })
+      .then(() => {
+        if (importedLegacyNote.current) {
+          axios.patch('/api/preferences/', { note: '' })
+            .catch(err => console.warn('Failed to clear the legacy global note:', err));
+        }
+      });
+  }, [token, loaded, globalNote, addNote]);
+  const [showAppNotes, setShowAppNotes] = useState(false);
   const [showWelcome, setShowWelcome] = useState(() => {
     const visited = localStorage.getItem(FIRST_VISIT_KEY);
     if (!visited) {
@@ -298,10 +352,6 @@ function App() {
     }
     return false;
   });
-  const [showGlobalNote, setShowGlobalNote] = useState(false);
-
-  const customIndicators = useCustomIndicators(!!token);
-  const positionsState = usePositions(!!token);
 
   if (!token) {
     return <LoginScreen onLogin={login} />;
@@ -337,22 +387,16 @@ function App() {
     onMoveSession: moveSession,
     onSetActiveFolder: setActiveFolder,
     onSaveNotes: saveNotes,
-    globalNoteOpen: showGlobalNote,
-    onToggleGlobalNote: () => setShowGlobalNote(v => !v),
     username,
     onLogout: logout,
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      {showGlobalNote && (
-        <SessionNote
-          notes={globalNote}
-          onChange={saveGlobalNote}
-          onClose={() => setShowGlobalNote(false)}
-          title="🌍 Global note"
-          placeholder="Write notes shared across all your sessions…"
-          storageKey="opentrader_global_note_modal"
+      {showAppNotes && (
+        <NotesModal
+          notesState={notesState}
+          onClose={() => setShowAppNotes(false)}
         />
       )}
       {showWelcome && (
@@ -416,10 +460,17 @@ function App() {
           sessionProps={sessionProps}
           customIndicators={customIndicators}
           positionsState={positionsState}
+          notesState={notesState}
         />
       ) : (
         <>
-          <TopBar hasActiveChart={false} {...sessionProps} />
+          <TopBar hasActiveChart={false} {...sessionProps} onOpenNotes={() => setShowAppNotes(true)} />
+          {showAppNotes && (
+            <NotesModal
+              notesState={notesState}
+              onClose={() => setShowAppNotes(false)}
+            />
+          )}
           <div style={{
             flex: 1,
             display: 'flex',
