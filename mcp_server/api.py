@@ -143,6 +143,29 @@ async def delete_position(token, position_id):
     return await request('DELETE', f'/api/positions/{position_id}/', token)
 
 
+async def list_notes(token):
+    return await request('GET', '/api/notes/', token)
+
+
+async def create_note(token, text, symbol=None, pinned_at=None, tags=None, favorite=False):
+    body = {'text': text, 'favorite': favorite}
+    if symbol:
+        body['symbol'] = symbol
+    if pinned_at is not None:
+        body['pinned_at'] = pinned_at
+    if tags:
+        body['tags'] = tags
+    return await request('POST', '/api/notes/', token, json=body)
+
+
+async def update_note(token, note_id, **fields):
+    return await request('PATCH', f'/api/notes/{note_id}/', token, json=fields)
+
+
+async def delete_note(token, note_id):
+    return await request('DELETE', f'/api/notes/{note_id}/', token)
+
+
 async def list_indicators(token):
     return await request('GET', '/api/indicators/', token)
 

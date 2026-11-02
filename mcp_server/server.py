@@ -1,4 +1,4 @@
-"""OpenTrader MCP server: session/folder/position/indicator management
+"""OpenTrader MCP server: session/folder/position/note/indicator management
 over the OpenTrader REST API, exposed via streamable HTTP.
 
 Run: python -m mcp_server.server  (env: OPENTRADER_URL, OPENTRADER_TOKEN,
@@ -351,6 +351,74 @@ async def update_position(
 async def delete_position(position_id: int, ctx: Context = None) -> None:
     """Delete a tracked position."""
     await api.delete_position(session_token(ctx), position_id)
+
+
+@mcp.tool()
+@api_tool
+async def list_notes(
+    symbol: str | None = None,
+    tag: str | None = None,
+    favorite: bool | None = None,
+    ctx: Context = None,
+) -> list[dict]:
+    """List the user's notes (symbol, pinned date, text, tags). Optionally
+    filter by symbol (case-insensitive), tag, or favorites."""
+    notes = await api.list_notes(session_token(ctx))
+    if symbol:
+        wanted = symbol.upper()
+        notes = [n for n in notes if n.get('symbol', '').upper() == wanted]
+    if tag:
+        notes = [n for n in notes if tag.lower() in (t.lower() for t in n.get('tags', []))]
+    if favorite:
+        notes = [n for n in notes if n.get('favorite')]
+    return notes
+
+
+@mcp.tool()
+@api_tool
+async def create_note(
+    text: str,
+    symbol: str | None = None,
+    pinned_at: str | None = None,
+    tags: list[str] | None = None,
+    favorite: bool = False,
+    ctx: Context = None,
+) -> dict:
+    """Create a note. Bind it to a symbol with symbol (uppercased by the
+    API) and optionally pin it to a bar with pinned_at (ISO datetime);
+    symbol-less notes are journal notes shown only in the notes modal.
+    pinned notes render as markers on every chart of the symbol."""
+    return await api.create_note(
+        session_token(ctx), text, symbol, pinned_at, tags, favorite)
+
+
+@mcp.tool()
+@api_tool
+async def update_note(
+    note_id: int,
+    text: str | None = None,
+    symbol: str | None = None,
+    pinned_at: str | None = None,
+    clear_pinned_at: bool = False,
+    tags: list[str] | None = None,
+    favorite: bool | None = None,
+    ctx: Context = None,
+) -> dict:
+    """Update a note: text, symbol, tags, favorite. Set pinned_at to an
+    ISO datetime to move the pin, or remove it with clear_pinned_at."""
+    fields = given(text=text, symbol=symbol, tags=tags, favorite=favorite)
+    if clear_pinned_at:
+        fields['pinned_at'] = None
+    elif pinned_at is not None:
+        fields['pinned_at'] = pinned_at
+    return await api.update_note(session_token(ctx), note_id, **fields)
+
+
+@mcp.tool()
+@api_tool
+async def delete_note(note_id: int, ctx: Context = None) -> None:
+    """Delete a note."""
+    await api.delete_note(session_token(ctx), note_id)
 
 
 @mcp.tool()
