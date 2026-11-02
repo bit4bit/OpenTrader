@@ -13,6 +13,7 @@ import {
     symbolsWithCounts,
     countNotes,
 } from '../notes/noteList';
+import NotesReader from './NotesReader';
 
 const EMPTY_FORM = { symbol: '', pinned_at: '', tags: '', favorite: false, text: '' };
 
@@ -47,8 +48,10 @@ const NotesModal = ({ notesState, defaultSymbol = '', initialTime = null, canPic
     const [sort, setSort] = useState('recent');
     const [form, setForm] = useState(() => ({ ...EMPTY_FORM, symbol: defaultSymbol }));
     const [editingId, setEditingId] = useState(null);
+    const [openId, setOpenId] = useState(null);
     const [error, setError] = useState(null);
     const searchRef = useRef(null);
+    const openNote = openId == null ? null : notes.find(n => n.id === openId);
 
     // A date picked from a candle re-opens the (kept-mounted) modal; only
     // the datetime field changes, everything typed before is preserved.
@@ -219,6 +222,14 @@ const NotesModal = ({ notesState, defaultSymbol = '', initialTime = null, canPic
                         )}
                     </div>
                     <div className="session-manager-main">
+                        {openNote ? (
+                            <NotesReader
+                                note={openNote}
+                                onBack={() => setOpenId(null)}
+                                onEdit={() => { startEdit(openNote); setOpenId(null); }}
+                            />
+                        ) : (
+                        <>
                         <div className="sm-list-header">
                             <span className="sm-list-title">{viewTitle} · {visibleNotes.length}</span>
                             {editingId != null && (
@@ -245,7 +256,7 @@ const NotesModal = ({ notesState, defaultSymbol = '', initialTime = null, canPic
                             </label>
                             <label className="positions-modal-note">
                                 Note
-                                <textarea placeholder="What did you notice on this chart?" value={form.text} onChange={setField('text')} />
+                                <textarea placeholder="What did you notice on this chart? Markdown is supported." value={form.text} onChange={setField('text')} />
                             </label>
                             <label className="notes-modal-checkbox">
                                 <input
@@ -285,7 +296,7 @@ const NotesModal = ({ notesState, defaultSymbol = '', initialTime = null, canPic
                                                 <span key={tag} className="notes-modal-tag">{tag}</span>
                                             ))}
                                         </div>
-                                        <div className="positions-modal-item-note">{n.text}</div>
+                                        <div className="notes-modal-item-note" onClick={() => setOpenId(n.id)} title="Open note">{n.text}</div>
                                         <div className="positions-modal-item-actions">
                                             <button className="header-action-btn" onClick={() => startEdit(n)} title="Edit">✎</button>
                                             <button className="header-action-btn remove" onClick={() => remove(n)} title="Delete">✕</button>
@@ -297,10 +308,12 @@ const NotesModal = ({ notesState, defaultSymbol = '', initialTime = null, canPic
                                 <div className="sm-empty">{emptyMessage()}</div>
                             )}
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
                 <div className="session-manager-footer">
-                    <span>Pinned, symbol-bound notes show a marker on every chart of the same symbol, on any timeframe. Hover the marker to read the note.</span>
+                    <span>Click a note to open it rendered (markdown supported). Pinned, symbol-bound notes show a marker on every chart of the same symbol, on any timeframe.</span>
                 </div>
             </div>
         </div>
