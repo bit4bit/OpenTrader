@@ -1287,12 +1287,6 @@ div[class*="tradingview"] {
 }
 
 /* Notes modal */
-.notes-modal-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .notes-modal-tag {
   background: #1e222d;
   color: #4fc3f7;

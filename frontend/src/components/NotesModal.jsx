@@ -258,14 +258,6 @@ const NotesModal = ({ notesState, defaultSymbol = '', initialTime = null, canPic
                                 Note
                                 <textarea placeholder="What did you notice on this chart? Markdown is supported." value={form.text} onChange={setField('text')} />
                             </label>
-                            <label className="notes-modal-checkbox">
-                                <input
-                                    type="checkbox"
-                                    checked={form.favorite}
-                                    onChange={e => setForm(f => ({ ...f, favorite: e.target.checked }))}
-                                />
-                                Favorite ★
-                            </label>
                             <div className="positions-modal-actions">
                                 <button className="toolbar-btn primary" onClick={save} disabled={!form.text.trim()}>
                                     {editingId != null ? 'Save' : 'Add note'}
