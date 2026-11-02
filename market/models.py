@@ -68,6 +68,24 @@ class Position(models.Model):
         return f'{self.user.username}: {self.symbol} {self.shares}@{self.price}'
 
 
+class Note(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notes')
+    symbol = models.CharField(max_length=50, blank=True, default='', db_index=True)
+    pinned_at = models.DateTimeField(null=True, blank=True)
+    text = models.TextField()
+    tags = models.JSONField(default=list, blank=True)
+    favorite = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['symbol', 'pinned_at', 'created_at']
+
+    def __str__(self):
+        at = self.symbol or 'journal'
+        return f'{self.user.username}: {at} {self.text[:30]}'
+
+
 class Bar(models.Model):
     """One provider-fetched market bar, permanently stored.
 

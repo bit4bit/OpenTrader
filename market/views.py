@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 import copy
 import logging
 from datetime import datetime, timezone
-from .models import Session, CustomIndicator, Folder, UserPreference, Position
+from .models import Session, CustomIndicator, Folder, UserPreference, Position, Note
 from .providers import registry
 from .providers import index_membership
 from .providers import symbol_info
@@ -256,6 +256,22 @@ class PreferenceView(APIView):
         })
 
 
+def note_tags(tags):
+    """String list from raw client input (strings, split on commas);
+    duplicates removed, order kept."""
+    if isinstance(tags, str):
+        tags = tags.split(',')
+    if not isinstance(tags, (list, tuple)):
+        return []
+    seen, result = set(), []
+    for tag in tags:
+        tag = str(tag).strip()
+        if tag and tag.lower() not in seen:
+            seen.add(tag.lower())
+            result.append(tag)
+    return result
+
+
 def serialize_position(position):
     return {
         'id': position.id,
@@ -269,7 +285,20 @@ def serialize_position(position):
     }
 
 
-def parse_opened_at(value):
+def serialize_note(note):
+    return {
+        'id': note.id,
+        'symbol': note.symbol,
+        'pinned_at': note.pinned_at.isoformat() if note.pinned_at else None,
+        'text': note.text,
+        'tags': note.tags,
+        'favorite': note.favorite,
+        'created_at': note.created_at.isoformat(),
+        'updated_at': note.updated_at.isoformat(),
+    }
+
+
+def parse_client_datetime(value):
     """ISO datetime string from the client; None when absent/invalid."""
     if not value:
         return None
@@ -357,7 +386,7 @@ class PositionListCreate(APIView):
             side='sell' if request.data.get('side') == 'sell' else 'buy',
             shares=shares,
             price=price,
-            opened_at=parse_opened_at(request.data.get('opened_at')),
+            opened_at=parse_client_datetime(request.data.get('opened_at')),
             note=request.data.get('note') or '',
         )
         return Response(serialize_position(position), status=status.HTTP_201_CREATED)
@@ -381,7 +410,7 @@ class PositionDetail(APIView):
         except (TypeError, ValueError):
             return Response({'error': 'Shares and price must be numbers'}, status=status.HTTP_400_BAD_REQUEST)
         if 'opened_at' in request.data:
-            position.opened_at = parse_opened_at(request.data['opened_at'])
+            position.opened_at = parse_client_datetime(request.data['opened_at'])
         if 'note' in request.data:
             position.note = request.data['note'] or ''
         position.save()
@@ -389,6 +418,59 @@ class PositionDetail(APIView):
 
     def delete(self, request, pk):
         self.get_position(request, pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class NoteListCreate(APIView):
+    """Global per-user notes. A note may bind to a symbol (shown for every
+    chart of that symbol) and optionally to a date/time pinned to a bar;
+    symbol-less notes live only in the notes modal."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response([serialize_note(n) for n in request.user.notes.all()])
+
+    def post(self, request):
+        text = (request.data.get('text') or '').strip()
+        if not text:
+            return Response({'error': 'Text is required'}, status=status.HTTP_400_BAD_REQUEST)
+        note = Note.objects.create(
+            user=request.user,
+            symbol=(request.data.get('symbol') or '').strip().upper(),
+            pinned_at=parse_client_datetime(request.data.get('pinned_at')),
+            text=text,
+            tags=note_tags(request.data.get('tags')),
+            favorite=bool(request.data.get('favorite')),
+        )
+        return Response(serialize_note(note), status=status.HTTP_201_CREATED)
+
+
+class NoteDetail(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_note(self, request, pk):
+        return get_object_or_404(Note, pk=pk, user=request.user)
+
+    def patch(self, request, pk):
+        note = self.get_note(request, pk)
+        if 'text' in request.data:
+            text = (request.data['text'] or '').strip()
+            if not text:
+                return Response({'error': 'Text cannot be empty'}, status=status.HTTP_400_BAD_REQUEST)
+            note.text = text
+        if 'symbol' in request.data:
+            note.symbol = (request.data['symbol'] or '').strip().upper()
+        if 'pinned_at' in request.data:
+            note.pinned_at = parse_client_datetime(request.data['pinned_at'])
+        if 'tags' in request.data:
+            note.tags = note_tags(request.data['tags'])
+        if 'favorite' in request.data:
+            note.favorite = bool(request.data['favorite'])
+        note.save()
+        return Response(serialize_note(note))
+
+    def delete(self, request, pk):
+        self.get_note(request, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
