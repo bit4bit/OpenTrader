@@ -27,6 +27,7 @@ import {
 } from '../chart/paneLayout';
 import { getNoteCoordinates, noteBoxOffset, updateTextNote, deleteDrawing } from '../chart/noteGeometry';
 import { positionsForSymbol, positionScreenPos, positionLabelRect, buildPositionShapes, positionTime, positionColor } from '../chart/positions';
+import { notesForSymbol, noteScreenPos, noteTime, buildNoteShapes, NOTE_COLOR } from '../chart/noteMarkers';
 import {
     buildDrawingScene,
     buildFillShapes,
@@ -54,14 +55,15 @@ const Chart = ({
     setActiveTool,
     onAddAnchorIndicator,
     onRemoveIndicator,
-    onPositionDatePick,
+    onDatePick,
     magnetEnabled = true,
     chartId,
     isActive = false,
     syncEnabled = false,
     indicatorResults = {},
     symbolInfo = null,
-    positions = []
+    positions = [],
+    notes = []
 }) => {
     const containerRef = useRef();
     const engineRef = useRef(null);
@@ -83,6 +85,9 @@ const Chart = ({
     const priceDecimals = priceDecimalsByProvider[provider] ?? DEFAULT_PRICE_DECIMALS;
     const chartPositions = positionsForSymbol(positions, symbol);
     const [positionPos, setPositionPos] = useState({});
+
+    const chartNotes = notesForSymbol(notes, symbol);
+    const [notePos, setNotePos] = useState({});
     const [engineError, setEngineError] = useState(null);
     const currentCrosshairColor = useRef('#758696');
 
@@ -341,10 +346,10 @@ const Chart = ({
     }, [setDrawings, setActiveTool]);
 
     // Handle Clicks for Drawing, the Anchored VWAP picker tool, and the
-    // position-date picker tool
+    // date picker tool (position/note datetime fields)
     useEffect(() => {
         const engine = engineRef.current;
-        if (!engine || (!isDrawingTool(activeTool) && activeTool !== 'avwapAnchor' && activeTool !== 'positionDatePick')) {
+        if (!engine || (!isDrawingTool(activeTool) && activeTool !== 'avwapAnchor' && activeTool !== 'datePick')) {
             drawingPointsRef.current = [];
             setPreviewDrawing(null);
             return;
@@ -357,8 +362,8 @@ const Chart = ({
                 setActiveTool('cursor');
                 return;
             }
-            if (activeTool === 'positionDatePick') {
-                if (evt.time != null && onPositionDatePick) onPositionDatePick(evt.time);
+            if (activeTool === 'datePick') {
+                if (evt.time != null && onDatePick) onDatePick(evt.time);
                 setActiveTool('cursor');
                 return;
             }
@@ -374,7 +379,7 @@ const Chart = ({
         });
 
         return offClick;
-    }, [activeTool, setDrawings, setActiveTool, onAddAnchorIndicator, onPositionDatePick]);
+    }, [activeTool, setDrawings, setActiveTool, onAddAnchorIndicator, onDatePick]);
 
     // Weekend/holiday placeholder candles (gray overlay; the chart library
     // cannot color candlesticks per bar).
@@ -702,6 +707,36 @@ const Chart = ({
         setPositionPos(next);
     }, [engineReady, chartPositions, chartTick, priceDecimals, displayPriceRows]);
 
+    // Note markers: SVG circle above the pinned bar on the noteMarkers
+    // layer, redrawn on every pan/zoom tick. Candles come from the
+    // displayed rows (heikin/gap-filled) so the pin tracks what is
+    // actually drawn and weekend dates snap to the nearest bar.
+    useEffect(() => {
+        if (!engineReady) return;
+        layerRenderer('noteMarkers')?.drawShapes(buildNoteShapes(chartNotes, {
+            ...geometryCtx(),
+            candles: displayPriceRows,
+        }));
+    }, [engineReady, chartNotes, chartTick, geometryCtx, displayPriceRows]);
+
+    // Hover targets for the note tooltips track the same redraw tick.
+    useEffect(() => {
+        const engine = engineRef.current;
+        if (!engine) return;
+        const hoverCtx = {
+            timeToX: t => engine.timeToX(t),
+            priceToY: pr => engine.priceToY(pr),
+            width: engine.size().width,
+            interval: intervalRef.current,
+            candles: displayPriceRows,
+        };
+        const next = {};
+        chartNotes.forEach(n => {
+            next[n.id] = noteScreenPos(n, hoverCtx);
+        });
+        setNotePos(next);
+    }, [engineReady, chartNotes, chartTick, displayPriceRows]);
+
     const startNoteBoxDrag = (note, e) => {
         if (note.editing) return;
         e.preventDefault();
@@ -786,9 +821,9 @@ const Chart = ({
             const time = positionTime(p.opened_at, interval);
             const color = positionColor(p);
             const tooltip = (
-                <div className="chart-position-tooltip" style={{ borderColor: color }}>
-                    {p.note && <div className="chart-position-note">{p.note}</div>}
-                    <div className="chart-position-meta">
+                <div className="chart-marker-tooltip" style={{ borderColor: color }}>
+                    {p.note && <div className="chart-marker-note">{p.note}</div>}
+                    <div className="chart-marker-meta">
                         <span style={{ color, fontWeight: 'bold' }}>{p.side === 'sell' ? 'SELL' : 'BUY'}</span>
                         {' '}{p.shares} @ {formatPriceValue(p.price, priceDecimals)}
                         {time != null ? ` · ${formatCrosshairTime(time, interval)}` : ''}
@@ -798,7 +833,7 @@ const Chart = ({
             const targets = [];
             if (pos.circle) {
                 targets.push(
-                    <div key={`${p.id}-circle`} className="chart-position-marker" style={{ left: pos.circle.x, top: pos.circle.y }}>
+                    <div key={`${p.id}-circle`} className="chart-marker" style={{ left: pos.circle.x, top: pos.circle.y }}>
                         {tooltip}
                     </div>
                 );
@@ -807,7 +842,7 @@ const Chart = ({
                 targets.push(
                     <div
                         key={`${p.id}-label`}
-                        className="chart-position-marker at-label"
+                        className="chart-marker at-label"
                         style={{
                             left: pos.label.x, top: pos.label.y,
                             width: pos.label.width, height: pos.label.height, margin: 0,
@@ -818,6 +853,27 @@ const Chart = ({
                 );
             }
             return targets;
+        });
+    };
+
+    const renderNoteMarkers = () => {
+        return chartNotes.map(n => {
+            const pos = notePos[n.id];
+            if (!pos) return null;
+            const time = noteTime(n.pinned_at, interval);
+            return (
+                <div key={n.id} className="chart-marker" style={{ left: pos.x, top: pos.y }}>
+                    <div className="chart-marker-tooltip" style={{ borderColor: NOTE_COLOR }}>
+                        {(n.tags || []).length > 0 && (
+                            <div className="chart-marker-meta">{n.tags.join(' · ')}</div>
+                        )}
+                        <div className="chart-marker-note">{n.text}</div>
+                        <div className="chart-marker-meta">
+                            {n.symbol} · note{time != null ? ` · ${formatCrosshairTime(time, interval)}` : ''}
+                        </div>
+                    </div>
+                </div>
+            );
         });
     };
 
@@ -857,6 +913,7 @@ const Chart = ({
             <div className="chart-notes-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: LAYERS.notes.zIndex }}>
                 {renderNotes()}
                 {renderPositionMarkers()}
+                {renderNoteMarkers()}
             </div>
         </div>
     );

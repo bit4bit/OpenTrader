@@ -18,7 +18,8 @@ const ChartGrid = ({
     onAddChart,
     scriptsById,
     positions = [],
-    onPositionDatePick,
+    notes = [],
+    onDatePick,
 }) => {
     if (charts.length === 0) {
         return (
@@ -50,7 +51,8 @@ const ChartGrid = ({
                     onUpdate={onUpdate}
                     scriptsById={scriptsById}
                     positions={positions}
-                    onPositionDatePick={onPositionDatePick}
+                    notes={notes}
+                    onDatePick={onDatePick}
                 />
             ))}
         </div>

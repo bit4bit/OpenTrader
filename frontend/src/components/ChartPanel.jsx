@@ -72,7 +72,8 @@ const ChartPanel = ({
     onUpdate,
     scriptsById,
     positions = [],
-    onPositionDatePick,
+    notes = [],
+    onDatePick,
 }) => {
     const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles, description } = chart;
     const symbol = chartSymbol?.symbol || '';
@@ -519,7 +520,7 @@ const ChartPanel = ({
                         setActiveTool={setActiveTool}
                         onAddAnchorIndicator={addAnchorIndicator}
                         onRemoveIndicator={removeIndicator}
-                        onPositionDatePick={onPositionDatePick}
+                        onDatePick={onDatePick}
                         magnetEnabled={magnetEnabled}
                         viewport={storedViewport}
                         onViewportChange={handleViewportChange}
@@ -529,6 +530,7 @@ const ChartPanel = ({
                         indicatorResults={indicatorResults}
                         symbolInfo={symbolInfo}
                         positions={positions}
+                        notes={notes}
                     />
                 )}
             </div>
