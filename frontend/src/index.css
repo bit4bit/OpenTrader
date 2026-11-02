@@ -1314,6 +1314,10 @@ div[class*="tradingview"] {
 }
 
 /* Full-document reader for a single note */
+.notes-reader-favorite {
+  color: #f5c542;
+}
+
 .notes-markdown {
   flex: 1;
   overflow-y: auto;

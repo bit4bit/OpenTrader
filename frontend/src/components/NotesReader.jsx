@@ -14,8 +14,8 @@ const NotesReader = ({ note, onBack, onEdit }) => {
                 <span className="sm-list-title">
                     {note.symbol ? `${note.symbol}` : 'Journal'}
                     {note.pinned_at ? ` · 📌 ${formatCrosshairTime(time, '1d')}` : ''}
+                    {note.favorite && <span className="notes-reader-favorite"> ★</span>}
                 </span>
-                {note.favorite && <span className="notes-reader-favorite">★</span>}
                 <button className="sm-list-new" onClick={onEdit} title="Edit source">✎ Edit</button>
             </div>
             <div className="notes-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.text) }} />
