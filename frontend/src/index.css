@@ -1732,7 +1732,7 @@ div[class*="tradingview"] {
 }
 
 .session-manager-side {
-  width: 216px;
+  width: 320px;
   border-right: 1px solid var(--border-color);
   overflow-y: auto;
   padding: 6px 0;

@@ -243,7 +243,7 @@ const SessionManagerModal = ({
                             title={session.portfolio ? 'Remove from portfolio' : 'Add to portfolio'}
                             onClick={(e) => { e.stopPropagation(); onTogglePortfolio(session.id); }}
                         >💼</button>
-                        <span className="sm-row-name">{session.name}</span>
+                        <span className="sm-row-name" title={session.name}>{session.name}</span>
                         <select
                             className="sm-move-select sm-stage-select"
                             title="Stage (1-4)"
@@ -345,10 +345,10 @@ const SessionManagerModal = ({
                     />
                 ) : (
                     <>
-                        <span className="sm-side-name">{folder.name}</span>
-                        <span className="sm-side-count">{counts.byFolder.get(folder.id) || 0}</span>
+                        <span className="sm-side-name" title={folder.name}>{folder.name}</span>
                         <button className="sm-action" title="Rename folder" onClick={(e) => { e.stopPropagation(); setRenaming({ kind: 'folder', id: folder.id }); }}>✏️</button>
                         <button className="sm-action" title="Delete folder (sessions are kept)" onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }}>🗑</button>
+                        <span className="sm-side-count">{counts.byFolder.get(folder.id) || 0}</span>
                     </>
                 )}
             </div>
