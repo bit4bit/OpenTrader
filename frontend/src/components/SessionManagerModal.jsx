@@ -20,6 +20,7 @@ import {
 } from '../quotes/quoteRow';
 import { useProviderPriceDecimals } from '../hooks/useProviderPriceDecimals';
 import { DEFAULT_PRICE_DECIMALS } from '../chart/priceFormat';
+import ImportCsvModal from './ImportCsvModal';
 
 const SMART_VIEWS = [
     { id: 'all', label: 'All sessions', icon: '☰' },
@@ -111,6 +112,7 @@ const SessionManagerModal = ({
     onTogglePortfolio,
     onSetSessionStage,
     onSetSessionDevelopment,
+    onImportSessions,
     onClose,
 }) => {
     const [viewId, setViewId] = useState(initialViewId ?? 'all');
@@ -120,6 +122,7 @@ const SessionManagerModal = ({
     const [dropTarget, setDropTarget] = useState(null); // sidebar viewId being dragged over
     const [creatingSession, setCreatingSession] = useState(false);
     const [creatingFolder, setCreatingFolder] = useState(false);
+    const [importingCsv, setImportingCsv] = useState(false);
     const searchRef = useRef(null);
 
     const counts = useMemo(() => countSessions(sessions, folders), [sessions, folders]);
@@ -149,10 +152,10 @@ const SessionManagerModal = ({
     useEffect(() => { searchRef.current?.focus(); }, []);
 
     useEffect(() => {
-        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        const onKey = (e) => { if (e.key === 'Escape' && !importingCsv) onClose(); };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [onClose]);
+    }, [onClose, importingCsv]);
 
     const viewFolderId = folderIdFromView(viewId);
     const viewStage = stageFromView(viewId);
@@ -431,6 +434,11 @@ const SessionManagerModal = ({
                     <div className="session-manager-main">
                         <div className="sm-list-header">
                             <span className="sm-list-title">{viewTitle} · {visibleSessions.length}</span>
+                            <button
+                                className="sm-list-new"
+                                title="Import stocks from a screener CSV, one session per row"
+                                onClick={() => setImportingCsv(true)}
+                            >⬆ Import CSV</button>
                             <button className="sm-list-new" onClick={() => setCreatingSession(true)}>＋ New session</button>
                         </div>
                         {creatingSession && (
@@ -471,6 +479,16 @@ const SessionManagerModal = ({
                     <span>Drag a session onto a folder, or pick a folder in its row dropdown, to move it.</span>
                 </div>
             </div>
+            {importingCsv && (
+                <ImportCsvModal
+                    sessions={sessions}
+                    folders={folders}
+                    onCreateFolder={onCreateFolder}
+                    onImportSessions={onImportSessions}
+                    onImported={folderId => selectView(folderViewId(folderId), folderId)}
+                    onClose={() => setImportingCsv(false)}
+                />
+            )}
         </div>
     );
 };

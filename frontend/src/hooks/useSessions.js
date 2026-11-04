@@ -94,6 +94,40 @@ export function useSessions(enabled, onAuthFailed) {
         setActiveSessionId(response.data.id);
     }, []);
 
+    const importCsvSessions = useCallback(async (rows, { folderId, templateSessionId }, onProgress) => {
+        const importedRows = [];
+        const createdSessions = [];
+        const failures = [];
+        const total = rows.length;
+        for (const row of rows) {
+            try {
+                // Clone re-points the template layout at the row's symbol
+                // (provider resolved, old drawings dropped); template notes
+                // carry over, then the import provenance note is appended.
+                const response = await axios.post(`/api/sessions/${templateSessionId}/clone/`, {
+                    name: row.name,
+                    new_symbol: row.symbol,
+                    folder: folderId,
+                });
+                const session = response.data;
+                const notes = [session.notes, row.note].map(part => (part || '').trim()).filter(Boolean).join('\n\n');
+                try {
+                    await axios.patch(`/api/sessions/${session.id}/`, { notes });
+                    session.notes = notes;
+                } catch {
+                    failures.push({ row, reason: 'Session created, but its note could not be saved' });
+                }
+                createdSessions.push(session);
+                importedRows.push(row);
+            } catch (err) {
+                failures.push({ row, reason: err?.response?.data?.error || err.message || 'Request failed' });
+            }
+            onProgress?.(importedRows.length + failures.length, total);
+        }
+        setSessions(prev => [...prev, ...createdSessions]);
+        return { importedRows, failures };
+    }, []);
+
     const renameSession = useCallback(async (id, name) => {
         const response = await axios.patch(`/api/sessions/${id}/`, { name });
         setSessions(prev => prev.map(s => s.id === id ? response.data : s));
@@ -218,6 +252,7 @@ export function useSessions(enabled, onAuthFailed) {
         showSessionQuotes,
         toggleSessionQuotes,
         createSession,
+        importCsvSessions,
         renameSession,
         deleteSession,
         toggleFavoriteSession,
