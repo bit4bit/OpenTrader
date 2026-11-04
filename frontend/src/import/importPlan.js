@@ -4,6 +4,7 @@
 // carrying every column of the row.
 
 import { parseCsvTable } from './csv';
+import { sessionSymbols } from '../quotes/quoteRow';
 
 const MAX_SESSION_NAME = 100;
 
@@ -50,4 +51,26 @@ const PREFERRED_PREVIEW_COLUMNS = ['Company Name', 'Price', 'IBD Comp. Rating', 
 
 export function previewColumnsOf(headers) {
     return PREFERRED_PREVIEW_COLUMNS.filter(name => headers.includes(name));
+}
+
+// Every symbol with a session inside the folder, case-insensitive —
+// sessions may hold several charts and use the {symbol, provider} or
+// plain-string layout formats.
+export function symbolsInFolder(sessions, folderId) {
+    const symbols = new Set();
+    if (folderId == null) return symbols;
+    for (const session of sessions) {
+        if (session.folder !== folderId) continue;
+        for (const entry of sessionSymbols(session)) symbols.add(entry.symbol.toUpperCase());
+    }
+    return symbols;
+}
+
+// Rows worth importing by default: with a symbol and not already in the
+// target folder (the rest stay checkable for a deliberate re-import).
+export function defaultImportIndexes(rows, existingSymbols) {
+    return rows.reduce((indexes, row, index) => {
+        if (row.symbol && !existingSymbols.has(row.symbol.toUpperCase())) indexes.push(index);
+        return indexes;
+    }, []);
 }

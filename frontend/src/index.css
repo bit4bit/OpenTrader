@@ -2342,6 +2342,17 @@ div[class*="tradingview"] {
   color: #4fc3f7;
 }
 
+.csv-import-tag {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: normal;
+  color: var(--text-dim);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
 .csv-import-dim {
   color: var(--text-dim);
 }

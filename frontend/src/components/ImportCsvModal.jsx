@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { importRowsFromCsv, folderNameFromFileName, importNoteFor, previewColumnsOf } from '../import/importPlan';
+import { importRowsFromCsv, folderNameFromFileName, importNoteFor, previewColumnsOf, defaultImportIndexes, symbolsInFolder } from '../import/importPlan';
 import { sessionSymbols } from '../quotes/quoteRow';
 
 const ImportCsvModal = ({
@@ -36,6 +36,27 @@ const ImportCsvModal = ({
     );
     const previewColumns = useMemo(() => (plan ? previewColumnsOf(plan.headers) : []), [plan]);
 
+    // The target folder: an explicitly chosen existing one, or an existing
+    // folder the new name resolves to (reused instead of duplicated).
+    const targetFolderId = useMemo(() => (
+        folderMode === 'existing'
+            ? (existingFolderId !== '' ? Number(existingFolderId) : null)
+            : (folders.find(folder => folder.name.trim().toLowerCase() === newFolderName.trim().toLowerCase())?.id ?? null)
+    ), [folderMode, existingFolderId, newFolderName, folders]);
+
+    // Re-upload skip: rows whose symbol already has a session in the target
+    // folder start unselected (with an "in folder" badge); the selection
+    // reseeds whenever the file or the folder's symbol set changes —
+    // which also self-corrects after a partial import (created sessions
+    // enter state, their rows become "in folder").
+    const folderSymbols = useMemo(() => symbolsInFolder(sessions, targetFolderId), [sessions, targetFolderId]);
+    const [seedKey, setSeedKey] = useState(null);
+    const nextSeedKey = plan ? `${file.name}|${[...folderSymbols].sort().join(',')}` : null;
+    if (nextSeedKey !== null && seedKey !== nextSeedKey) {
+        setSeedKey(nextSeedKey);
+        setSelected(new Set(defaultImportIndexes(plan.rows, folderSymbols)));
+    }
+
     const loadFile = async (picked) => {
         if (!picked) return;
         const text = (await picked.text()).replace(/^\uFEFF/, '');
@@ -55,7 +76,6 @@ const ImportCsvModal = ({
         setFile({ name: picked.name, plan: parsed });
         setNewFolderName(folderNameFromFileName(picked.name));
         setFolderMode('new');
-        setSelected(new Set(parsed.rows.map((row, index) => (row.symbol !== '' ? index : null)).filter(index => index !== null)));
     };
 
     const toggleRow = (index) => {
@@ -77,11 +97,7 @@ const ImportCsvModal = ({
 
     const resolveFolderId = async () => {
         if (folderMode === 'existing') return Number(existingFolderId);
-        const name = newFolderName.trim();
-        const existing = folders.find(folder => folder.name.trim().toLowerCase() === name.toLowerCase());
-        if (existing) return existing.id;
-        const folder = await onCreateFolder(name);
-        return folder.id;
+        return targetFolderId ?? (await onCreateFolder(newFolderName.trim())).id;
     };
 
     const startImport = async () => {
@@ -89,7 +105,6 @@ const ImportCsvModal = ({
             .filter(index => selected.has(index))
             .map(index => ({
                 ...plan.rows[index],
-                index,
                 note: importNoteFor(plan.rows[index].values, file.name, new Date().toLocaleString()),
             }));
         setFailures(null);
@@ -97,7 +112,7 @@ const ImportCsvModal = ({
         setProgress({ done: 0, total: importRows.length });
         try {
             const folderId = await resolveFolderId();
-            const { importedRows, failures: rowFailures } = await onImportSessions(
+            const { failures: rowFailures } = await onImportSessions(
                 importRows,
                 { folderId, templateSessionId: Number(templateId) },
                 (done, total) => setProgress({ done, total }),
@@ -108,11 +123,11 @@ const ImportCsvModal = ({
                 onClose();
                 return;
             }
-            // Keep the dialog open with a failure summary; succeeded rows are
-            // unchecked so a retry imports only what is still missing.
+            // Keep the dialog open with a failure summary. The selection
+            // corrects itself: the hook has already appended the created
+            // sessions, so the skip effect unselects what was imported and
+            // a retry imports only what is still missing.
             setFailures(rowFailures);
-            const importedIndexes = new Set(importedRows.map(row => row.index));
-            setSelected(prev => new Set([...prev].filter(index => !importedIndexes.has(index))));
         } catch (err) {
             setProgress(null);
             setImportError(err?.response?.data?.error || err.message || 'Import failed');
@@ -128,6 +143,10 @@ const ImportCsvModal = ({
 
     const folderExists = folders.some(
         folder => folder.name.trim().toLowerCase() === newFolderName.trim().toLowerCase());
+    const inFolderCount = useMemo(
+        () => selectableIndexes.filter(index => folderSymbols.has(plan.rows[index].symbol.toUpperCase())).length,
+        [selectableIndexes, folderSymbols, plan],
+    );
 
     const dropProps = {
         onDragOver: (e) => e.preventDefault(),
@@ -262,6 +281,7 @@ const ImportCsvModal = ({
                                             <tbody>
                                                 {plan.rows.map((row, index) => {
                                                     const noSymbol = row.symbol === '';
+                                                    const inFolder = folderSymbols.has(row.symbol.toUpperCase());
                                                     return (
                                                         <tr key={index} className={noSymbol || !selected.has(index) ? 'csv-import-off' : undefined}>
                                                             <td className="csv-import-check">
@@ -270,10 +290,15 @@ const ImportCsvModal = ({
                                                                     checked={selected.has(index)}
                                                                     disabled={busy || noSymbol}
                                                                     onChange={() => toggleRow(index)}
-                                                                    title={noSymbol ? 'Row has no symbol' : undefined}
+                                                                    title={noSymbol
+                                                                        ? 'Row has no symbol'
+                                                                        : (inFolder ? 'Already in this folder — check to import it again' : undefined)}
                                                                 />
                                                             </td>
-                                                            <td className="csv-import-symbol">{row.symbol || <span className="csv-import-dim">—</span>}</td>
+                                                            <td className="csv-import-symbol">
+                                                                {row.symbol || <span className="csv-import-dim">—</span>}
+                                                                {inFolder && <span className="csv-import-tag">in folder</span>}
+                                                            </td>
                                                             {previewColumns.map(column => <td key={column}>{row.values[column]}</td>)}
                                                         </tr>
                                                     );
@@ -303,8 +328,8 @@ const ImportCsvModal = ({
                 {plan && (
                     <div className="csv-import-footer">
                         <span className="csv-import-hint">
-                            {selected.size} of {selectableIndexes.length} stocks selected · each becomes a session
-                            cloned from the template with its charts re-pointed to the stock
+                            {selected.size} of {selectableIndexes.length} stocks selected{inFolderCount > 0 ? ` · ${inFolderCount} already in this folder` : ''}
+                            {' '}· each becomes a session cloned from the template with its charts re-pointed to the stock
                         </span>
                         <button
                             className="csv-import-btn"

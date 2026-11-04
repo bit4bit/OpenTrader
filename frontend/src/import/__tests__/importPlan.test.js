@@ -6,6 +6,8 @@ import {
     importNoteFor,
     importRowsFromCsv,
     previewColumnsOf,
+    symbolsInFolder,
+    defaultImportIndexes,
 } from '../importPlan';
 
 const IBD_CSV = `Symbol,Company Name,Price,Price $ Change,Price % Change,IBD Comp. Rating,EPS Rating,RS Rating,Ind Grp RS,SMR Rating,Acc/Dis Rating,Vol. % Change,Vol. (1000s)
@@ -80,5 +82,39 @@ describe('previewColumnsOf', () => {
         const headers = ['Symbol', 'Price', 'RS Rating'];
         expect(previewColumnsOf(headers)).toEqual(['Price', 'RS Rating']);
         expect(previewColumnsOf(['Symbol'])).toEqual([]);
+    });
+});
+
+describe('symbolsInFolder', () => {
+    const sessions = [
+        { id: 1, folder: 9, layout: { charts: [{ symbol: { symbol: 'PAYS', provider: 'yahoo' } }, { symbol: { symbol: 'AAPL', provider: 'yahoo' } }] } },
+        { id: 2, folder: 9, layout: { charts: [{ symbol: 'mar' }] } },
+        { id: 3, folder: 8, layout: { charts: [{ symbol: { symbol: 'OTHER', provider: 'yahoo' } }] } },
+        { id: 4, folder: null, layout: {} },
+    ];
+
+    it('collects the symbols of all sessions in the folder, uppercased', () => {
+        expect(symbolsInFolder(sessions, 9)).toEqual(new Set(['PAYS', 'AAPL', 'MAR']));
+    });
+
+    it('returns an empty set without a folder', () => {
+        expect(symbolsInFolder(sessions, null)).toEqual(new Set());
+    });
+});
+
+describe('defaultImportIndexes', () => {
+    const rows = [
+        { symbol: 'PAYS', name: 'PAYS · Paysign Inc.' },
+        { symbol: '', name: '' },
+        { symbol: 'AAPL', name: 'AAPL · Apple Inc.' },
+        { symbol: 'mar', name: 'MAR' },
+    ];
+
+    it('skips rows without a symbol and symbols already in the folder', () => {
+        expect(defaultImportIndexes(rows, symbolsInFolder([
+            { folder: 9, layout: { charts: [{ symbol: { symbol: 'PAYS', provider: 'yahoo' } }] } },
+            { folder: 9, layout: { charts: [{ symbol: 'mar' }] } },
+        ], 9))).toEqual([2]);
+        expect(defaultImportIndexes(rows, new Set())).toEqual([0, 2, 3]);
     });
 });
