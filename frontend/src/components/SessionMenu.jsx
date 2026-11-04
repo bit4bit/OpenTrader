@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import SessionManagerModal from './SessionManagerModal';
-import { folderViewId } from '../sessions/sessionList';
+import { folderViewId, validViewId } from '../sessions/sessionList';
+
+// The last sidebar view survives toolbar toggles (TopBar unmounts) and
+// reloads, so reopening the manager lands where the user left it.
+const SESSION_VIEW_KEY = 'opentrader_session_view';
 
 const SessionMenu = (props) => {
     const [open, setOpen] = useState(false);
-    const [lastViewId, setLastViewId] = useState(null);
     const { activeSession, folders, activeFolderId } = props;
-    const initialViewId = lastViewId
+    const initialViewId = validViewId(localStorage.getItem(SESSION_VIEW_KEY), folders)
         ?? (activeFolderId != null && folders.some(f => f.id === activeFolderId)
             ? folderViewId(activeFolderId)
             : 'all');
@@ -25,7 +28,7 @@ const SessionMenu = (props) => {
                 <SessionManagerModal
                     {...props}
                     initialViewId={initialViewId}
-                    onViewChange={setLastViewId}
+                    onViewChange={id => localStorage.setItem(SESSION_VIEW_KEY, id)}
                     onClose={() => setOpen(false)}
                 />
             )}

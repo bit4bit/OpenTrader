@@ -30,6 +30,18 @@ export const developmentViewId = (development) => `${DEVELOPMENT_VIEW_PREFIX}${d
 export const developmentFromView = (viewId) =>
     viewId.startsWith(DEVELOPMENT_VIEW_PREFIX) ? viewId.slice(DEVELOPMENT_VIEW_PREFIX.length) : null;
 
+// A persisted view id is only worth restoring if it still names a view that
+// exists: folder views die with their folder, the rest are always defined.
+export const validViewId = (viewId, folders) => {
+    if (!viewId) return null;
+    const folderId = folderIdFromView(viewId);
+    if (folderId != null) return folders.some(folder => folder.id === folderId) ? viewId : null;
+    if (Object.hasOwn(SMART_VIEW_FILTERS, viewId)) return viewId;
+    if (STAGES.includes(stageFromView(viewId))) return viewId;
+    if (DEVELOPMENTS.includes(developmentFromView(viewId))) return viewId;
+    return null;
+};
+
 export const sessionsInView = (sessions, viewId) => {
     const folderId = folderIdFromView(viewId);
     if (folderId != null) return sessions.filter(session => session.folder === folderId);

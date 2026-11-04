@@ -5,9 +5,10 @@ import {
     folderIdFromView,
     stageViewId,
     stageFromView,
-    STAGES,
     developmentViewId,
     developmentFromView,
+    validViewId,
+    STAGES,
     DEVELOPMENTS,
     filterByQuery,
     sortSessions,
@@ -93,6 +94,29 @@ describe('developmentFromView', () => {
     it('returns null for smart and folder views', () => {
         expect(developmentFromView('all')).toBeNull();
         expect(developmentFromView(folderViewId(1))).toBeNull();
+    });
+});
+
+describe('validViewId', () => {
+    it('accepts smart, stage and development views', () => {
+        expect(validViewId('all', folders)).toBe('all');
+        expect(validViewId('favorites', folders)).toBe('favorites');
+        expect(validViewId(stageViewId(2), folders)).toBe(stageViewId(2));
+        expect(validViewId(developmentViewId('DV'), folders)).toBe(developmentViewId('DV'));
+    });
+
+    it('accepts folder views whose folder still exists', () => {
+        expect(validViewId(folderViewId(1), folders)).toBe(folderViewId(1));
+    });
+
+    it('rejects folder views whose folder was deleted', () => {
+        expect(validViewId(folderViewId(3), folders)).toBeNull();
+    });
+
+    it('rejects missing and unknown views', () => {
+        expect(validViewId(null, folders)).toBeNull();
+        expect(validViewId('', folders)).toBeNull();
+        expect(validViewId('nonsense', folders)).toBeNull();
     });
 });
 

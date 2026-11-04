@@ -124,6 +124,7 @@ const SessionManagerModal = ({
     const [creatingFolder, setCreatingFolder] = useState(false);
     const [importingCsv, setImportingCsv] = useState(false);
     const searchRef = useRef(null);
+    const listRef = useRef(null);
 
     const counts = useMemo(() => countSessions(sessions, folders), [sessions, folders]);
     const folderById = useMemo(() => new Map(folders.map(f => [f.id, f])), [folders]);
@@ -156,6 +157,11 @@ const SessionManagerModal = ({
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
     }, [onClose, importingCsv]);
+
+    // The highlighted session can sit below the fold in long views.
+    useEffect(() => {
+        listRef.current?.querySelector('.sm-row.active')?.scrollIntoView({ block: 'nearest' });
+    }, []);
 
     const viewFolderId = folderIdFromView(viewId);
     const viewStage = stageFromView(viewId);
@@ -450,7 +456,7 @@ const SessionManagerModal = ({
                                 />
                             </div>
                         )}
-                        <div className="session-manager-list">
+                        <div className="session-manager-list" ref={listRef}>
                             {showQuotes && (
                                 <div className="sm-quotes-head">
                                     <span /><span />
