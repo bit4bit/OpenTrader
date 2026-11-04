@@ -22,6 +22,17 @@ import useDrawingToolShortcuts from './hooks/useDrawingToolShortcuts';
 import { addIndicators, addCustomIndicator, updateIndicator as updateIndicatorIn, removeIndicator as removeIndicatorIn, toggleIndicator as toggleIndicatorIn } from './Indicators/actions';
 
 const FIRST_VISIT_KEY = 'opentrader_first_visit';
+// Refresh cadence selector value (TopBar): null = auto per interval,
+// 0 = off, else the poll period in milliseconds. Persisted so a chosen
+// cadence survives reloads.
+const REFRESH_MS_KEY = 'opentrader_refresh_ms';
+
+const storedRefreshMs = () => {
+    const stored = localStorage.getItem(REFRESH_MS_KEY);
+    if (stored == null || stored === '') return null;
+    const parsed = Number(stored);
+    return Number.isFinite(parsed) ? parsed : null;
+};
 
 function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customIndicators, positionsState, notesState }) {
   const {
@@ -54,6 +65,15 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
   const [magnetEnabled, setMagnetEnabled] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [drawingToolbarVisible, setDrawingToolbarVisible] = useState(true);
+  // Bumped by the TopBar refresh button; every chart re-fetches the
+  // latest bars off it.
+  const [chartRefreshTick, setChartRefreshTick] = useState(0);
+  const [refreshMs, setRefreshMsState] = useState(storedRefreshMs);
+
+  const setRefreshMs = (value) => {
+    setRefreshMsState(value);
+    localStorage.setItem(REFRESH_MS_KEY, value == null ? '' : String(value));
+  };
 
   const activeChart = charts.find(c => c.id === activeChartId) || null;
 
@@ -63,7 +83,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
 
   const addIndicator = (type) => {
     if (!activeChart) return;
-    updateChart(activeChart.id, c => ({ indicators: addIndicators(c.indicators, type) }));
+    // Symbol-basket types (A/D Line) seed with the selected chart's symbol.
+    updateChart(activeChart.id, c => ({ indicators: addIndicators(c.indicators, type, { chartSymbol: activeChart.symbol?.symbol || '' }) }));
   };
 
   const addCustomToChart = (script) => {
@@ -145,6 +166,9 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
         openCustomIndicators={() => setShowCustomIndicators(true)}
         openSymbolSearch={() => setSymbolSearchMode('change')}
         openSymbolCatalog={() => setShowSymbolCatalog(true)}
+        onRefreshData={() => setChartRefreshTick(t => t + 1)}
+        refreshMs={refreshMs}
+        onSetRefreshMs={setRefreshMs}
         gridLayout={gridLayout}
         onSetGridLayout={setGridLayout}
         onAddChart={() => setSymbolSearchMode('add')}
@@ -207,6 +231,8 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
           positions={positionsState.positions}
           notes={notesState.notes}
           onDatePick={handleDatePicked}
+          refreshTick={chartRefreshTick}
+          refreshMs={refreshMs}
         />
 
         {activeTool === 'datePick' && (
@@ -305,6 +331,7 @@ function App() {
     toggleFavoriteSession,
     togglePortfolioSession,
     setSessionStage,
+    setSessionDevelopment,
     saveLayout,
     saveNotes,
     globalNote,
@@ -374,6 +401,7 @@ function App() {
     onToggleFavorite: (id) => toggleFavoriteSession(id),
     onTogglePortfolio: (id) => togglePortfolioSession(id),
     onSetSessionStage: (id, stage) => setSessionStage(id, stage),
+    onSetSessionDevelopment: (id, development) => setSessionDevelopment(id, development),
     showQuotes: showSessionQuotes,
     onToggleQuotes: toggleSessionQuotes,
     onCreateFolder: (name) => createFolder(name.trim()),

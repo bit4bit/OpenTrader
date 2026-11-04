@@ -126,6 +126,15 @@ describe('indicator creation', () => {
             ],
             color: '#4fc3f7', visible: true,
         }]);
+        expect(addIndicators([], 'adline')).toEqual([{
+            id: 'adline-main', type: 'adline',
+            constituents: [],
+            color: '#4fc3f7', visible: true,
+        }]);
+        // Chart symbol context seeds the basket with the chart's own
+        // symbol, never unrelated ones.
+        expect(addIndicators([], 'adline', { chartSymbol: 'TSLA' })[0].constituents)
+            .toEqual([{ symbol: 'TSLA', enabled: true }]);
     });
 
     it('singletons are not added twice, non-singletons are', () => {

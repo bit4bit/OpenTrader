@@ -16,6 +16,8 @@ class Folder(models.Model):
 
 STAGE_CHOICES = [(n, n) for n in range(1, 5)]
 
+DEVELOPMENT_CHOICES = [('DV', 'In develop'), ('BO', 'Breakout'), ('BZ', 'Buy zone'), ('CP', 'Constructive pattern'), ('PB', 'Pullback')]
+
 
 class Session(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
@@ -26,6 +28,7 @@ class Session(models.Model):
     favorite = models.BooleanField(default=False)
     portfolio = models.BooleanField(default=False)
     stage = models.PositiveSmallIntegerField(null=True, blank=True, choices=STAGE_CHOICES)
+    development = models.CharField(max_length=2, null=True, blank=True, choices=DEVELOPMENT_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

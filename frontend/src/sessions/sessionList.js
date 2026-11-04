@@ -1,7 +1,12 @@
 const FOLDER_VIEW_PREFIX = 'folder:';
 const STAGE_VIEW_PREFIX = 'stage:';
+const DEVELOPMENT_VIEW_PREFIX = 'development:';
 
 export const STAGES = [1, 2, 3, 4];
+
+export const DEVELOPMENTS = ['DV', 'BO', 'BZ', 'CP', 'PB'];
+
+export const DEVELOPMENT_LABELS = { DV: 'In develop', BO: 'Breakout', BZ: 'Buy zone', CP: 'Constructive pattern', PB: 'Pullback' };
 
 const SMART_VIEW_FILTERS = {
     all: () => true,
@@ -20,11 +25,18 @@ export const stageViewId = (stage) => `${STAGE_VIEW_PREFIX}${stage}`;
 export const stageFromView = (viewId) =>
     viewId.startsWith(STAGE_VIEW_PREFIX) ? Number(viewId.slice(STAGE_VIEW_PREFIX.length)) : null;
 
+export const developmentViewId = (development) => `${DEVELOPMENT_VIEW_PREFIX}${development}`;
+
+export const developmentFromView = (viewId) =>
+    viewId.startsWith(DEVELOPMENT_VIEW_PREFIX) ? viewId.slice(DEVELOPMENT_VIEW_PREFIX.length) : null;
+
 export const sessionsInView = (sessions, viewId) => {
     const folderId = folderIdFromView(viewId);
     if (folderId != null) return sessions.filter(session => session.folder === folderId);
     const stage = stageFromView(viewId);
     if (stage != null) return sessions.filter(session => session.stage === stage);
+    const development = developmentFromView(viewId);
+    if (development) return sessions.filter(session => session.development === development);
     const filter = SMART_VIEW_FILTERS[viewId] || SMART_VIEW_FILTERS.all;
     return sessions.filter(filter);
 };
@@ -49,6 +61,7 @@ export const sortSessions = (sessions, sort) => {
 export const countSessions = (sessions, folders) => {
     const byFolder = new Map(folders.map(folder => [folder.id, 0]));
     const byStage = new Map(STAGES.map(stage => [stage, 0]));
+    const byDevelopment = new Map(DEVELOPMENTS.map(development => [development, 0]));
     let uncategorized = 0;
     let favorites = 0;
     let portfolio = 0;
@@ -58,6 +71,7 @@ export const countSessions = (sessions, folders) => {
         if (session.favorite) favorites += 1;
         if (session.portfolio) portfolio += 1;
         if (byStage.has(session.stage)) byStage.set(session.stage, byStage.get(session.stage) + 1);
+        if (byDevelopment.has(session.development)) byDevelopment.set(session.development, byDevelopment.get(session.development) + 1);
     }
-    return { byFolder, uncategorized, favorites, portfolio, byStage, total: sessions.length };
+    return { byFolder, uncategorized, favorites, portfolio, byStage, byDevelopment, total: sessions.length };
 };

@@ -28,6 +28,7 @@ const formatVolumeValue = (val) => {
 };
 const formatLegendValue = (val, type, ind = null, pctShares = false) => {
     if (type === 'ad') return formatADLValue(val);
+    if (type === 'adline') return val.toFixed(0);
     if (type === 'volume') {
         if (ind?.pctShares) return val != null ? val.toFixed(3) + '%' : '';
         return formatVolumeValue(val);
@@ -74,12 +75,14 @@ const ChartPanel = ({
     positions = [],
     notes = [],
     onDatePick,
+    refreshTick = 0,
+    refreshMs = null,
 }) => {
     const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles, description } = chart;
     const symbol = chartSymbol?.symbol || '';
     const provider = chartSymbol?.provider || null;
     const priceDecimals = useProviderPriceDecimals()[provider] ?? DEFAULT_PRICE_DECIMALS;
-    const { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange, loadUntil } = useChartData(symbol, provider, interval);
+    const { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange, loadUntil } = useChartData(symbol, provider, interval, { refreshTick, refreshMs });
     const adFullData = useAdFullData(symbol, provider, interval, indicators);
     const { data: smiData } = useMarketIndexData(indicators, interval);
     const symbolInfo = useSymbolInfo(symbol, provider);

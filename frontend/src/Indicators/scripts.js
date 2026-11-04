@@ -262,6 +262,21 @@ const SCRIPTS = {
         ],
         body: "plot(ta.adl(), { title: 'Accum/Dist', color, overlay: false })",
     },
+    adline: {
+        title: 'Advance-Decline Line',
+        id: 'adline-main',
+        pane: true,
+        // Default basket: the chart's own symbol (like every other
+        // indicator, the chart it is added to defines the data), so the
+        // line never starts from unrelated symbols. Extend the basket in
+        // the settings to measure broader market breadth.
+        seedFromChartSymbol: true,
+        fields: [
+            { key: 'color', label: 'Color', type: 'color', default: '#4fc3f7' },
+            { key: 'constituents', label: 'Symbols', type: 'symbols', default: [] },
+        ],
+        body: "plot(ta.advanceDecline(constituents), { title: 'A/D Line', color, overlay: false, lineWidth: 2 })",
+    },
     vwap: {
         title: 'VWAP',
         singleton: false,
@@ -551,8 +566,12 @@ export function needsFullData(type) {
     return !!SCRIPTS[type]?.fullData;
 }
 
-/** Default creation config for an indicator type (field defaults applied). */
-export function createIndicator(type) {
+/** Default creation config for an indicator type (field defaults applied).
+ *
+ * `context.chartSymbol` seeds symbol-basket types with the selected chart's
+ * own symbol, so the indicator starts on the chart it was added to:
+ */
+export function createIndicator(type, context = {}) {
     const entry = SCRIPTS[type];
     if (!entry) return null;
     if (entry.create) return entry.create();
@@ -560,6 +579,9 @@ export function createIndicator(type) {
     (entry.fields ?? []).forEach(f => {
         if (config[f.key] === undefined) config[f.key] = f.default;
     });
+    if (context.chartSymbol && entry.seedFromChartSymbol) {
+        config.constituents = [{ symbol: context.chartSymbol, enabled: true }];
+    }
     return {
         id: entry.id ?? `${type}-${Math.random().toString(36).slice(2, 8)}`,
         type,

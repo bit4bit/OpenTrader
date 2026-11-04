@@ -191,8 +191,81 @@ const BenchmarkSettings = ({ ind, chartSymbol, updateIndicator }) => {
 };
 
 /**
+ * Symbol-list grid shared by the SMI constituents and the A/D Line: one
+ * enable-checkbox + symbol row per entry, an optional weight column
+ * (SMI only) and an add button.
+ */
+const SymbolsGrid = ({ ind, showWeight = true, invalidSymbols = [], updateIndicator }) => {
+    const span = showWeight ? 3 : 2;
+    return (
+        <div className="indicator-settings smi-grid">
+            {(ind.constituents || []).map((c, ci) => (
+                <React.Fragment key={ci}>
+                    <div className="setting-item" style={showWeight ? undefined : { gridColumn: 'span 2' }}>
+                        <label>Symbol {ci + 1}</label>
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <input
+                                type="checkbox"
+                                checked={c.enabled !== false}
+                                title={c.enabled !== false ? 'Disable symbol' : 'Enable symbol'}
+                                onChange={(e) => {
+                                    const constituents = ind.constituents.map((x, xi) => xi === ci ? { ...x, enabled: e.target.checked } : x);
+                                    updateIndicator(ind.id, { constituents });
+                                }}
+                            />
+                            <input
+                                type="text" value={c.symbol}
+                                disabled={!ind.visible || c.enabled === false}
+                                style={{ ...(invalidSymbols.includes(c.symbol) ? { borderColor: '#ef5350', color: '#ef5350' } : {}), ...(c.enabled === false ? { opacity: 0.4 } : {}) }}
+                                title={invalidSymbols.includes(c.symbol) ? 'Invalid symbol: no data received' : undefined}
+                                onChange={(e) => {
+                                    const constituents = ind.constituents.map((x, xi) => xi === ci ? { ...x, symbol: e.target.value.toUpperCase() } : x);
+                                    updateIndicator(ind.id, { constituents });
+                                }}
+                            />
+                        </div>
+                    </div>
+                    {showWeight && (
+                        <div className="setting-item">
+                            <label>Weight</label>
+                            <input
+                                type="number" step="0.01" min="0" max="1" value={c.weight}
+                                disabled={!ind.visible}
+                                onChange={(e) => {
+                                    const constituents = ind.constituents.map((x, xi) => xi === ci ? { ...x, weight: Math.max(0, parseFloat(e.target.value) || 0) } : x);
+                                    updateIndicator(ind.id, { constituents });
+                                }}
+                            />
+                        </div>
+                    )}
+                    <div className="setting-item" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <button
+                            className="action-btn remove-single"
+                            title="Remove symbol"
+                            onClick={() => updateIndicator(ind.id, { constituents: ind.constituents.filter((_, xi) => xi !== ci) })}
+                        >
+                            ✕
+                        </button>
+                    </div>
+                </React.Fragment>
+            ))}
+            <div className="setting-item" style={{ gridColumn: `span ${span}` }}>
+                <button
+                    className="action-btn"
+                    title="Add symbol"
+                    style={{ width: '100%' }}
+                    onClick={() => updateIndicator(ind.id, { constituents: [...(ind.constituents || []), showWeight ? { symbol: '', weight: 0.1, enabled: true } : { symbol: '', enabled: true }] })}
+                >
+                    + Add Symbol
+                </button>
+            </div>
+        </div>
+    );
+};
+
+/**
  * Settings controls for a single indicator instance: schema-driven script
- * fields, the SMI constituents grid, or custom-script inputs.
+ * fields, the SMI/A/D Line symbol grids, or custom-script inputs.
  */
 const IndicatorSettings = ({ ind, groupType, chartSymbol, invalidSymbols = [], scriptsById, scriptErrors, updateIndicator }) => (
     <>
@@ -211,66 +284,12 @@ const IndicatorSettings = ({ ind, groupType, chartSymbol, invalidSymbols = [], s
         {/* SMI Constituents (base value and color are
             handled by the generic script settings above) */}
         {groupType === 'smi' && (
-            <div className="indicator-settings smi-grid">
-                {(ind.constituents || []).map((c, ci) => (
-                    <React.Fragment key={ci}>
-                        <div className="setting-item">
-                            <label>Symbol {ci + 1}</label>
-                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={c.enabled !== false}
-                                    title={c.enabled !== false ? 'Disable symbol' : 'Enable symbol'}
-                                    onChange={(e) => {
-                                        const constituents = ind.constituents.map((x, xi) => xi === ci ? { ...x, enabled: e.target.checked } : x);
-                                        updateIndicator(ind.id, { constituents });
-                                    }}
-                                />
-                                <input
-                                    type="text" value={c.symbol}
-                                    disabled={!ind.visible || c.enabled === false}
-                                    style={{ ...(invalidSymbols.includes(c.symbol) ? { borderColor: '#ef5350', color: '#ef5350' } : {}), ...(c.enabled === false ? { opacity: 0.4 } : {}) }}
-                                    title={invalidSymbols.includes(c.symbol) ? 'Invalid symbol: no data received' : undefined}
-                                    onChange={(e) => {
-                                        const constituents = ind.constituents.map((x, xi) => xi === ci ? { ...x, symbol: e.target.value.toUpperCase() } : x);
-                                        updateIndicator(ind.id, { constituents });
-                                    }}
-                                />
-                            </div>
-                        </div>
-                        <div className="setting-item">
-                            <label>Weight</label>
-                            <input
-                                type="number" step="0.01" min="0" max="1" value={c.weight}
-                                disabled={!ind.visible}
-                                onChange={(e) => {
-                                    const constituents = ind.constituents.map((x, xi) => xi === ci ? { ...x, weight: Math.max(0, parseFloat(e.target.value) || 0) } : x);
-                                    updateIndicator(ind.id, { constituents });
-                                }}
-                            />
-                        </div>
-                        <div className="setting-item" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                            <button
-                                className="action-btn remove-single"
-                                title="Remove symbol"
-                                onClick={() => updateIndicator(ind.id, { constituents: ind.constituents.filter((_, xi) => xi !== ci) })}
-                            >
-                                ✕
-                            </button>
-                        </div>
-                    </React.Fragment>
-                ))}
-                <div className="setting-item" style={{ gridColumn: 'span 3' }}>
-                    <button
-                        className="action-btn"
-                        title="Add symbol"
-                        style={{ width: '100%' }}
-                        onClick={() => updateIndicator(ind.id, { constituents: [...(ind.constituents || []), { symbol: '', weight: 0.1, enabled: true }] })}
-                    >
-                        + Add Symbol
-                    </button>
-                </div>
-            </div>
+            <SymbolsGrid ind={ind} invalidSymbols={invalidSymbols} updateIndicator={updateIndicator} />
+        )}
+        {/* Advance-Decline Line symbols (color is handled by the generic
+            script settings above) */}
+        {groupType === 'adline' && (
+            <SymbolsGrid ind={ind} showWeight={false} invalidSymbols={invalidSymbols} updateIndicator={updateIndicator} />
         )}
         {/* Benchmark Index: membership-driven index rows */}
         {groupType === 'benchmark' && (

@@ -22,6 +22,7 @@ import { computeTSI } from '../tsi';
 import { computeIchimoku } from '../ichimoku';
 import { computeVolumeProfile } from '../volumeProfile';
 import { computeMarketIndex } from '../marketIndex';
+import { computeAdvanceDecline } from '../advanceDecline';
 import { computeBenchmarkLine } from '../benchmarkIndex';
 import { computeBuyVolume } from '../tradingActivity';
 import { DATA } from './golden.test';
@@ -429,6 +430,27 @@ describe('script equivalence', () => {
         expect(result.error).toBeNull();
         const plot = plotOf(result, 'SMI');
         expect(plot.filter(b => b.value !== null).length).toBeGreaterThan(DATA.length / 2);
+    });
+
+    it('adline', () => {
+        const half = Math.floor(DATA.length / 2);
+        const barsBySymbol = {
+            AAPL: DATA.slice(0, half),
+            MSFT: DATA.slice(half).map((d, i) => ({ ...d, time: DATA[i].time })),
+        };
+        const constituents = [
+            { symbol: 'AAPL', enabled: true },
+            { symbol: 'MSFT', enabled: true },
+        ];
+        const result = runScript(
+            scriptCode('adline'), DATA,
+            scriptValues('adline', { color: '#4fc3f7', constituents }),
+            barsBySymbol,
+        );
+        expect(result.error).toBeNull();
+        const expected = computeAdvanceDecline(barsBySymbol, constituents);
+        expectSameBars(plotOf(result, 'A/D Line'), expected);
+        expect(result.plots[0].overlay).toBe(false);
     });
 
     it('benchmark', () => {

@@ -5,6 +5,9 @@ import {
     folderIdFromView,
     stageFromView,
     STAGES,
+    developmentFromView,
+    DEVELOPMENTS,
+    DEVELOPMENT_LABELS,
     filterByQuery,
     sortSessions,
     countSessions,
@@ -32,6 +35,15 @@ const STAGE_VIEWS = STAGES.map(stage => ({
     stage,
     label: `Stage ${stage}`,
     icon: STAGE_ICONS[stage],
+}));
+
+const DEVELOPMENT_ICONS = { DV: '🛠️', BO: '📈', BZ: '🎯', CP: '🧩', PB: '↩️' };
+
+const DEVELOPMENT_VIEWS = DEVELOPMENTS.map(development => ({
+    id: `development:${development}`,
+    development,
+    label: `${development} · ${DEVELOPMENT_LABELS[development]}`,
+    icon: DEVELOPMENT_ICONS[development],
 }));
 
 const formatRelativeTime = (iso) => {    if (!iso) return '';
@@ -98,6 +110,7 @@ const SessionManagerModal = ({
     onToggleFavorite,
     onTogglePortfolio,
     onSetSessionStage,
+    onSetSessionDevelopment,
     onClose,
 }) => {
     const [viewId, setViewId] = useState(initialViewId ?? 'all');
@@ -143,10 +156,12 @@ const SessionManagerModal = ({
 
     const viewFolderId = folderIdFromView(viewId);
     const viewStage = stageFromView(viewId);
+    const viewDevelopment = developmentFromView(viewId);
     const viewTitle = searching
         ? 'Search results'
         : (smartViews.find(v => v.id === viewId)?.label
             ?? (viewStage ? `Stage ${viewStage}` : null)
+            ?? (viewDevelopment ? DEVELOPMENT_LABELS[viewDevelopment] : null)
             ?? folderById.get(viewFolderId)?.name
             ?? 'Sessions');
 
@@ -188,6 +203,7 @@ const SessionManagerModal = ({
         if (viewId === 'favorites') return 'No favorite sessions — click ★ on a session';
         if (viewId === 'portfolio') return 'No portfolio sessions — click 💼 on a session';
         if (viewStage) return `No sessions at stage ${viewStage} — pick one in a session's row`;
+        if (viewDevelopment) return `No sessions at ${viewDevelopment} ${DEVELOPMENT_LABELS[viewDevelopment]} — pick one in a session's row`;
         if (viewId === 'uncategorized') return 'No sessions without a folder';
         return 'No sessions here yet';
     };
@@ -238,6 +254,23 @@ const SessionManagerModal = ({
                         >
                             <option value="">—</option>
                             {STAGES.map(stage => <option key={stage} value={stage}>{stage}</option>)}
+                        </select>
+                        <select
+                            className="sm-move-select sm-development-select"
+                            title="Development (DV = In develop, BO = Breakout, BZ = Buy zone)"
+                            value={session.development ?? ''}
+                            onClick={e => e.stopPropagation()}
+                            onChange={(e) => {
+                                e.stopPropagation();
+                                const development = e.target.value === '' ? null : e.target.value;
+                                if (development !== session.development) onSetSessionDevelopment?.(session.id, development);
+                            }}
+                        >
+                            <option value="">—</option>
+                            {DEVELOPMENTS.map(development =>
+                                <option key={development} value={development} title={DEVELOPMENT_LABELS[development]}>
+                                    {development}
+                                </option>)}
                         </select>
                         {showQuotes ? (
                             stripSymbols.length === 0 ? (
@@ -368,6 +401,18 @@ const SessionManagerModal = ({
                                 <span className="sm-side-count">{counts.byStage.get(view.stage) || 0}</span>
                             </div>
                         ))}
+                        <div className="sm-side-label">Development</div>
+                        {DEVELOPMENT_VIEWS.map(view => (
+                            <div
+                                key={view.id}
+                                className={`sm-side-item${!searching && viewId === view.id ? ' active' : ''}`}
+                                onClick={() => selectView(view.id)}
+                            >
+                                <span className="sm-side-icon">{view.icon}</span>
+                                <span className="sm-side-name">{view.label}</span>
+                                <span className="sm-side-count">{counts.byDevelopment.get(view.development) || 0}</span>
+                            </div>
+                        ))}
                         <div className="sm-side-label">Folders</div>
                         {folders.map(renderFolder)}
                         {creatingFolder ? (
@@ -403,6 +448,7 @@ const SessionManagerModal = ({
                                     <span /><span />
                                     <span>Name</span>
                                     <span className="sm-col-sep">Stage</span>
+                                    <span className="sm-col-sep">Dev</span>
                                     <span className="sm-col-sep">Symbol</span>
                                     <span className="sm-col-sep">Price</span>
                                     <span className="sm-col-sep">Day</span>

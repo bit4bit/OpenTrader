@@ -51,7 +51,7 @@ const historyParams = (symbol, provider, interval, extra = {}) => ({
     symbol, ...(provider ? { provider } : {}), interval, ...extra,
 });
 
-export function useChartData(symbol, provider, interval) {
+export function useChartData(symbol, provider, interval, { refreshTick = 0, refreshMs = null } = {}) {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -98,22 +98,39 @@ export function useChartData(symbol, provider, interval) {
         };
     }, [symbol, provider, interval]);
 
-    useEffect(() => {
-        const intervalId = setInterval(async () => {
-            if (loadingMoreRef.current || dataRef.current.length === 0) return;
-            try {
-                const response = await axios.get('/api/history/', {
-                    params: historyParams(symbol, provider, interval, { range: refreshRangeFor(interval) }),
-                });
-                if (response.data?.length > 0) {
-                    setData(prev => mergeBars([...prev, ...response.data]));
-                }
-            } catch (err) {
-                console.warn('Real-time refresh failed:', err);
+    // Pull the still-moving latest bars: the polling loop's body and the
+    // TopBar's force-refresh run the same fetch.
+    const fetchFreshBars = useCallback(async () => {
+        if (loadingMoreRef.current || dataRef.current.length === 0) return;
+        try {
+            const response = await axios.get('/api/history/', {
+                params: historyParams(symbol, provider, interval, { range: refreshRangeFor(interval) }),
+            });
+            if (response.data?.length > 0) {
+                setData(prev => mergeBars([...prev, ...response.data]));
             }
-        }, refreshMsFor(interval));
-        return () => clearInterval(intervalId);
+        } catch (err) {
+            console.warn('Real-time refresh failed:', err);
+        }
     }, [symbol, provider, interval]);
+
+    // Poll the moving tail at the chosen cadence: null = auto per interval,
+    // 0 = off, > 0 = that many milliseconds for every chart.
+    useEffect(() => {
+        if (refreshMs === 0) return undefined;
+        const intervalId = setInterval(fetchFreshBars, refreshMs ?? refreshMsFor(interval));
+        return () => clearInterval(intervalId);
+    }, [fetchFreshBars, interval, refreshMs]);
+
+    // One manual fetch per refresh click; ticks are ignored until the
+    // first one arrives so mounting doesn't double-fetch behind the
+    // initial load.
+    const appliedRefreshTick = useRef(refreshTick);
+    useEffect(() => {
+        if (refreshTick === appliedRefreshTick.current) return;
+        appliedRefreshTick.current = refreshTick;
+        fetchFreshBars();
+    }, [refreshTick, fetchFreshBars]);
 
     const fetchMoreData = useCallback(async () => {
         const current = dataRef.current;
@@ -162,13 +179,17 @@ export function useChartData(symbol, provider, interval) {
     return { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange, loadUntil };
 }
 
-const MULTI_SYMBOL_TYPES = ['smi', 'benchmark'];
+const MULTI_SYMBOL_TYPES = ['smi', 'adline', 'benchmark'];
 
 // Symbols whose history pane indicators need beyond the chart's own data:
-// SMI constituents and benchmark indexes. Keyed into one fetch pass.
+// SMI constituents, A/D Line symbols and benchmark indexes. Keyed into one
+// fetch pass.
 const multiSymbolKey = (indicators) => indicators
     .filter(i => i.visible && MULTI_SYMBOL_TYPES.includes(i.type))
-    .flatMap(i => (i.type === 'smi' ? i.constituents : i.indexes) || [])
+    .flatMap(i => {
+        if (i.type === 'smi' || i.type === 'adline') return i.constituents || [];
+        return i.indexes || [];
+    })
     .filter(e => e.enabled !== false && e.symbol)
     .map(e => e.symbol)
     .join(',');

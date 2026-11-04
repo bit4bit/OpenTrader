@@ -15,6 +15,7 @@ export function indicatorLabel(groupType, ind, idx) {
         case 'ichimoku': return 'Ichimoku Cloud';
         case 'tsi': return `TSI (${ind.longLength}, ${ind.shortLength}, ${ind.signalLength})`;
         case 'ad': return 'Accum/Dist';
+        case 'adline': return `A/D Line (${(ind.constituents || []).filter(c => c.enabled !== false).length} symbols)`;
         case 'vwap': return ind.anchor === 'session' ? 'VWAP'
             : ind.anchor === 'week' ? 'VWAP WTD'
             : ind.anchor === 'month' ? 'VWAP MTD'

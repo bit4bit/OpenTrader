@@ -20,6 +20,8 @@ const ChartGrid = ({
     positions = [],
     notes = [],
     onDatePick,
+    refreshTick = 0,
+    refreshMs = null,
 }) => {
     if (charts.length === 0) {
         return (
@@ -53,6 +55,8 @@ const ChartGrid = ({
                     positions={positions}
                     notes={notes}
                     onDatePick={onDatePick}
+                    refreshTick={refreshTick}
+                    refreshMs={refreshMs}
                 />
             ))}
         </div>

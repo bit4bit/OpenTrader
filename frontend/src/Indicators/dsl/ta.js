@@ -20,6 +20,7 @@ import { computeTSI } from '../tsi';
 import { computeIchimoku } from '../ichimoku';
 import { computeVolumeProfile } from '../volumeProfile';
 import { computeMarketIndex } from '../marketIndex';
+import { computeAdvanceDecline } from '../advanceDecline';
 import { computeBenchmarkLine, alignedIndexCloses } from '../benchmarkIndex';
 import { computeBuyVolume } from '../tradingActivity';
 import { snapEarningsReports } from '../../chart/earningsBars';
@@ -210,6 +211,11 @@ export function buildTa(data, barsBySymbol = {}) {
         // Multi-symbol weighted index, aligned to the chart's bar times.
         marketIndex: (constituents, baseValue = 100) =>
             align(computeMarketIndex(barsBySymbol, constituents, baseValue)),
+
+        // Cumulative market breadth (advancing - declining counts) over a
+        // basket of symbols, aligned to the chart's bar times.
+        advanceDecline: (symbols) =>
+            align(computeAdvanceDecline(barsBySymbol, symbols)),
 
         // Foreign symbol rebased to the chart's first bar (benchmark compare).
         // As-of alignment keeps daily indexes continuous on intraday charts.

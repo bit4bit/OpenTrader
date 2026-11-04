@@ -13,6 +13,9 @@ const TopBar = ({
     openCustomIndicators,
     openSymbolSearch,
     openSymbolCatalog,
+    onRefreshData,
+    refreshMs = null,
+    onSetRefreshMs,
     gridLayout, onSetGridLayout,
     onAddChart,
     onCloseAll,
@@ -33,6 +36,7 @@ const TopBar = ({
     onToggleFavorite,
     onTogglePortfolio,
     onSetSessionStage,
+    onSetSessionDevelopment,
     showQuotes = false, onToggleQuotes,
     noteOpen = false, onToggleNotes,
     onOpenNotes,
@@ -91,6 +95,7 @@ const TopBar = ({
                     onToggleFavorite={onToggleFavorite}
                     onTogglePortfolio={onTogglePortfolio}
                     onSetSessionStage={onSetSessionStage}
+                    onSetSessionDevelopment={onSetSessionDevelopment}
                     showQuotes={showQuotes}
                     onToggleQuotes={onToggleQuotes}
                 />
@@ -140,6 +145,29 @@ const TopBar = ({
                 >
                     <span style={{ fontSize: '13px' }}>☰</span> Catalog
                 </button>
+                <button
+                    className="toolbar-btn"
+                    onClick={onRefreshData}
+                    disabled={!hasActiveChart}
+                    title="Force pull the latest data for all charts"
+                >
+                    <span style={{ fontSize: '14px' }}>🔄</span>
+                </button>
+                <select
+                    className="top-bar-select"
+                    value={refreshMs == null ? 'auto' : String(refreshMs)}
+                    onChange={(e) => onSetRefreshMs(e.target.value === 'auto' ? null : Number(e.target.value))}
+                    disabled={!hasActiveChart}
+                    title="How often charts pull the latest data automatically"
+                >
+                    <option value="auto">Auto</option>
+                    <option value="0">Off</option>
+                    <option value="5000">5s</option>
+                    <option value="10000">10s</option>
+                    <option value="30000">30s</option>
+                    <option value="60000">1m</option>
+                    <option value="300000">5m</option>
+                </select>
             </div>
 
             <div className="top-bar-divider" />

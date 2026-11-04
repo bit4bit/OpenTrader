@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
+/** GET /api/index-membership/: the benchmark indexes containing `symbol`. */
+export function fetchIndexMembership(symbol) {
+    return axios.get('/api/index-membership/', { params: { symbol } })
+        .then(response => response.data?.indexes || []);
+}
+
 /**
  * Benchmark index membership for a chart symbol, from /api/index-membership/.
  * Returns { code, name, yahoo } entries — `yahoo` is the symbol the history
@@ -14,10 +20,10 @@ export function useIndexMembership(symbol) {
         if (!symbol) return;
         let cancelled = false;
         const timer = setTimeout(() => {
-            axios.get('/api/index-membership/', { params: { symbol } })
-                .then(response => {
+            fetchIndexMembership(symbol)
+                .then(indexes => {
                     if (cancelled) return;
-                    setMembership(response.data?.indexes || []);
+                    setMembership(indexes);
                     setError(null);
                 })
                 .catch(err => {

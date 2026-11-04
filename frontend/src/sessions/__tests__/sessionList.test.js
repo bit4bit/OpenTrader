@@ -6,6 +6,9 @@ import {
     stageViewId,
     stageFromView,
     STAGES,
+    developmentViewId,
+    developmentFromView,
+    DEVELOPMENTS,
     filterByQuery,
     sortSessions,
     countSessions,
@@ -17,9 +20,9 @@ const folders = [
 ];
 
 const sessions = [
-    { id: 1, name: 'AAPL daily', folder: 1, favorite: true, portfolio: false, stage: 2, updated_at: '2026-01-01T00:00:00Z' },
-    { id: 2, name: 'BTC swing', folder: null, favorite: false, portfolio: true, stage: 4, updated_at: '2026-03-01T00:00:00Z' },
-    { id: 3, name: 'SPY macro', folder: 2, favorite: false, portfolio: false, stage: null, updated_at: '2026-02-01T00:00:00Z' },
+    { id: 1, name: 'AAPL daily', folder: 1, favorite: true, portfolio: false, stage: 2, development: 'DV', updated_at: '2026-01-01T00:00:00Z' },
+    { id: 2, name: 'BTC swing', folder: null, favorite: false, portfolio: true, stage: 4, development: 'BO', updated_at: '2026-03-01T00:00:00Z' },
+    { id: 3, name: 'SPY macro', folder: 2, favorite: false, portfolio: false, stage: null, development: null, updated_at: '2026-02-01T00:00:00Z' },
 ];
 
 describe('sessionsInView', () => {
@@ -46,6 +49,14 @@ describe('sessionsInView', () => {
         expect(sessionsInView(sessions, stageViewId(4)).map(s => s.id)).toEqual([2]);
         expect(sessionsInView(sessions, stageViewId(1)).map(s => s.id)).toEqual([]);
     });
+
+    it('filters development views', () => {
+        expect(sessionsInView(sessions, developmentViewId('DV')).map(s => s.id)).toEqual([1]);
+        expect(sessionsInView(sessions, developmentViewId('BO')).map(s => s.id)).toEqual([2]);
+        expect(sessionsInView(sessions, developmentViewId('BZ')).map(s => s.id)).toEqual([]);
+        expect(sessionsInView(sessions, developmentViewId('CP')).map(s => s.id)).toEqual([]);
+        expect(sessionsInView(sessions, developmentViewId('PB')).map(s => s.id)).toEqual([]);
+    });
 });
 
 describe('folderIdFromView', () => {
@@ -69,6 +80,19 @@ describe('stageFromView', () => {
     it('returns null for smart and folder views', () => {
         expect(stageFromView('all')).toBeNull();
         expect(stageFromView(folderViewId(1))).toBeNull();
+    });
+});
+
+describe('developmentFromView', () => {
+    it('round-trips developmentViewId for every development', () => {
+        for (const development of DEVELOPMENTS) {
+            expect(developmentFromView(developmentViewId(development))).toBe(development);
+        }
+    });
+
+    it('returns null for smart and folder views', () => {
+        expect(developmentFromView('all')).toBeNull();
+        expect(developmentFromView(folderViewId(1))).toBeNull();
     });
 });
 
@@ -104,10 +128,11 @@ describe('sortSessions', () => {
 });
 
 describe('countSessions', () => {
-    it('counts sessions per folder, stage and smart views', () => {
+    it('counts sessions per folder, stage, development and smart views', () => {
         expect(countSessions(sessions, folders)).toEqual({
             byFolder: new Map([[1, 1], [2, 1]]),
             byStage: new Map([[1, 0], [2, 1], [3, 0], [4, 1]]),
+            byDevelopment: new Map([['DV', 1], ['BO', 1], ['BZ', 0], ['CP', 0], ['PB', 0]]),
             uncategorized: 1,
             favorites: 1,
             portfolio: 1,

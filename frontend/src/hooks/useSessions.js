@@ -126,6 +126,15 @@ export function useSessions(enabled, onAuthFailed) {
         }
     }, []);
 
+    const setSessionDevelopment = useCallback(async (id, development) => {
+        setSessions(prev => prev.map(s => s.id === id ? { ...s, development } : s));
+        try {
+            await axios.patch(`/api/sessions/${id}/`, { development });
+        } catch (err) {
+            console.warn('Failed to set session development:', err);
+        }
+    }, []);
+
     const deleteSession = useCallback(async (id) => {
         clearTimeout(saveTimers.current.get(id));
         saveTimers.current.delete(id);
@@ -214,6 +223,7 @@ export function useSessions(enabled, onAuthFailed) {
         toggleFavoriteSession,
         togglePortfolioSession,
         setSessionStage,
+        setSessionDevelopment,
         switchSession,
         saveLayout,
         saveNotes,

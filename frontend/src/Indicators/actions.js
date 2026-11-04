@@ -1,8 +1,8 @@
 import { createIndicator, isSingleton } from './scripts';
 
-export function addIndicators(list, type) {
+export function addIndicators(list, type, context) {
     if (isSingleton(type) && list.some(i => i.type === type)) return list;
-    const created = createIndicator(type);
+    const created = createIndicator(type, context);
     if (!created) return list;
     return [...list, ...(Array.isArray(created) ? created : [created])];
 }
