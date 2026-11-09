@@ -26,6 +26,8 @@ export const gridTemplateFor = (id) => {
     };
 };
 
+export const maximizedTemplate = () => ({ gridTemplateColumns: '1fr', gridTemplateRows: '1fr', gridAutoRows: '1fr' });
+
 export const layoutIconCells = (id) => {
     const layout = findLayout(id);
     return { cols: layout.cols ?? 0, rows: layout.rows ?? 0 };

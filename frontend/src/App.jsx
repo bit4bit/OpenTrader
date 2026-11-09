@@ -47,6 +47,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
     closeAllCharts,
     updateChart,
     toggleLock,
+    toggleMaximize,
   } = useCharts(initialLayout, useCallback(
     (layout) => saveLayout(sessionId, layout),
     [saveLayout, sessionId]
@@ -220,6 +221,7 @@ function Workspace({ initialLayout, sessionId, saveLayout, sessionProps, customI
           locked={locked}
           gridLayout={gridLayout}
           onSetGridLayout={setGridLayout}
+          onToggleMaximize={toggleMaximize}
           activeTool={activeTool}
           setActiveTool={setActiveTool}
           magnetEnabled={magnetEnabled}

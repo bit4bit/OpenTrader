@@ -17,6 +17,7 @@ const createChartConfig = (symbol, interval = '1d', description = '') => ({
     indicators: [createIndicator('volume')],
     drawings: [],
     minimizedPanels: [],
+    maximized: false,
     viewports: {},
 });
 
@@ -25,15 +26,21 @@ const defaultLayout = () => {
     return { charts: [chart], activeChartId: chart.id, locked: false, gridLayout: 'auto' };
 };
 
-const normalizeLayout = (layout) => ({
-    ...layout,
-    gridLayout: normalizeGridLayoutId(layout.gridLayout),
-    charts: (layout.charts || []).map(c => ({
-        ...c,
-        symbol: normalizeSymbol(c.symbol),
-        description: c.description || '',
-    })),
-});
+const normalizeLayout = (layout) => {
+    const charts = layout.charts || [];
+    // At most one maximized chart: the first one flagged wins.
+    const maximizedIndex = charts.findIndex(c => c.maximized === true);
+    return {
+        ...layout,
+        gridLayout: normalizeGridLayoutId(layout.gridLayout),
+        charts: charts.map((c, i) => ({
+            ...c,
+            symbol: normalizeSymbol(c.symbol),
+            description: c.description || '',
+            maximized: i === maximizedIndex,
+        })),
+    };
+};
 
 export function useCharts(initialLayout, onLayoutChange) {
     const [layout] = useState(() => {
@@ -57,7 +64,8 @@ export function useCharts(initialLayout, onLayoutChange) {
 
     const addChart = useCallback((symbol, description = '') => {
         const chart = createChartConfig(symbol, '1d', description);
-        setCharts(prev => [...prev, chart]);
+        // A maximized tile would hide the new chart: un-maximize.
+        setCharts(prev => [...prev.map(c => (c.maximized ? { ...c, maximized: false } : c)), chart]);
         setActiveChartId(chart.id);
     }, []);
 
@@ -95,6 +103,21 @@ export function useCharts(initialLayout, onLayoutChange) {
 
     const toggleLock = useCallback(() => setLocked(prev => !prev), []);
 
+    // Only one chart may be maximized: un-maximizes the others and makes
+    // the target chart active.
+    const toggleMaximize = useCallback((id) => {
+        setCharts(prev => {
+            let changed = false;
+            const next = prev.map(c => {
+                if (c.id !== id && !c.maximized) return c;
+                changed = true;
+                return c.id === id ? { ...c, maximized: !c.maximized } : { ...c, maximized: false };
+            });
+            return changed ? next : prev;
+        });
+        setActiveChartId(id);
+    }, []);
+
     return {
         charts,
         activeChartId,
@@ -107,5 +130,6 @@ export function useCharts(initialLayout, onLayoutChange) {
         closeAllCharts,
         updateChart,
         toggleLock,
+        toggleMaximize,
     };
 }

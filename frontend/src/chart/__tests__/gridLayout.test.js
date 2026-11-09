@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRID_LAYOUTS, gridTemplateFor, normalizeGridLayoutId, layoutIconCells } from '../gridLayout';
+import { GRID_LAYOUTS, gridTemplateFor, maximizedTemplate, normalizeGridLayoutId, layoutIconCells } from '../gridLayout';
 
 describe('gridTemplateFor', () => {
     it('returns the legacy auto-fit template for auto', () => {
@@ -25,6 +25,16 @@ describe('gridTemplateFor', () => {
     it('falls back to auto for unknown ids', () => {
         expect(gridTemplateFor('bogus')).toEqual(gridTemplateFor('auto'));
         expect(gridTemplateFor(undefined)).toEqual(gridTemplateFor('auto'));
+    });
+});
+
+describe('maximizedTemplate', () => {
+    it('returns a single full-cell template', () => {
+        expect(maximizedTemplate()).toEqual({
+            gridTemplateColumns: '1fr',
+            gridTemplateRows: '1fr',
+            gridAutoRows: '1fr',
+        });
     });
 });
 

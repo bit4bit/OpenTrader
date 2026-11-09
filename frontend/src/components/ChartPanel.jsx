@@ -65,6 +65,7 @@ const ChartPanel = ({
     chart,
     isActive,
     locked,
+    onToggleMaximize,
     activeTool,
     setActiveTool,
     magnetEnabled = true,
@@ -78,7 +79,7 @@ const ChartPanel = ({
     refreshTick = 0,
     refreshMs = null,
 }) => {
-    const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles, description } = chart;
+    const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles, description, maximized } = chart;
     const symbol = chartSymbol?.symbol || '';
     const provider = chartSymbol?.provider || null;
     const priceDecimals = useProviderPriceDecimals()[provider] ?? DEFAULT_PRICE_DECIMALS;
@@ -192,19 +193,29 @@ const ChartPanel = ({
 
     return (
         <div
-            className={`chart-tile${isActive ? ' active' : ''}`}
+            className={`chart-tile${isActive ? ' active' : ''}${maximized ? ' maximized' : ''}`}
             onMouseDown={onActivate}
         >
             <div className="chart-tile-header">
                 <span className="chart-tile-title">{symbol}{provider ? ` · ${provider}` : ''}{description ? ` · ${description}` : ''} · {interval}{avgVolume != null ? ` · Avg Vol ${formatVolumeValue(avgVolume)}` : ''}</span>
-                <button
-                    className="chart-tile-close"
-                    title="Close chart"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={onClose}
-                >
-                    ✕
-                </button>
+                <div className="chart-tile-actions">
+                    <button
+                        className="chart-tile-maximize"
+                        title={maximized ? 'Minimize chart' : 'Maximize chart (Esc)'}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={() => onToggleMaximize(chart.id)}
+                    >
+                        {maximized ? '⤡' : '⤢'}
+                    </button>
+                    <button
+                        className="chart-tile-close"
+                        title="Close chart"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={onClose}
+                    >
+                        ✕
+                    </button>
+                </div>
             </div>
             <div className="chart-tile-body">
                 {/* TOP LEGEND (Main OHLC) */}

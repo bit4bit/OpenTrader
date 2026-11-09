@@ -907,6 +907,11 @@ div[class*="tradingview"] {
   overflow-y: auto;
 }
 
+/* A maximized tile fills the whole grid; its siblings stay mounted but hidden */
+.chart-grid.maximized .chart-tile:not(.maximized) {
+  display: none;
+}
+
 .chart-tile {
   position: relative;
   display: flex;
@@ -950,6 +955,13 @@ div[class*="tradingview"] {
   color: var(--text-main);
 }
 
+.chart-tile-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .chart-tile-close {
   background: none;
   border: none;
@@ -966,6 +978,24 @@ div[class*="tradingview"] {
   opacity: 1;
   color: var(--down-color);
   background: rgba(239, 83, 80, 0.1);
+}
+
+.chart-tile-maximize {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  opacity: 0.5;
+  transition: all 0.2s;
+}
+
+.chart-tile-maximize:hover {
+  opacity: 1;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .chart-tile-body {
