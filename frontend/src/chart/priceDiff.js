@@ -37,3 +37,12 @@ export function adjacentChangePercent(series, time) {
     if (current == null || previous == null || previous === 0) return null;
     return (current / previous - 1) * 100;
 }
+
+// Chart's close-to-close change minus an overlay line's own bar change, in
+// percentage points: how much more (or less) the chart moved than the line's
+// underlying (e.g. a benchmark index) over the same two bars. Null when
+// either change is missing, so the comparison only shows where both exist.
+export function relativeChangePercent(chartChange, lineChange) {
+    if (chartChange == null || lineChange == null) return null;
+    return chartChange - lineChange;
+}

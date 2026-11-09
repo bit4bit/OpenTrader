@@ -11,7 +11,7 @@ import { averageVolume } from '../chart/averageVolume';
 import { volumeBarTotals, volumeSmaDiffAt } from '../chart/volumeInfo';
 import { visiblePriceRange } from '../chart/visiblePriceRange';
 import { viewportKey, sameViewport } from '../chart/viewport';
-import { priceDiffPercent, adjacentChangePercent, closeChangePercent } from '../chart/priceDiff';
+import { priceDiffPercent, adjacentChangePercent, closeChangePercent, relativeChangePercent } from '../chart/priceDiff';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { addAnchoredVwap, removeIndicator as removeIndicatorIn } from '../Indicators/actions';
@@ -20,6 +20,7 @@ import { qoqEpsChangeAt, nextEarningsReport } from '../chart/earningsLegend';
 
 const formatPrice = (price, decimals) => formatPriceValue(price, decimals);
 const formatPercent = (val) => (val != null ? (val >= 0 ? '+' : '') + val.toFixed(4) + '%' : '');
+const formatPercentPoints = (val) => (val != null ? (val >= 0 ? '+' : '') + val.toFixed(4) + 'pp' : '');
 const formatVolumeValue = (val) => {
     if (val >= 1e9) return (val / 1e9).toFixed(2) + 'B';
     if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M';
@@ -279,6 +280,13 @@ const ChartPanel = ({
                                                     indicatorResults.resultsById[ind.id]?.plots[pi]?.series,
                                                     hoveredData?.price?.time ?? null)
                                                 : null;
+                                            // The chart's own change minus this
+                                            // benchmark's change on the same
+                                            // bars: how much more (or less) the
+                                            // chart moved than the index.
+                                            const relChange = ind.type === 'benchmark'
+                                                ? relativeChangePercent(closeChange, barChange)
+                                                : null;
                                             return (
                                             <div key={pi} className="legend-item">
                                                 <span className="legend-bullet" style={{ backgroundColor: p.color }}></span>
@@ -301,6 +309,15 @@ const ChartPanel = ({
                                                         style={{ color: barChange >= 0 ? '#26a69a' : '#ef5350' }}
                                                     >
                                                         Δ{formatPercent(barChange)}
+                                                    </span>
+                                                )}
+                                                {relChange != null && (
+                                                    <span
+                                                        className="legend-volume-change"
+                                                        title="Chart change minus this index's change vs the previous bar"
+                                                        style={{ color: relChange >= 0 ? '#26a69a' : '#ef5350' }}
+                                                    >
+                                                        Δrel {formatPercentPoints(relChange)}
                                                     </span>
                                                 )}
                                                 {p.change != null && p.value != null && (

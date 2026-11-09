@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { priceDiffPercent, adjacentChangePercent, closeChangePercent } from '../priceDiff';
+import { priceDiffPercent, adjacentChangePercent, closeChangePercent, relativeChangePercent } from '../priceDiff';
 
 describe('priceDiffPercent', () => {
     it('returns the signed percent of the price relative to the value', () => {
@@ -63,5 +63,19 @@ describe('closeChangePercent', () => {
 
     it('returns null when the previous close is zero', () => {
         expect(closeChangePercent([{ time: 10, close: 0 }, { time: 20, close: 105 }], 20)).toBeNull();
+    });
+});
+
+describe('relativeChangePercent', () => {
+    it('returns the chart change minus the line change in percentage points', () => {
+        expect(relativeChangePercent(2.5, 0.5)).toBeCloseTo(2, 9);
+        expect(relativeChangePercent(0.5, 2.5)).toBeCloseTo(-2, 9);
+        expect(relativeChangePercent(1.25, 1.25)).toBe(0);
+    });
+
+    it('returns null when either change is missing', () => {
+        expect(relativeChangePercent(null, 0.5)).toBeNull();
+        expect(relativeChangePercent(0.5, null)).toBeNull();
+        expect(relativeChangePercent(null, null)).toBeNull();
     });
 });
