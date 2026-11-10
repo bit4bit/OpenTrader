@@ -8,6 +8,8 @@ import {
     developmentFromView,
     DEVELOPMENTS,
     DEVELOPMENT_LABELS,
+    ratingFromView,
+    RATINGS,
     filterByQuery,
     sortSessions,
     countSessions,
@@ -45,6 +47,16 @@ const DEVELOPMENT_VIEWS = DEVELOPMENTS.map(development => ({
     development,
     label: `${development} · ${DEVELOPMENT_LABELS[development]}`,
     icon: DEVELOPMENT_ICONS[development],
+}));
+
+// Circled latin capitals match the circled digits used for stages.
+const RATING_ICONS = { A: 'Ⓐ', B: 'Ⓑ', C: 'Ⓒ', D: 'Ⓓ', E: 'Ⓔ' };
+
+const RATING_VIEWS = RATINGS.map(rating => ({
+    id: `rating:${rating}`,
+    rating,
+    label: `Rating ${rating}`,
+    icon: RATING_ICONS[rating],
 }));
 
 const formatRelativeTime = (iso) => {    if (!iso) return '';
@@ -112,6 +124,7 @@ const SessionManagerModal = ({
     onTogglePortfolio,
     onSetSessionStage,
     onSetSessionDevelopment,
+    onSetSessionRating,
     onImportSessions,
     onClose,
 }) => {
@@ -166,11 +179,13 @@ const SessionManagerModal = ({
     const viewFolderId = folderIdFromView(viewId);
     const viewStage = stageFromView(viewId);
     const viewDevelopment = developmentFromView(viewId);
+    const viewRating = ratingFromView(viewId);
     const viewTitle = searching
         ? 'Search results'
         : (smartViews.find(v => v.id === viewId)?.label
             ?? (viewStage ? `Stage ${viewStage}` : null)
             ?? (viewDevelopment ? DEVELOPMENT_LABELS[viewDevelopment] : null)
+            ?? (viewRating ? `Rating ${viewRating}` : null)
             ?? folderById.get(viewFolderId)?.name
             ?? 'Sessions');
 
@@ -213,6 +228,7 @@ const SessionManagerModal = ({
         if (viewId === 'portfolio') return 'No portfolio sessions — click 💼 on a session';
         if (viewStage) return `No sessions at stage ${viewStage} — pick one in a session's row`;
         if (viewDevelopment) return `No sessions at ${viewDevelopment} ${DEVELOPMENT_LABELS[viewDevelopment]} — pick one in a session's row`;
+        if (viewRating) return `No sessions rated ${viewRating} — pick one in a session's row`;
         if (viewId === 'uncategorized') return 'No sessions without a folder';
         return 'No sessions here yet';
     };
@@ -280,6 +296,20 @@ const SessionManagerModal = ({
                                 <option key={development} value={development} title={DEVELOPMENT_LABELS[development]}>
                                     {development}
                                 </option>)}
+                        </select>
+                        <select
+                            className="sm-move-select sm-rating-select"
+                            title="Rating (A-E)"
+                            value={session.rating ?? ''}
+                            onClick={e => e.stopPropagation()}
+                            onChange={(e) => {
+                                e.stopPropagation();
+                                const rating = e.target.value === '' ? null : e.target.value;
+                                if (rating !== session.rating) onSetSessionRating?.(session.id, rating);
+                            }}
+                        >
+                            <option value="">—</option>
+                            {RATINGS.map(rating => <option key={rating} value={rating}>{rating}</option>)}
                         </select>
                         {showQuotes ? (
                             stripSymbols.length === 0 ? (
@@ -422,6 +452,18 @@ const SessionManagerModal = ({
                                 <span className="sm-side-count">{counts.byDevelopment.get(view.development) || 0}</span>
                             </div>
                         ))}
+                        <div className="sm-side-label">Rating</div>
+                        {RATING_VIEWS.map(view => (
+                            <div
+                                key={view.id}
+                                className={`sm-side-item${!searching && viewId === view.id ? ' active' : ''}`}
+                                onClick={() => selectView(view.id)}
+                            >
+                                <span className="sm-side-icon">{view.icon}</span>
+                                <span className="sm-side-name">{view.label}</span>
+                                <span className="sm-side-count">{counts.byRating.get(view.rating) || 0}</span>
+                            </div>
+                        ))}
                         <div className="sm-side-label">Folders</div>
                         {folders.map(renderFolder)}
                         {creatingFolder ? (
@@ -463,6 +505,7 @@ const SessionManagerModal = ({
                                     <span>Name</span>
                                     <span className="sm-col-sep">Stage</span>
                                     <span className="sm-col-sep">Dev</span>
+                                    <span className="sm-col-sep">Rating</span>
                                     <span className="sm-col-sep">Symbol</span>
                                     <span className="sm-col-sep">Price</span>
                                     <span className="sm-col-sep">Day</span>

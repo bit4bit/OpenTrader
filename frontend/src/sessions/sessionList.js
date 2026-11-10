@@ -1,12 +1,15 @@
 const FOLDER_VIEW_PREFIX = 'folder:';
 const STAGE_VIEW_PREFIX = 'stage:';
 const DEVELOPMENT_VIEW_PREFIX = 'development:';
+const RATING_VIEW_PREFIX = 'rating:';
 
 export const STAGES = [1, 2, 3, 4];
 
 export const DEVELOPMENTS = ['DV', 'BO', 'BZ', 'CP', 'PB'];
 
 export const DEVELOPMENT_LABELS = { DV: 'In develop', BO: 'Breakout', BZ: 'Buy zone', CP: 'Constructive pattern', PB: 'Pullback' };
+
+export const RATINGS = ['A', 'B', 'C', 'D', 'E'];
 
 const SMART_VIEW_FILTERS = {
     all: () => true,
@@ -30,6 +33,11 @@ export const developmentViewId = (development) => `${DEVELOPMENT_VIEW_PREFIX}${d
 export const developmentFromView = (viewId) =>
     viewId.startsWith(DEVELOPMENT_VIEW_PREFIX) ? viewId.slice(DEVELOPMENT_VIEW_PREFIX.length) : null;
 
+export const ratingViewId = (rating) => `${RATING_VIEW_PREFIX}${rating}`;
+
+export const ratingFromView = (viewId) =>
+    viewId.startsWith(RATING_VIEW_PREFIX) ? viewId.slice(RATING_VIEW_PREFIX.length) : null;
+
 // A persisted view id is only worth restoring if it still names a view that
 // exists: folder views die with their folder, the rest are always defined.
 export const validViewId = (viewId, folders) => {
@@ -39,6 +47,7 @@ export const validViewId = (viewId, folders) => {
     if (Object.hasOwn(SMART_VIEW_FILTERS, viewId)) return viewId;
     if (STAGES.includes(stageFromView(viewId))) return viewId;
     if (DEVELOPMENTS.includes(developmentFromView(viewId))) return viewId;
+    if (RATINGS.includes(ratingFromView(viewId))) return viewId;
     return null;
 };
 
@@ -49,6 +58,8 @@ export const sessionsInView = (sessions, viewId) => {
     if (stage != null) return sessions.filter(session => session.stage === stage);
     const development = developmentFromView(viewId);
     if (development) return sessions.filter(session => session.development === development);
+    const rating = ratingFromView(viewId);
+    if (rating) return sessions.filter(session => session.rating === rating);
     const filter = SMART_VIEW_FILTERS[viewId] || SMART_VIEW_FILTERS.all;
     return sessions.filter(filter);
 };
@@ -74,6 +85,7 @@ export const countSessions = (sessions, folders) => {
     const byFolder = new Map(folders.map(folder => [folder.id, 0]));
     const byStage = new Map(STAGES.map(stage => [stage, 0]));
     const byDevelopment = new Map(DEVELOPMENTS.map(development => [development, 0]));
+    const byRating = new Map(RATINGS.map(rating => [rating, 0]));
     let uncategorized = 0;
     let favorites = 0;
     let portfolio = 0;
@@ -84,6 +96,7 @@ export const countSessions = (sessions, folders) => {
         if (session.portfolio) portfolio += 1;
         if (byStage.has(session.stage)) byStage.set(session.stage, byStage.get(session.stage) + 1);
         if (byDevelopment.has(session.development)) byDevelopment.set(session.development, byDevelopment.get(session.development) + 1);
+        if (byRating.has(session.rating)) byRating.set(session.rating, byRating.get(session.rating) + 1);
     }
-    return { byFolder, uncategorized, favorites, portfolio, byStage, byDevelopment, total: sessions.length };
+    return { byFolder, uncategorized, favorites, portfolio, byStage, byDevelopment, byRating, total: sessions.length };
 };

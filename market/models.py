@@ -18,6 +18,8 @@ STAGE_CHOICES = [(n, n) for n in range(1, 5)]
 
 DEVELOPMENT_CHOICES = [('DV', 'In develop'), ('BO', 'Breakout'), ('BZ', 'Buy zone'), ('CP', 'Constructive pattern'), ('PB', 'Pullback')]
 
+RATING_CHOICES = [(r, r) for r in 'ABCDE']
+
 
 class Session(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
@@ -29,6 +31,7 @@ class Session(models.Model):
     portfolio = models.BooleanField(default=False)
     stage = models.PositiveSmallIntegerField(null=True, blank=True, choices=STAGE_CHOICES)
     development = models.CharField(max_length=2, null=True, blank=True, choices=DEVELOPMENT_CHOICES)
+    rating = models.CharField(max_length=1, null=True, blank=True, choices=RATING_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

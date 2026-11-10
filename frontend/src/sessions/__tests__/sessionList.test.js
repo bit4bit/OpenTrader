@@ -7,9 +7,12 @@ import {
     stageFromView,
     developmentViewId,
     developmentFromView,
+    ratingViewId,
+    ratingFromView,
     validViewId,
     STAGES,
     DEVELOPMENTS,
+    RATINGS,
     filterByQuery,
     sortSessions,
     countSessions,
@@ -21,9 +24,9 @@ const folders = [
 ];
 
 const sessions = [
-    { id: 1, name: 'AAPL daily', folder: 1, favorite: true, portfolio: false, stage: 2, development: 'DV', updated_at: '2026-01-01T00:00:00Z' },
-    { id: 2, name: 'BTC swing', folder: null, favorite: false, portfolio: true, stage: 4, development: 'BO', updated_at: '2026-03-01T00:00:00Z' },
-    { id: 3, name: 'SPY macro', folder: 2, favorite: false, portfolio: false, stage: null, development: null, updated_at: '2026-02-01T00:00:00Z' },
+    { id: 1, name: 'AAPL daily', folder: 1, favorite: true, portfolio: false, stage: 2, development: 'DV', rating: 'A', updated_at: '2026-01-01T00:00:00Z' },
+    { id: 2, name: 'BTC swing', folder: null, favorite: false, portfolio: true, stage: 4, development: 'BO', rating: 'C', updated_at: '2026-03-01T00:00:00Z' },
+    { id: 3, name: 'SPY macro', folder: 2, favorite: false, portfolio: false, stage: null, development: null, rating: null, updated_at: '2026-02-01T00:00:00Z' },
 ];
 
 describe('sessionsInView', () => {
@@ -57,6 +60,13 @@ describe('sessionsInView', () => {
         expect(sessionsInView(sessions, developmentViewId('BZ')).map(s => s.id)).toEqual([]);
         expect(sessionsInView(sessions, developmentViewId('CP')).map(s => s.id)).toEqual([]);
         expect(sessionsInView(sessions, developmentViewId('PB')).map(s => s.id)).toEqual([]);
+    });
+
+    it('filters rating views', () => {
+        expect(sessionsInView(sessions, ratingViewId('A')).map(s => s.id)).toEqual([1]);
+        expect(sessionsInView(sessions, ratingViewId('C')).map(s => s.id)).toEqual([2]);
+        expect(sessionsInView(sessions, ratingViewId('B')).map(s => s.id)).toEqual([]);
+        expect(sessionsInView(sessions, ratingViewId('E')).map(s => s.id)).toEqual([]);
     });
 });
 
@@ -97,12 +107,26 @@ describe('developmentFromView', () => {
     });
 });
 
+describe('ratingFromView', () => {
+    it('round-trips ratingViewId for every rating', () => {
+        for (const rating of RATINGS) {
+            expect(ratingFromView(ratingViewId(rating))).toBe(rating);
+        }
+    });
+
+    it('returns null for smart and folder views', () => {
+        expect(ratingFromView('all')).toBeNull();
+        expect(ratingFromView(folderViewId(1))).toBeNull();
+    });
+});
+
 describe('validViewId', () => {
-    it('accepts smart, stage and development views', () => {
+    it('accepts smart, stage, development and rating views', () => {
         expect(validViewId('all', folders)).toBe('all');
         expect(validViewId('favorites', folders)).toBe('favorites');
         expect(validViewId(stageViewId(2), folders)).toBe(stageViewId(2));
         expect(validViewId(developmentViewId('DV'), folders)).toBe(developmentViewId('DV'));
+        expect(validViewId(ratingViewId('B'), folders)).toBe(ratingViewId('B'));
     });
 
     it('accepts folder views whose folder still exists', () => {
@@ -152,11 +176,12 @@ describe('sortSessions', () => {
 });
 
 describe('countSessions', () => {
-    it('counts sessions per folder, stage, development and smart views', () => {
+    it('counts sessions per folder, stage, development, rating and smart views', () => {
         expect(countSessions(sessions, folders)).toEqual({
             byFolder: new Map([[1, 1], [2, 1]]),
             byStage: new Map([[1, 0], [2, 1], [3, 0], [4, 1]]),
             byDevelopment: new Map([['DV', 1], ['BO', 1], ['BZ', 0], ['CP', 0], ['PB', 0]]),
+            byRating: new Map([['A', 1], ['B', 0], ['C', 1], ['D', 0], ['E', 0]]),
             uncategorized: 1,
             favorites: 1,
             portfolio: 1,

@@ -32,6 +32,7 @@ def serialize_session(session):
         'portfolio': session.portfolio,
         'stage': session.stage,
         'development': session.development,
+        'rating': session.rating,
         'folder': session.folder_id,
         'created_at': session.created_at.isoformat(),
         'updated_at': session.updated_at.isoformat(),
@@ -137,6 +138,13 @@ class SessionDetail(APIView):
             elif development not in ('DV', 'BO', 'BZ', 'CP', 'PB'):
                 return Response({'error': 'Development must be DV, BO, BZ, CP or PB'}, status=status.HTTP_400_BAD_REQUEST)
             session.development = development
+        if 'rating' in request.data:
+            rating = request.data['rating']
+            if rating in (None, ''):
+                rating = None
+            elif rating not in ('A', 'B', 'C', 'D', 'E'):
+                return Response({'error': 'Rating must be A, B, C, D or E'}, status=status.HTTP_400_BAD_REQUEST)
+            session.rating = rating
         if 'folder' in request.data:
             folder, error = validate_folder_id(request, request.data.get('folder'))
             if error:

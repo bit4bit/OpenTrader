@@ -37,6 +37,7 @@ const TopBar = ({
     onTogglePortfolio,
     onSetSessionStage,
     onSetSessionDevelopment,
+    onSetSessionRating,
     onImportSessions,
     showQuotes = false, onToggleQuotes,
     noteOpen = false, onToggleNotes,
@@ -97,6 +98,7 @@ const TopBar = ({
                     onTogglePortfolio={onTogglePortfolio}
                     onSetSessionStage={onSetSessionStage}
                     onSetSessionDevelopment={onSetSessionDevelopment}
+                    onSetSessionRating={onSetSessionRating}
                     onImportSessions={onImportSessions}
                     showQuotes={showQuotes}
                     onToggleQuotes={onToggleQuotes}

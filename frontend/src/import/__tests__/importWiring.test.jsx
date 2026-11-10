@@ -68,6 +68,7 @@ const Harness = () => {
             onTogglePortfolio={() => {}}
             onSetSessionStage={() => {}}
             onSetSessionDevelopment={() => {}}
+            onSetSessionRating={() => {}}
             onToggleToolbar={() => {}}
         />
     );

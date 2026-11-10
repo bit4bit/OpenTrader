@@ -169,6 +169,15 @@ export function useSessions(enabled, onAuthFailed) {
         }
     }, []);
 
+    const setSessionRating = useCallback(async (id, rating) => {
+        setSessions(prev => prev.map(s => s.id === id ? { ...s, rating } : s));
+        try {
+            await axios.patch(`/api/sessions/${id}/`, { rating });
+        } catch (err) {
+            console.warn('Failed to set session rating:', err);
+        }
+    }, []);
+
     const deleteSession = useCallback(async (id) => {
         clearTimeout(saveTimers.current.get(id));
         saveTimers.current.delete(id);
@@ -259,6 +268,7 @@ export function useSessions(enabled, onAuthFailed) {
         togglePortfolioSession,
         setSessionStage,
         setSessionDevelopment,
+        setSessionRating,
         switchSession,
         saveLayout,
         saveNotes,
