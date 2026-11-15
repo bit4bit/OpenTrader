@@ -194,6 +194,11 @@ const multiSymbolKey = (indicators) => indicators
     .map(e => e.symbol)
     .join(',');
 
+// Stable empty identities: useIndicatorResults memoizes on the data object,
+// so a fresh {} per render would recompute every indicator script each render.
+const EMPTY_BARS_BY_SYMBOL = {};
+const EMPTY_INVALID_SYMBOLS = [];
+
 export function useMarketIndexData(indicators, interval) {
     const symbolsKey = multiSymbolKey(indicators);
     const [barsBySymbol, setBarsBySymbol] = useState({});
@@ -220,8 +225,8 @@ export function useMarketIndexData(indicators, interval) {
     }, [symbolsKey, interval]);
 
     return {
-        data: symbolsKey ? barsBySymbol : {},
-        invalidSymbols: symbolsKey ? invalidSymbols : [],
+        data: symbolsKey ? barsBySymbol : EMPTY_BARS_BY_SYMBOL,
+        invalidSymbols: symbolsKey ? invalidSymbols : EMPTY_INVALID_SYMBOLS,
     };
 }
 

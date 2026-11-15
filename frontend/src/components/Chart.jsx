@@ -83,10 +83,12 @@ const Chart = ({
     const hoveredMeasureRef = useRef(null);
     const priceDecimalsByProvider = useProviderPriceDecimals();
     const priceDecimals = priceDecimalsByProvider[provider] ?? DEFAULT_PRICE_DECIMALS;
-    const chartPositions = positionsForSymbol(positions, symbol);
+    // Memoized: the hover-target effects below key on these arrays, so a
+    // fresh identity per render would re-arm them forever (render loop).
+    const chartPositions = React.useMemo(() => positionsForSymbol(positions, symbol), [positions, symbol]);
     const [positionPos, setPositionPos] = useState({});
 
-    const chartNotes = notesForSymbol(notes, symbol);
+    const chartNotes = React.useMemo(() => notesForSymbol(notes, symbol), [notes, symbol]);
     const [notePos, setNotePos] = useState({});
     const [engineError, setEngineError] = useState(null);
     const currentCrosshairColor = useRef('#758696');
