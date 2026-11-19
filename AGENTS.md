@@ -42,6 +42,9 @@ OpenTrader is an open-source TradingView alternative: Django + DRF backend servi
 - **Clean code / Kent Beck's rules of simple design:** passes tests, reveals intent, no duplication, fewest elements. Make the minimal change that achieves the goal; don't add speculative features.
 - **SOLID.** Single responsibility especially: fetching in hooks, indicator math in `Indicators/`, sync in `sync/`, rendering in components. Extend behavior by adding modules/props, not by growing `App.jsx` or `Chart.jsx`.
 - **No workarounds.** Always look for the most appropriate and best solution. If a bug is caused by bad data or state (e.g. a corrupted session layout), fix the data/state instead of patching the code to tolerate it.
+- **Correctness and clarity first**; speed and efficiency are secondary unless specified (Zed rule).
+- Never silently discard errors: no bare `except:` or `except Exception: pass` around fallible operations. Propagate, or log with context when a failure is genuinely ignorable.
+- Comments explain only tricky, non-obvious "why" — never summarize or narrate what the code does.
 
 ## Commands
 
@@ -65,4 +68,5 @@ The `frontend` container copies `dist/` into the shared `dist` volume served by 
 - Chart state is per-chart: `{ id, symbol, interval, chartType, showWeekendCandles, indicators, drawings }`. Global toolbar actions target the **active** chart (`activeChartId`). `showWeekendCandles` (the 📅 Weekends toggle in the TopBar) makes `Chart.jsx` run price rows through `chart/gapFill.js` so daily-and-above charts render placeholder doji bars across weekends/holidays.
 - Layout (`{charts, activeChartId, locked, gridLayout}`) persists to the active `Session` on the backend via debounced PATCH; the old `opentrader_layout` localStorage key is gone. `gridLayout` is a preset id from `chart/gridLayout.js` (`auto`, `1x1`, `2x1`, `1x2`, `2x2`, `3x2`) chosen via `components/LayoutPicker.jsx` in the TopBar. Sessions require a token from `POST /api/auth/login/`; a new user gets a "My Session" seeded at first login.
 - Sync (lock) works by logical range for zoom/pan and nearest-bar snapping for the crosshair, so charts with different symbols/sessions stay aligned.
-- Commit style: short imperative subject, lowercase (e.g. `add Volume SMA indicator`), optional body explaining why. Every commit message should include `Co-Authored-By: LLM Assisted`.
+- Commit style (Zed convention): subject is capitalized imperative mood, no trailing punctuation, aim for 50 characters or fewer (e.g. `Pad bounded provider fetches`); an optional lowercase scope prefix when one area is clearly the subject (e.g. `market: Pad bounded provider fetches`); separate the subject from the body with a blank line; wrap the body at 72 characters and include it only when it explains non-obvious why — never repeat the subject there. No Conventional Commits prefixes (`fix:`, `feat:`, ...).
+- AGENTS.md (this file) hygiene: rules are traps to avoid, not maps to follow. A new rule needs all three: non-obvious (a good contributor would still get it wrong), repeatedly encountered (more than once), and specific enough to act on. Rules for one subsystem belong in that subsystem's own file or README, not here.
