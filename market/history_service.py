@@ -9,7 +9,10 @@ one full slot behind the boundary — the moving bar always lands inside
 it.
 
 The provider's row conversion lives here because stored rows are the
-same rows the client receives: one orientation, not two.
+same rows the client receives: one orientation, not two. Bounded fetches
+are padded so the provider's edge-degenerate bars fall outside what is
+stored — see _fetch_and_upsert; a bounded fetch also never downgrades a
+stored positive volume to 0/null.
 """
 import datetime
 import logging
@@ -30,6 +33,10 @@ SLOT_SECONDS = {
 PERIOD_SECONDS = {
     '1d': 86400, '5d': 432000, '1mo': 31 * 86400, '1y': 365 * 86400,
 }
+
+# Padded past of every bounded (start, end) provider fetch, in slots —
+# see _fetch_and_upsert.
+SEGMENT_FETCH_PAD_SLOTS = 4
 
 
 class ProviderFetchFailed(Exception):
@@ -145,14 +152,43 @@ def _provider_window(period, start, end):
 def _fetch_and_upsert(provider, provider_name, symbol, interval, **kwargs):
     """Fetch from the provider and absorb it into the store. Returns
     (rows, error) — rows of None means the provider failed; storage is
-    then left untouched (nothing was received)."""
+    then left untouched (nothing was received).
+
+    Bounded windows are padded SEGMENT_FETCH_PAD_SLOTS slots further
+    back and the pad strip is not stored: providers serve a short
+    window's leading bar with garbage volume (yahoo's chart API answers
+    a two-minute 1m pull with [0, None, 0] volumes where the same
+    minutes carry six-figure volume in a wide fetch), and the still-
+    forming bar reports 0/null by construction. Padding keeps every
+    stored bar in the response's healthy interior; a bar refetched
+    after its slot completes — as the tail slides — is interior for
+    several consecutive polls, so a stray degenerate answer cannot
+    freeze it. And a bounded fetch never downgrades a stored positive
+    volume to 0/null: a completed bar keeps the real value some earlier
+    poll saw until a healthy fetch restates it."""
+    requested_start = kwargs.get('start')
+    fetch_kwargs = dict(kwargs)
+    if requested_start is not None and kwargs.get('end') is not None:
+        slot = SLOT_SECONDS.get(interval)
+        if slot:
+            fetch_kwargs['start'] = requested_start - SEGMENT_FETCH_PAD_SLOTS * slot
     try:
-        df = provider.get_history(symbol, interval, **kwargs)
+        df = provider.get_history(symbol, interval, **fetch_kwargs)
     except Exception as error:
         logger.warning('Provider fetch for %s (%s %s) failed: %s',
                        symbol, provider_name, interval, error)
         return None, error
     rows = rows_from_history(df, interval)
+    if requested_start is not None and fetch_kwargs.get('start') != requested_start:
+        rows = [row for row in rows if row['time'] >= requested_start]
+    if requested_start is not None and rows:
+        protected = history_store.positive_volume_times(
+            provider_name, symbol, interval, requested_start,
+            max(row['time'] for row in rows) + 1)
+        if protected:
+            rows = [row for row in rows
+                    if not (row['time'] in protected
+                            and row.get('volume') in (None, 0))]
     history_store.upsert_bars(provider_name, symbol, interval, rows)
     return rows, None
 

@@ -39,6 +39,14 @@ def has_bars(provider, symbol, interval):
     return Bar.objects.filter(provider=provider, symbol=symbol, interval=interval).exists()
 
 
+def positive_volume_times(provider, symbol, interval, start, end):
+    """Times in [start, end) whose stored bar carries a positive volume."""
+    return set(Bar.objects.filter(
+        provider=provider, symbol=symbol, interval=interval,
+        time__gte=start, time__lt=end, volume__gt=0,
+    ).values_list('time', flat=True))
+
+
 def upsert_bars(provider, symbol, interval, bars):
     """Persist bars; the newest fetch wins on duplicate timestamps.
 

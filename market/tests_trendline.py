@@ -126,7 +126,7 @@ class MeasurementBehavior(TestCase):
                                     'start': start, 'end': stamps[2]})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(provider.calls, [{
-            'start': start - DAY, 'end': stamps[2] + 1}])
+            'start': start - DAY - 4 * DAY, 'end': stamps[2] + 1}])
         self.assertEqual(response.json()['anchorStart']['time'], stamps[0])
 
 
