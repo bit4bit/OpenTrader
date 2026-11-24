@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createIndicator } from '../Indicators/scripts';
 import { normalizeGridLayoutId } from '../chart/gridLayout';
+import { REPLAY_SPEEDS } from '../chart/replay';
 
 const normalizeSymbol = (symbol) =>
     typeof symbol === 'string'
@@ -26,6 +27,18 @@ const defaultLayout = () => {
     return { charts: [chart], activeChartId: chart.id, locked: false, gridLayout: 'auto' };
 };
 
+// Replay state persists with the session layout, but a reload must not
+// resume the playback clock on its own.
+const normalizeReplay = (replay) => {
+    if (!replay?.active || !Number.isFinite(replay.cursorTime)) return null;
+    return {
+        active: true,
+        cursorTime: replay.cursorTime,
+        speed: REPLAY_SPEEDS.includes(replay.speed) ? replay.speed : 1,
+        playing: false,
+    };
+};
+
 const normalizeLayout = (layout) => {
     const charts = layout.charts || [];
     // At most one maximized chart: the first one flagged wins.
@@ -38,6 +51,7 @@ const normalizeLayout = (layout) => {
             symbol: normalizeSymbol(c.symbol),
             description: c.description || '',
             maximized: i === maximizedIndex,
+            replay: normalizeReplay(c.replay),
         })),
     };
 };

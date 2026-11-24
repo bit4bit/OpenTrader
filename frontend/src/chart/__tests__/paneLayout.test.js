@@ -94,4 +94,25 @@ describe('sliceToWindow', () => {
         expect(sliceToWindow(series, 'rsi', 2)).toBe(series);
         expect(sliceToWindow(series, 'ad', null)).toBe(series);
     });
+
+    it('cuts everything past the window end (replay cursor)', () => {
+        expect(sliceToWindow(series, 'ad', null, 2)).toEqual([
+            { time: 1, value: 10 },
+            { time: 2, value: 20 },
+        ]);
+        expect(sliceToWindow(series, 'rsi', null, 2)).toEqual([
+            { time: 1, value: 10 },
+            { time: 2, value: 20 },
+        ]);
+    });
+
+    it('slices cumulative series to both window ends', () => {
+        expect(sliceToWindow(series, 'ad', 2, 2)).toEqual([
+            { time: 2, value: 20 },
+        ]);
+    });
+
+    it('returns the series untouched without any bound', () => {
+        expect(sliceToWindow(series, 'rsi', 1, null)).toBe(series);
+    });
 });

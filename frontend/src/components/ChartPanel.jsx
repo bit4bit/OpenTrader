@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import Chart from './Chart';
+import ReplayBar from './ReplayBar';
+import ReplaySetupModal from './ReplaySetupModal';
 import { useChartData, useAdFullData, useMarketIndexData } from '../hooks/useChartData';
 import { useSymbolInfo } from '../hooks/useSymbolInfo';
 import { useSymbolEarnings } from '../hooks/useSymbolEarnings';
@@ -13,6 +15,13 @@ import { visiblePriceRange } from '../chart/visiblePriceRange';
 import { viewportKey, sameViewport } from '../chart/viewport';
 import { priceDiffPercent, adjacentChangePercent, closeChangePercent, relativeChangePercent } from '../chart/priceDiff';
 import { INTRADAY_INTERVALS } from '../chart/timeFormat';
+import {
+    replayTickMs,
+    sliceReplayData,
+    nextReplayTime,
+    replayCursorFor,
+    defaultReplayTime,
+} from '../chart/replay';
 import { SCRIPT_TYPES, isScriptPane, scriptPaneType } from '../Indicators/scripts';
 import { addAnchoredVwap, removeIndicator as removeIndicatorIn } from '../Indicators/actions';
 import { useIndicatorResults } from '../hooks/useIndicatorResults';
@@ -80,16 +89,124 @@ const ChartPanel = ({
     refreshTick = 0,
     refreshMs = null,
 }) => {
-    const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles, description, maximized } = chart;
+    const { symbol: chartSymbol, interval, chartType, indicators, drawings, showWeekendCandles, description, maximized, replay } = chart;
     const symbol = chartSymbol?.symbol || '';
     const provider = chartSymbol?.provider || null;
     const priceDecimals = useProviderPriceDecimals()[provider] ?? DEFAULT_PRICE_DECIMALS;
+    const replayActive = replay?.active ?? false;
+    const replayPlaying = replay?.playing ?? false;
+    const replaySpeed = replay?.speed ?? 1;
+    const replayCursorTime = replay?.cursorTime ?? null;
     const { data, loading, loadingMore, error, unsupported, handleVisibleLogicalRangeChange, loadUntil } = useChartData(symbol, provider, interval, { refreshTick, refreshMs });
     const adFullData = useAdFullData(symbol, provider, interval, indicators);
     const { data: smiData } = useMarketIndexData(indicators, interval);
     const symbolInfo = useSymbolInfo(symbol, provider);
     const earnings = useSymbolEarnings(symbol, provider);
     const [hoveredData, setHoveredData] = useState(null);
+    const [showReplaySetup, setShowReplaySetup] = useState(false);
+    // True while this chart's replay modal owns the armed datePick tool.
+    // While it is set, the modal stays mounted but hidden so the typed
+    // form survives the round trip.
+    const [replayPickArmed, setReplayPickArmed] = useState(false);
+    // The tool leaving datePick (Escape, another chart taking over)
+    // cancels the armed pick; the modal's own Escape listener already
+    // closed it. Adjusted during render — the state reset mirrors a prop
+    // change, like the picked-time prefill in the modal itself.
+    const [lastPickTool, setLastPickTool] = useState(activeTool);
+    if (activeTool !== lastPickTool) {
+        setLastPickTool(activeTool);
+        if (activeTool !== 'datePick') setReplayPickArmed(false);
+    }
+    // A fresh object per pick so re-picking the same candle still
+    // prefills the modal's date/time field.
+    const [replayPick, setReplayPick] = useState(null);
+
+    // Everything downstream — the chart, every indicator, every legend —
+    // sees only the bars the replay cursor has revealed.
+    const visibleData = useMemo(
+        () => (replayActive ? sliceReplayData(data, replayCursorTime) : data),
+        [data, replayActive, replayCursorTime],
+    );
+
+    const replayRef = useRef(replay);
+    useEffect(() => { replayRef.current = replay; }, [replay]);
+
+    // The tick reads the fetched data through a ref: polls and pagination
+    // change the data identity constantly, and re-creating the tick on
+    // every fetch would re-arm (and jitter) the playback clock.
+    const dataRef = useRef(data);
+    useEffect(() => { dataRef.current = data; }, [data]);
+
+    const advanceReplay = useCallback(() => {
+        const current = replayRef.current;
+        if (!current?.active) return;
+        // The cursor can sit before the loaded history while its older
+        // bars load; nothing has been revealed there yet, so the clock
+        // waits instead of jumping to the loaded window's first bar.
+        const rows = dataRef.current;
+        if (rows.length === 0 || rows[0].time > current.cursorTime) return;
+        const next = nextReplayTime(rows, current.cursorTime);
+        // No hidden bar left: the end of the loaded history. The clock
+        // stays armed — polling keeps fetching, so new bars reveal as
+        // they form and the replay continues into realtime.
+        if (next == null) return;
+        onUpdate(chart.id, c => ({ replay: { ...c.replay, cursorTime: next } }));
+    }, [chart.id, onUpdate]);
+
+    // The playback clock: one revealed bar per tick at the chosen speed.
+    // Re-armed on every revealed bar so a tick can never fire against a
+    // cursor that has not committed yet (two rapid ticks would otherwise
+    // both read the same stale cursor and reveal the same bar).
+    useEffect(() => {
+        if (!replayActive || !replayPlaying) return undefined;
+        const id = setInterval(advanceReplay, replayTickMs(replaySpeed));
+        return () => clearInterval(id);
+    }, [replayActive, replayPlaying, replaySpeed, replayCursorTime, advanceReplay]);
+
+    const stepReplay = useCallback(() => {
+        if (!replayRef.current?.playing) advanceReplay();
+    }, [advanceReplay]);
+
+    // A start older than the loaded window pulls the missing history in
+    // until the replay start bar exists.
+    useEffect(() => {
+        if (!replayActive || data.length === 0) return;
+        if (data[0].time > replayCursorTime) loadUntil(replayCursorTime);
+    }, [replayActive, replayCursorTime, data, loadUntil]);
+
+    const startReplay = useCallback((time, speed) => {
+        setShowReplaySetup(false);
+        // Starting plays right away: the speed was already indicated in
+        // the setup, so the chart moves from the picked point.
+        onUpdate(chart.id, { replay: { active: true, cursorTime: replayCursorFor(data, time), speed, playing: true } });
+    }, [chart.id, data, onUpdate]);
+
+    const exitReplay = useCallback(() => {
+        onUpdate(chart.id, { replay: null });
+    }, [chart.id, onUpdate]);
+
+    // Pick the replay start date by clicking a candle: hide the modal,
+    // make this chart active (ChartGrid binds onActivate to this chart)
+    // and arm the datePick tool on it.
+    const pickReplayDate = useCallback(() => {
+        setShowReplaySetup(false);
+        setReplayPickArmed(true);
+        onActivate();
+        setActiveTool('datePick');
+    }, [onActivate, setActiveTool]);
+
+    // The clicked candle's time feeds the replay modal when its pick
+    // flow armed the tool; anything else goes to the global date-pick
+    // flow (positions/notes modals).
+    const handleDatePicked = useCallback((time) => {
+        if (replayPickArmed) {
+            setReplayPickArmed(false);
+            setReplayPick({ time });
+            setShowReplaySetup(true);
+            return;
+        }
+        onDatePick?.(time);
+    }, [replayPickArmed, onDatePick]);
 
     // Visible time window ({ key, fromTime, toTime }), debounced until
     // pan/zoom settles: feeds the volume pane's buy/sell bar totals legend,
@@ -105,16 +222,16 @@ const ChartPanel = ({
         if (!range) return;
         clearTimeout(anchorTimerRef.current);
         anchorTimerRef.current = setTimeout(() => {
-            if (data.length === 0) return;
-            const firstVisibleIndex = Math.min(Math.max(Math.ceil(range.from), 0), data.length - 1);
-            const lastVisibleIndex = Math.min(Math.max(Math.floor(range.to), 0), data.length - 1);
+            if (visibleData.length === 0) return;
+            const firstVisibleIndex = Math.min(Math.max(Math.ceil(range.from), 0), visibleData.length - 1);
+            const lastVisibleIndex = Math.min(Math.max(Math.floor(range.to), 0), visibleData.length - 1);
             setVisibleWindow({
                 key: dataKey,
-                fromTime: data[firstVisibleIndex].time,
-                toTime: data[Math.max(firstVisibleIndex, lastVisibleIndex)].time,
+                fromTime: visibleData[firstVisibleIndex].time,
+                toTime: visibleData[Math.max(firstVisibleIndex, lastVisibleIndex)].time,
             });
         }, 150);
-    }, [handleVisibleLogicalRangeChange, data, dataKey]);
+    }, [handleVisibleLogicalRangeChange, visibleData, dataKey]);
     const overlayWindow = visibleWindow?.key === dataKey ? visibleWindow : null;
 
     // Persisted viewport (zoom + pan) for the chart's current symbol,
@@ -150,15 +267,15 @@ const ChartPanel = ({
         onUpdate(chart.id, c => ({ indicators: removeIndicatorIn(c.indicators, id) }));
     }, [chart.id, onUpdate]);
 
-    const avgVolume = useMemo(() => averageVolume(data, interval), [data, interval]);
+    const avgVolume = useMemo(() => averageVolume(visibleData, interval), [visibleData, interval]);
 
     const priceData = hoveredData?.price;
     const pnl = priceData ? ((priceData.close - priceData.open) / priceData.open * 100) : null;
     const pnlColor = pnl >= 0 ? '#26a69a' : '#ef5350';
-    const closeChange = priceData ? closeChangePercent(data, priceData.time) : null;
+    const closeChange = priceData ? closeChangePercent(visibleData, priceData.time) : null;
     const closeChangeColor = closeChange >= 0 ? '#26a69a' : '#ef5350';
 
-    const indicatorResults = useIndicatorResults(data, adFullData, indicators, scriptsById, smiData, symbolInfo, earnings, overlayWindow);
+    const indicatorResults = useIndicatorResults(visibleData, adFullData, indicators, scriptsById, smiData, symbolInfo, earnings, overlayWindow);
 
     const activePaneTypes = computeActivePaneTypes(indicators, indicatorResults.paneIds);
     const isPaneType = (type) => type === 'custom' || isScriptPane(type);
@@ -173,14 +290,14 @@ const ChartPanel = ({
     // volume bars' own up/down coloring.
     const visibleVolumeTotals = useMemo(() => {
         if (visibleWindow?.key !== dataKey) return null;
-        return volumeBarTotals(data, visibleWindow.fromTime, visibleWindow.toTime);
-    }, [data, visibleWindow, dataKey]);
+        return volumeBarTotals(visibleData, visibleWindow.fromTime, visibleWindow.toTime);
+    }, [visibleData, visibleWindow, dataKey]);
     // Visible-scale price extremes (lowest low, highest high, spread in
     // percent) for the range legend next to the OHLC readout.
     const rangeStats = useMemo(() => {
         if (visibleWindow?.key !== dataKey) return null;
-        return visiblePriceRange(data, visibleWindow.fromTime, visibleWindow.toTime);
-    }, [data, visibleWindow, dataKey]);
+        return visiblePriceRange(visibleData, visibleWindow.fromTime, visibleWindow.toTime);
+    }, [visibleData, visibleWindow, dataKey]);
     const volumeUpColor = volumeIndicator?.upColor ?? '#26a69a';
     const volumeDownColor = volumeIndicator?.downColor ?? '#ef5350';
     const formatWindowVolume = (val) =>
@@ -200,6 +317,14 @@ const ChartPanel = ({
             <div className="chart-tile-header">
                 <span className="chart-tile-title">{symbol}{provider ? ` · ${provider}` : ''}{description ? ` · ${description}` : ''} · {interval}{avgVolume != null ? ` · Avg Vol ${formatVolumeValue(avgVolume)}` : ''}</span>
                 <div className="chart-tile-actions">
+                    <button
+                        className={`chart-tile-replay${replayActive ? ' active' : ''}`}
+                        title="Bar replay: hide the future and step or play forward"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={() => setShowReplaySetup(true)}
+                    >
+                        ⏱
+                    </button>
                     <button
                         className="chart-tile-maximize"
                         title={maximized ? 'Minimize chart' : 'Maximize chart (Esc)'}
@@ -343,7 +468,7 @@ const ChartPanel = ({
                             const plots = hoveredData?.generic?.[ind.id] ?? [];
                             const buyersValue = ind.type === 'trading_activity' ? plots[1]?.value : null;
                             const qoqChange = ind.type === 'earnings'
-                                ? qoqEpsChangeAt(data, earnings, hoveredData?.price?.time ?? null)
+                                ? qoqEpsChangeAt(visibleData, earnings, hoveredData?.price?.time ?? null)
                                 : null;
                             const nextReport = ind.type === 'earnings'
                                 ? nextEarningsReport(earnings)
@@ -519,6 +644,11 @@ const ChartPanel = ({
                         Fetching historical data...
                     </div>
                 )}
+                {replayActive && visibleData.length === 0 && !loading && (
+                    <div className="chart-loader initial-loader">
+                        Loading history for replay…
+                    </div>
+                )}
                 {error && !loading && (
                     <div className="chart-error-overlay">
                         {error}
@@ -538,7 +668,7 @@ const ChartPanel = ({
                         chartId={chart.id}
                         isActive={isActive}
                         syncEnabled={locked}
-                        data={data}
+                        data={visibleData}
                         chartType={chartType}
                         showWeekendCandles={showWeekendCandles}
                         symbol={symbol}
@@ -551,7 +681,7 @@ const ChartPanel = ({
                         setActiveTool={setActiveTool}
                         onAddAnchorIndicator={addAnchorIndicator}
                         onRemoveIndicator={removeIndicator}
-                        onDatePick={onDatePick}
+                        onDatePick={handleDatePicked}
                         magnetEnabled={magnetEnabled}
                         viewport={storedViewport}
                         onViewportChange={handleViewportChange}
@@ -562,6 +692,32 @@ const ChartPanel = ({
                         symbolInfo={symbolInfo}
                         positions={positions}
                         notes={notes}
+                        replay={replay}
+                    />
+                )}
+                {replayActive && replay && (
+                    <ReplayBar
+                        replay={replay}
+                        interval={interval}
+                        atEnd={nextReplayTime(data, replay.cursorTime) == null}
+                        onTogglePlay={() => onUpdate(chart.id, c => ({ replay: { ...c.replay, playing: !c.replay.playing } }))}
+                        onStep={stepReplay}
+                        onSetSpeed={(speed) => onUpdate(chart.id, c => ({ replay: { ...c.replay, speed } }))}
+                        onExit={exitReplay}
+                    />
+                )}
+                {(showReplaySetup || replayPickArmed) && (
+                    <ReplaySetupModal
+                        hidden={replayPickArmed}
+                        data={data}
+                        interval={interval}
+                        initialTime={replayActive ? replayCursorTime : defaultReplayTime(data)}
+                        pickedTime={replayPick}
+                        initialSpeed={replaySpeed}
+                        canPickDate
+                        onPickDate={pickReplayDate}
+                        onStart={startReplay}
+                        onClose={() => setShowReplaySetup(false)}
                     />
                 )}
             </div>

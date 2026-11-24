@@ -40,10 +40,12 @@ export function scriptPaneKey(ind) {
 }
 
 // Cumulative indicators run over full history; slice plots back to the
-// currently loaded window.
-export function sliceToWindow(series, indicatorType, firstTime) {
-    if (needsFullData(indicatorType) && firstTime != null) {
-        return series.filter(b => b.time >= firstTime);
-    }
-    return series;
+// currently loaded window. The window can also end early (replay hides
+// the future): full-history series must not draw past the cursor.
+export function sliceToWindow(series, indicatorType, firstTime, lastTime = null) {
+    const needsStart = needsFullData(indicatorType) && firstTime != null;
+    if (!needsStart && lastTime == null) return series;
+    return series.filter(b =>
+        (!needsStart || b.time >= firstTime)
+        && (lastTime == null || b.time <= lastTime));
 }

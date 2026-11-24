@@ -12,7 +12,8 @@ import { findNearestBar } from '../chart/barSearch';
 import { isDrawingTool, buildPreviewDrawing } from '../chart/drawingTools';
 import { anchoredVwapInputs, erasableVwapAt } from '../chart/anchorVwap';
 import { applyDrawingClick, edgeRange } from '../chart/drawingInteraction';
-import { captureViewport, restoreViewport } from '../chart/viewport';
+import { captureViewport, restoreViewport, indexOfTime } from '../chart/viewport';
+import { REPLAY_RIGHT_BARS } from '../chart/replay';
 import { buildLegendResults } from '../chart/crosshairLegend';
 import { volumeChangeAt, volumeSplitAt, volumeSplitTotal } from '../chart/volumeInfo';
 import { measureContains } from '../chart/measureStats';
@@ -63,7 +64,8 @@ const Chart = ({
     indicatorResults = {},
     symbolInfo = null,
     positions = [],
-    notes = []
+    notes = [],
+    replay = null
 }) => {
     const containerRef = useRef();
     const engineRef = useRef(null);
@@ -142,7 +144,13 @@ const Chart = ({
     const magnetEnabledRef = useRef(magnetEnabled);
     const drawingsRef = useRef(drawings);
     const chartIdRef = useRef(chartId);
+    const replayRef = useRef(replay);
+    // Previous pass's replay state and displayed rows: the replay view
+    // logic in the main update loop diffs against them.
+    const prevReplayRef = useRef(null);
+    const prevRowsRef = useRef(null);
     useEffect(() => { drawingsRef.current = drawings; }, [drawings]);
+    useEffect(() => { replayRef.current = replay; }, [replay]);
     useEffect(() => { onRangeChangeRef.current = onVisibleLogicalRangeChange; }, [onVisibleLogicalRangeChange]);
     useEffect(() => { onViewportChangeRef.current = onViewportChange; }, [onViewportChange]);
     useEffect(() => { displayRowsRef.current = displayPriceRows; }, [displayPriceRows]);
@@ -517,6 +525,7 @@ const Chart = ({
                 // Cumulative indicators run over full history; slice plots
                 // back to the currently loaded window (like the old A/D path).
                 const firstTime = data.length > 0 ? data[0].time : null;
+                const lastTime = data.length > 0 ? data[data.length - 1].time : null;
 
                 let existing = genericSeriesRef.current[ind.id];
                 if (existing && existing.length !== res.plots.length) {
@@ -548,7 +557,7 @@ const Chart = ({
                 res.plots.forEach((p, i) => {
                     const entry = existing[i];
                     entry.series.applyOptions({ color: p.color, title: p.title });
-                    entry.series.setData(sliceToWindow(p.series, ind.type, firstTime));
+                    entry.series.setData(sliceToWindow(p.series, ind.type, firstTime, lastTime));
                     entry.title = p.title;
                     entry.color = p.color;
                     entry.legend = p.legend;
@@ -573,12 +582,15 @@ const Chart = ({
         // Restore the persisted viewport (zoom + pan) on first load. The
         // window is anchored on a bar time, so if the anchor bar is older
         // than the loaded history, fetch it and retry on the next update;
-        // fitContent only when nothing is persisted.
+        // fitContent only when nothing is persisted. Replay overrides
+        // both: its cursor decides where the window sits.
         if (isFirstLoad.current && data.length > 0) {
             isFirstLoad.current = false;
-            if (viewportRef.current) awaitingViewportRef.current = viewportRef.current;
-            // fitContent alone covers the engine's 20-bar right offset.
-            else engine.fitContent();
+            if (!replayRef.current?.active) {
+                if (viewportRef.current) awaitingViewportRef.current = viewportRef.current;
+                // fitContent alone covers the engine's 20-bar right offset.
+                else engine.fitContent();
+            }
         }
         if (awaitingViewportRef.current && displayPriceRows.length > 0) {
             const saved = awaitingViewportRef.current;
@@ -593,6 +605,67 @@ const Chart = ({
                     onNeedHistoryRef.current?.(saved.fromTime);
                 }
             }
+        }
+
+        // Replay view handling. The engine never shifts the view itself
+        // (shiftVisibleRangeOnNewBar is false), so this pass must:
+        // - jump the window to the cursor bar when replay turns on, and
+        //   again when a re-picked start moves the cursor backwards;
+        // - follow the right edge as bars are revealed, but only while
+        //   the window already sat at that edge (panning away during
+        //   playback must stick).
+        const replayState = replayRef.current;
+        const prevReplay = prevReplayRef.current;
+        if (replayState?.active) {
+            const movedBack = prevReplay?.active && replayState.cursorTime < prevReplay.cursorTime;
+            if (!prevReplay?.active || movedBack) {
+                const index = indexOfTime(displayPriceRows, replayState.cursorTime);
+                if (index >= 0) {
+                    const range = engine.getVisibleRange();
+                    const width = range ? range.to - range.from : 120;
+                    engine.setVisibleRange({
+                        from: index + REPLAY_RIGHT_BARS - width,
+                        to: index + REPLAY_RIGHT_BARS,
+                    });
+                }
+            } else {
+                const prev = prevRowsRef.current;
+                const range = engine.getVisibleRange();
+                if (prev && range) {
+                    const lastTime = displayPriceRows[displayPriceRows.length - 1].time;
+                    if (displayPriceRows[0].time !== prev.firstTime && lastTime === prev.lastTime) {
+                        // Prepended history (left-edge pagination) shifts
+                        // every logical index; slide the window by the same
+                        // count so it stays on the same bars — otherwise
+                        // the view lands on the prepended window and the
+                        // replay looks frozen.
+                        const delta = indexOfTime(displayPriceRows, prev.firstTime);
+                        engine.setVisibleRange({ from: range.from + delta, to: range.to + delta });
+                    } else if (
+                        // Growth at the right end only: the same leading
+                        // bar and a new last bar. Whole-window replacements
+                        // (symbol/interval switches) leave the view alone.
+                        displayPriceRows.length > prev.length
+                        && displayPriceRows[0].time === prev.firstTime
+                        && lastTime !== prev.lastTime
+                        && range.to >= prev.length - 1 + REPLAY_RIGHT_BARS - 1
+                    ) {
+                        // Follow the right edge as bars are revealed, but
+                        // only while the window already sat at that edge
+                        // (panning away during playback must stick).
+                        const delta = displayPriceRows.length - prev.length;
+                        engine.setVisibleRange({ from: range.from + delta, to: range.to + delta });
+                    }
+                }
+            }
+        }
+        prevReplayRef.current = replayState;
+        if (displayPriceRows.length > 0) {
+            prevRowsRef.current = {
+                length: displayPriceRows.length,
+                firstTime: displayPriceRows[0].time,
+                lastTime: displayPriceRows[displayPriceRows.length - 1].time,
+            };
         }
 
         // Re-anchor edge jumps after data updates so prepended/appended

@@ -998,6 +998,29 @@ div[class*="tradingview"] {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.chart-tile-replay {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  opacity: 0.5;
+  transition: all 0.2s;
+}
+
+.chart-tile-replay:hover {
+  opacity: 1;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.chart-tile-replay.active {
+  opacity: 1;
+  color: var(--accent);
+}
+
 .chart-tile-body {
   position: relative;
   flex: 1;
@@ -2436,3 +2459,155 @@ div[class*="tradingview"] {
   cursor: default;
 }
 
+
+/* Bar replay: playback controls over a chart tile, and the start-point
+   setup modal. */
+
+.replay-bar {
+  position: absolute;
+  right: 8px;
+  bottom: 28px;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 16px);
+  gap: 4px;
+  padding: 4px 6px;
+  background: rgba(30, 34, 45, 0.95);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.replay-bar-btn {
+  background: none;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.replay-bar-btn:hover:not(:disabled) {
+  background: rgba(41, 98, 255, 0.25);
+}
+
+.replay-bar-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.replay-bar-exit:hover:not(:disabled) {
+  background: rgba(242, 54, 69, 0.2);
+  color: var(--down-color);
+}
+
+.replay-bar-speed {
+  background-color: var(--bg-dark-lighter);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.replay-bar-time {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.replay-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5000;
+}
+
+.replay-modal {
+  width: 320px;
+  background-color: var(--bg-dark-lighter);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.replay-modal-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.replay-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.replay-modal-field input,
+.replay-modal-field select {
+  background-color: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-main);
+  font-size: 12px;
+  padding: 6px 8px;
+  font-family: inherit;
+  color-scheme: dark;
+}
+
+.replay-modal-field input:focus,
+.replay-modal-field select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.replay-modal-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.replay-modal-pick {
+  align-self: flex-start;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-main);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.replay-modal-pick:hover {
+  border-color: var(--accent);
+  background: rgba(41, 98, 255, 0.15);
+}
+
+.replay-modal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.replay-modal-error {
+  font-size: 11px;
+  color: var(--down-color);
+}
